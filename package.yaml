@@ -1,0 +1,68 @@
+name: dawn-phase1
+version: 0.1.0.0
+github: "scottjmaddox/dawn-phase1"
+license-file:
+  - "LICENSE-APACHE"
+  - "LICENSE-ZLIB"
+license: "Apache-2.0 OR Zlib"
+author: "Scott J Maddox"
+maintainer: "scottjmaddox@gmail.com"
+copyright: "2020 Scott J Maddox"
+
+extra-source-files:
+  - README.md
+
+description: Please see the README on GitHub at <https://github.com/scottjmaddox/dawn-phase1#readme>
+
+dependencies:
+  - base >= 4.7 && < 5
+  - containers
+  - mtl
+  - parsec
+
+library:
+  source-dirs: src
+
+executables:
+  dawni:
+    main: dawni.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - dawn-phase1
+      - haskeline
+  
+  enumerate-exprs:
+    main: enumerate-exprs.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - dawn-phase1
+  
+  enumerate-non-typeable-exprs:
+    main: enumerate-non-typeable-exprs.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - dawn-phase1
+
+tests:
+  dawn-phase1-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - dawn-phase1
+      - hspec
