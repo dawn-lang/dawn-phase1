@@ -193,6 +193,11 @@ spec = do
             Left _ -> return ()
             Right t -> (display e, Right t) `shouldBe` (display e, inferNormType (partialEval e))
       mapM_ iter (allExprsUpToWidthAndDepth 2 1)
+    
+    it "preserves type of `[clone] clone compose`" $ do
+      let (Right e) = parseExpr "[clone] clone compose"
+      fmap display (inferNormType e)
+        `shouldBe` fmap display (inferNormType (partialEval e))
 
     it "preserves type of `[clone] [[drop] compose] compose`" $ do
       let (Right e) = parseExpr "[clone] [[drop] compose] compose"
