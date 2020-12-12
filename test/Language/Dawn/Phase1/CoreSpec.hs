@@ -182,6 +182,11 @@ spec = do
           ( forall [v0, v3] (v0 * (v0 * forall [v1, v2] (v1 * v2 --> v1 * v2 * v2) --> v3) --> v3)
           )
 
+    it "infers `(clone [drop]) compose` == `clone ([drop] compose)`" $ do
+      let e1 = ECompose [ECompose [clone, EQuote drop], compose]
+      let e2 = ECompose [clone, ECompose [EQuote drop, compose]]
+      inferNormType e1 `shouldBe` inferNormType e2
+
   describe "partialEval" $ do
     it "preserves types" $ do
       let iter e = case inferNormType e of
