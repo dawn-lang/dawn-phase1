@@ -5,6 +5,7 @@
 
 module Main where
 
+import Control.Monad
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Parse
@@ -24,7 +25,9 @@ readEvalPrint = do
     Nothing -> return ()
     Just line -> case parseExpr line of
       Left err -> outputStrLn (show err)
-      Right e -> printExprType (partialEval e)
+      Right e -> do
+        printExprType e
+        when (e /= partialEval e) $ printExprType (partialEval e)
 
 printExprType e = do
   outputStr ("`" ++ display e ++ "`")
