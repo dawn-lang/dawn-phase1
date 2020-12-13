@@ -15,9 +15,16 @@ class Display t where
 
 instance Display Expr where
   display (EIntrinsic intr) = display intr
+  display (EQuote (ECompose es)) = "[" ++ unwords (displayedExprs es) ++ "]"
   display (EQuote e) = "[" ++ display e ++ "]"
-  display (ECompose []) = ""
-  display (ECompose es) = unwords (map display es)
+  display (ECompose es) = unwords (displayedExprs es)
+
+displayedExprs :: [Expr] -> [String]
+displayedExprs [] = []
+displayedExprs (ECompose es : es') = case displayedExprs es of
+  [] -> "()" : displayedExprs es'
+  (de : des) -> ["(" ++ de] ++ init des ++ [last des ++ ")"] ++ displayedExprs es'
+displayedExprs (e : es) = display e : displayedExprs es
 
 instance Display Intrinsic where
   display IClone = "clone"
