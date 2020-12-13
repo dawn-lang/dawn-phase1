@@ -30,7 +30,7 @@ readEvalPrint = do
         when (e /= partialEval e) $ printExprType (partialEval e)
 
 printExprType e = do
-  outputStr ("`" ++ display e ++ "`")
+  outputStr (display e)
   case inferType e of
     Left e -> outputStrLn $ " is not typeable. " ++ display e
     Right t -> outputStrLn $ " :: " ++ display (normalizeType t)

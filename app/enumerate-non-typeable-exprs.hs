@@ -15,5 +15,5 @@ main = do
 
 printExprType e = do
   case inferType e of
-    Left err -> putStrLn $ "`" ++ display e ++ "` is not typeable. " ++ display err
+    Left err -> putStrLn $ display e ++ " is not typeable. " ++ display err
     Right _ -> return ()
