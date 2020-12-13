@@ -332,6 +332,8 @@ inferType (ECompose es) = do
 ------------------------
 
 partialEval :: Expr -> Expr
+partialEval e@(EIntrinsic _) = e
+partialEval (EQuote e) = EQuote (partialEval e)
 partialEval (ECompose es) = case iter [] es of
   [e] -> e
   es -> ECompose es
@@ -357,4 +359,3 @@ partialEval (ECompose es) = case iter [] es of
         else iter (init es') (last es' : e : es)
     iter es' ((ECompose es'') : es) = iter es' (es'' ++ es)
     iter es' (e : es) = iter (es' ++ [e]) es
-partialEval e = e
