@@ -18,8 +18,9 @@ expr :: Parser Expr
 expr = skipMany space *> composed
 
 composed = do
-  es <- many1 (grouped <|> quoted <|> intrinsic)
+  es <- many (grouped <|> quoted <|> intrinsic)
   case es of
+    [] -> return (ECompose [])
     [e] -> return e
     es -> return (ECompose es)
 
