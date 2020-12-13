@@ -185,8 +185,8 @@ spec = do
           )
 
     it "infers `(clone [drop]) compose` == `clone ([drop] compose)`" $ do
-      let e1 = ECompose [ECompose [clone, EQuote drop], compose]
-      let e2 = ECompose [clone, ECompose [EQuote drop, compose]]
+      let (Right e1) = parseExpr "(clone [drop]) compose"
+      let (Right e2) = parseExpr "clone ([drop] compose)"
       inferNormType e1 `shouldBe` inferNormType e2
 
     it "infers the same type for all groupings" $ do
