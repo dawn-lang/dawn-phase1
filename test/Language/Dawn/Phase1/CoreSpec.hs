@@ -250,3 +250,8 @@ spec = do
       let e = ECompose [EQuote clone, apply]
       let e' = clone
       partialEval e `shouldBe` e'
+
+    it "evals `[([swap] clone) compose]`" $ do
+      let (Right e) = parseExpr "[([swap] clone) compose]"
+      let (Right e') = parseExpr "[[swap swap]]"
+      partialEval e `shouldBe` e'
