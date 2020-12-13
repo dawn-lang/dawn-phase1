@@ -48,6 +48,14 @@ spec = do
       parseExpr "[[clone] apply]"
         `shouldBe` Right (EQuote (ECompose [EQuote clone, apply]))
 
+    it "parses `(clone swap) clone`" $ do
+      parseExpr "(clone swap) clone"
+        `shouldBe` Right  (ECompose [ECompose [clone, swap], clone])
+
+    it "parses `clone (swap clone)`" $ do
+      parseExpr "clone (swap clone)"
+        `shouldBe` Right  (ECompose [clone, ECompose [swap, clone]])
+
     it "fails on ``" $ do
       let (Left err) = parseExpr ""
       let pos = errorPos err

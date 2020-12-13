@@ -18,10 +18,12 @@ expr :: Parser Expr
 expr = skipMany space *> composed
 
 composed = do
-  es <- many1 (quoted <|> intrinsic)
+  es <- many1 (grouped <|> quoted <|> intrinsic)
   case es of
     [e] -> return e
     es -> return (ECompose es)
+
+grouped = between (symbol '(') (symbol ')') expr
 
 quoted = between (symbol '[') (symbol ']') (EQuote <$> expr)
 
