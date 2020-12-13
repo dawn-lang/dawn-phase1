@@ -189,6 +189,11 @@ spec = do
       let (Right e2) = parseExpr "clone ([drop] compose)"
       inferNormType e1 `shouldBe` inferNormType e2
 
+    it "infers `([swap] clone) compose` == `[swap] (clone compose)`" $ do
+      let (Right e1) = parseExpr "([swap] clone) compose"
+      let (Right e2) = parseExpr "[swap] (clone compose)"
+      inferNormType e1 `shouldBe` inferNormType e2
+
     it "infers the same type for all groupings" $ do
       let iter e = do
             let d = display e
