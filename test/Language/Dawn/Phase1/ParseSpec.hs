@@ -18,6 +18,9 @@ import Prelude hiding (drop, (*))
 spec :: Spec
 spec = do
   describe "parseExpr" $ do
+    it "parses ``" $ do
+      parseExpr "" `shouldBe` Right (ECompose [])
+
     it "parses `()`" $ do
       parseExpr "()" `shouldBe` Right (ECompose [])
 
@@ -58,12 +61,6 @@ spec = do
     it "parses `clone (swap clone)`" $ do
       parseExpr "clone (swap clone)"
         `shouldBe` Right  (ECompose [clone, ECompose [swap, clone]])
-
-    it "fails on ``" $ do
-      let (Left err) = parseExpr ""
-      let pos = errorPos err
-      sourceLine pos `shouldBe` 1
-      sourceColumn pos `shouldBe` 1
 
     it "fails on `foo`" $ do
       let (Left err) = parseExpr "foo"
