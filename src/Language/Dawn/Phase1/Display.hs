@@ -17,6 +17,7 @@ instance Display Expr where
   display (EIntrinsic intr) = display intr
   display (EQuote (ECompose es)) = "[" ++ unwords (displayedExprs es) ++ "]"
   display (EQuote e) = "[" ++ display e ++ "]"
+  display (ECompose []) = "()"
   display (ECompose es) = unwords (displayedExprs es)
 
 displayedExprs :: [Expr] -> [String]
