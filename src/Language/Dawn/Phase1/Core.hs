@@ -357,5 +357,6 @@ partialEval (ECompose es) = case iter [] es of
       if null es'
         then iter [] (e : es)
         else iter (init es') (last es' : e : es)
-    iter es' ((ECompose es'') : es) = iter es' (es'' ++ es)
+    iter [] ((ECompose es'') : es) = iter [] (es'' ++ es)
+    iter es' ((ECompose es'') : es) = iter (init es') (last es' : es'' ++ es)
     iter es' (e : es) = iter (es' ++ [e]) es
