@@ -6,6 +6,8 @@
 module Language.Dawn.Phase1.CoreSpec (spec) where
 
 import Control.Exception
+import Control.Monad
+import Data.Either
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
@@ -187,13 +189,23 @@ spec = do
       let e2 = ECompose [clone, ECompose [EQuote drop, compose]]
       inferNormType e1 `shouldBe` inferNormType e2
 
+    it "infers the same type for all groupings" $ do
+      let iter e = do
+            let d = display e
+            let es = allGroupings e
+            let ts = filter isRight (map inferNormType es)
+            when
+              (length ts > 1)
+              (mapM_ (\t' -> (d, head ts) `shouldBe` (d, t')) (tail ts))
+      mapM_ iter (allExprsUpToWidthAndDepth 3 1)
+
   describe "partialEval" $ do
     it "preserves types" $ do
       let iter e = case inferNormType e of
             Left _ -> return ()
             Right t -> (display e, Right t) `shouldBe` (display e, inferNormType (partialEval e))
       mapM_ iter (allExprsUpToWidthAndDepth 2 1)
-    
+
     it "preserves type of `[clone] clone compose`" $ do
       let (Right e) = parseExpr "[clone] clone compose"
       fmap display (inferNormType e)

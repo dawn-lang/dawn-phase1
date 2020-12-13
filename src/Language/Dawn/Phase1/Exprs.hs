@@ -6,6 +6,7 @@
 module Language.Dawn.Phase1.Exprs
   ( allExprsOfWidthUpToDepth,
     allExprsUpToWidthAndDepth,
+    allGroupings,
     allUnquotedExprsOfWidth,
     intToIntrinsic,
   )
@@ -31,6 +32,20 @@ allIntrinsicCombinations width =
 
 allUnquotedExprsOfWidth :: Int -> [Expr]
 allUnquotedExprsOfWidth width = map ECompose (allIntrinsicCombinations width)
+
+allGroupings :: Expr -> [Expr]
+allGroupings e@(ECompose []) = [e]
+allGroupings e@(ECompose [_]) = [e]
+allGroupings e@(ECompose [_, _]) = [e]
+allGroupings (ECompose es) = iter 1 []
+  where
+    iter n gs | n == length es = gs
+    iter n gs =
+      let (les, res) = splitAt n es
+          lgs = allGroupings (ECompose les)
+          rgs = allGroupings (ECompose res)
+          gs' = [ECompose [lt, rt] | lt <- lgs, rt <- rgs]
+       in iter (n + 1) (gs ++ gs')
 
 allExprsOfWidthUpToDepth :: Int -> Int -> [Expr]
 allExprsOfWidthUpToDepth width depth =
