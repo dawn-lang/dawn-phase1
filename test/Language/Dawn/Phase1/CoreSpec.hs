@@ -184,43 +184,7 @@ spec = do
           ( forall [v0, v3] (v0 * (v0 * forall [v1, v2] (v1 * v2 --> v1 * v2 * v2) --> v3) --> v3)
           )
 
-    it "infers `(clone [drop]) compose` == `clone ([drop] compose)`" $ do
-      let (Right e1) = parseExpr "(clone [drop]) compose"
-      let (Right e2) = parseExpr "clone ([drop] compose)"
-      inferNormType e1 `shouldBe` inferNormType e2
-
-    it "infers `([swap] clone) compose` == `[swap] (clone compose)`" $ do
-      let (Right e1) = parseExpr "([swap] clone) compose"
-      let (Right e2) = parseExpr "[swap] (clone compose)"
-      inferNormType e1 `shouldBe` inferNormType e2
-
-    it "infers the same type for all groupings" $ do
-      let iter e = do
-            let d = display e
-            let es = allGroupings e
-            let ts = filter isRight (map inferNormType es)
-            when
-              (length ts > 1)
-              (mapM_ (\t' -> (d, head ts) `shouldBe` (d, t')) (tail ts))
-      mapM_ iter (allExprsUpToWidthAndDepth 3 1)
-
   describe "partialEval" $ do
-    it "preserves types" $ do
-      let iter e = case inferNormType e of
-            Left _ -> return ()
-            Right t -> (display e, Right t) `shouldBe` (display e, inferNormType (partialEval e))
-      mapM_ iter (allExprsUpToWidthAndDepth 2 1)
-
-    it "preserves type of `[clone] clone compose`" $ do
-      let (Right e) = parseExpr "[clone] clone compose"
-      fmap display (inferNormType e)
-        `shouldBe` fmap display (inferNormType (partialEval e))
-
-    it "preserves type of `[clone] [[drop] compose] compose`" $ do
-      let (Right e) = parseExpr "[clone] [[drop] compose] compose"
-      fmap display (inferNormType e)
-        `shouldBe` fmap display (inferNormType (partialEval e))
-
     it "evals `[clone] clone`" $ do
       let e = ECompose [EQuote clone, clone]
       let e' = ECompose [EQuote clone, EQuote clone]
