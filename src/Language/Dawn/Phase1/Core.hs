@@ -315,7 +315,7 @@ composeTypes f1@TFn {} f2@TFn {} = do
   let (TFn _ (i1, o1), TFn _ (i2, o2)) = (f1', f2')
   (s, reserved3) <- mgu o1 i2 reserved2
   let (io3, _) = subs s (i1, o2) reserved3
-  return (TFn (ftv io3) io3)
+  return (requantify (TFn Set.empty io3))
 
 inferType :: Expr -> Result Type
 inferType (EIntrinsic i) = return $ intrinsicType i
