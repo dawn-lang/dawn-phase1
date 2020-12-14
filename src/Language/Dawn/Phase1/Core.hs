@@ -339,6 +339,14 @@ partialEval (ECompose es) = case iter [] es of
   es -> ECompose es
   where
     iter es' [] = es'
+    iter
+      es'
+      ( e@(EQuote (ECompose (EIntrinsic IClone : EIntrinsic IApply : _)))
+          : EIntrinsic IClone
+          : EIntrinsic IApply
+          : es
+        ) =
+        iter (es' ++ [e, EIntrinsic IClone, EIntrinsic IApply]) es
     iter es' (EQuote e : EIntrinsic IClone : es) =
       iter es' (EQuote e : EQuote e : es)
     iter es' (EQuote _ : EIntrinsic IDrop : es) =
