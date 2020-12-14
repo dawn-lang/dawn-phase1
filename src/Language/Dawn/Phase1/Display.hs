@@ -24,6 +24,7 @@ displayedExprs :: [Expr] -> [String]
 displayedExprs [] = []
 displayedExprs (ECompose es : es') = case displayedExprs es of
   [] -> "()" : displayedExprs es'
+  [de] -> de : displayedExprs es'
   (de : des) -> ["(" ++ de] ++ init des ++ [last des ++ ")"] ++ displayedExprs es'
 displayedExprs (e : es) = display e : displayedExprs es
 
