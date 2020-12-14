@@ -260,3 +260,8 @@ spec = do
       let (Right e) = parseExpr "[swap] (clone compose)"
       let (Right e') = parseExpr "[swap swap]"
       partialEval e `shouldBe` e'
+
+    it "evals `[clone apply] clone apply`" $ do
+      let (Right e) = parseExpr "[clone apply] clone apply"
+      let (Right e') = parseExpr "[clone apply] clone apply"
+      partialEval e `shouldBe` e'
