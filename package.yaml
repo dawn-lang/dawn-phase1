@@ -54,6 +54,16 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - dawn-phase1
+  
+  enumerate-grouping-unstable-types:
+    main: enumerate-grouping-unstable-types.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - dawn-phase1
 
 tests:
   dawn-phase1-test:
