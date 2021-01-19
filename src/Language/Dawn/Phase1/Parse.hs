@@ -12,12 +12,10 @@ import Text.Parsec.String
 import Prelude hiding (drop)
 
 parseExpr :: String -> Either ParseError Expr
-parseExpr = parse (expr <* eof) ""
+parseExpr = parse (skipMany space *> expr <* eof) ""
 
 expr :: Parser Expr
-expr = skipMany space *> composed
-
-composed = do
+expr = do
   es <- many (grouped <|> quoted <|> intrinsic)
   case es of
     [] -> return (ECompose [])
