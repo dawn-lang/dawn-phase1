@@ -78,36 +78,6 @@ newtype TypeVar = TypeVar Id
 -- | Numeric identifier
 type Id = Int
 
----------------------
--- Intrinsic Types --
----------------------
-
-infixl 4 -->
-
-(-->) :: Type -> Type -> Type
-i --> o = TFn Set.empty (i, o)
-
-infixl 7 *
-
-(*) = TProd
-
-forall :: [Type] -> Type -> Type
-forall vs (TFn qs io) =
-  let qs' = Set.fromList (map (\(TVar tv) -> tv) vs)
-   in TFn (qs' `Set.union` qs) io
-
-[v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
-
-intrinsicType :: Intrinsic -> Type
-intrinsicType IClone = forall [v0, v1] (v0 * v1 --> v0 * v1 * v1)
-intrinsicType IDrop = forall [v0, v1] (v0 * v1 --> v0)
-intrinsicType ISwap = forall [v0, v1, v2] (v0 * v1 * v2 --> v0 * v2 * v1)
-intrinsicType IQuote =
-  forall [v0, v1] (v0 * v1 --> v0 * forall [v2] (v2 --> v2 * v1))
-intrinsicType ICompose =
-  forall [v0, v1, v2, v3] (v0 * (v1 --> v2) * (v2 --> v3) --> v0 * (v1 --> v3))
-intrinsicType IApply = forall [v0, v1] (v0 * (v0 --> v1) --> v1)
-
 -------------------
 -- Instantiation --
 -------------------
@@ -280,6 +250,36 @@ mguList ((t1, t2) : ts) reserved = do
   (s2, reserved4) <- mguList ts' reserved3
   let (s3, reserved5) = composeSubst s2 s1 reserved4
   return (s3, reserved5)
+
+---------------------
+-- Intrinsic Types --
+---------------------
+
+infixl 4 -->
+
+(-->) :: Type -> Type -> Type
+i --> o = TFn Set.empty (i, o)
+
+infixl 7 *
+
+(*) = TProd
+
+forall :: [Type] -> Type -> Type
+forall vs (TFn qs io) =
+  let qs' = Set.fromList (map (\(TVar tv) -> tv) vs)
+   in TFn (qs' `Set.union` qs) io
+
+[v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
+
+intrinsicType :: Intrinsic -> Type
+intrinsicType IClone = forall [v0, v1] (v0 * v1 --> v0 * v1 * v1)
+intrinsicType IDrop = forall [v0, v1] (v0 * v1 --> v0)
+intrinsicType ISwap = forall [v0, v1, v2] (v0 * v1 * v2 --> v0 * v2 * v1)
+intrinsicType IQuote =
+  forall [v0, v1] (v0 * v1 --> v0 * forall [v2] (v2 --> v2 * v1))
+intrinsicType ICompose =
+  forall [v0, v1, v2, v3] (v0 * (v1 --> v2) * (v2 --> v3) --> v0 * (v1 --> v3))
+intrinsicType IApply = forall [v0, v1] (v0 * (v0 --> v1) --> v1)
 
 --------------------
 -- Type Inference --
