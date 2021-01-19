@@ -125,6 +125,7 @@ test-suite dawn-phase1-test
       Language.Dawn.Phase1.CoreSpec
       Language.Dawn.Phase1.ParseSpec
       Language.Dawn.Phase1.PartialEvalSpec
+      Language.Dawn.Phase1.UtilsSpec
       Paths_dawn_phase1
   hs-source-dirs:
       test

@@ -7,13 +7,18 @@ module Language.Dawn.Phase1.Core
   ( (-->),
     (*),
     (+->),
+    ($:),
+    ($.),
+    addMissingStacks,
     composeSubst,
+    Context,
     Expr (..),
     forall,
+    forall',
     freshTypeVar,
     HasTypeVars (..),
-    VarId,
     inferType,
+    inferType',
     instantiate,
     Intrinsic (..),
     intrinsicType,
@@ -21,6 +26,7 @@ module Language.Dawn.Phase1.Core
     replaceTypeVars,
     requantify,
     Result,
+    StackId,
     Subs (..),
     Subst (..),
     Type (..),
@@ -28,6 +34,7 @@ module Language.Dawn.Phase1.Core
     TypeVars,
     UnificationError (..),
     UnivQuants,
+    VarId,
   )
 where
 
@@ -47,12 +54,14 @@ data Expr
   = EIntrinsic Intrinsic
   | EQuote Expr
   | ECompose [Expr]
+  | EContext StackId Expr
   deriving (Eq, Ord, Show)
 
 data Intrinsic
-  = IClone
+  = IPush
+  | IPop
+  | IClone
   | IDrop
-  | ISwap
   | IQuote
   | ICompose
   | IApply
@@ -61,8 +70,14 @@ data Intrinsic
 data Type
   = TVar TypeVar
   | TProd Type Type
-  | TFn UnivQuants (Type, Type)
+  | TFn UnivQuants MultiIO
   deriving (Eq, Ord, Show)
+
+-- | Multi-stack input/output
+type MultiIO = Map.Map StackId (Type, Type)
+
+-- | Stack identifier
+type StackId = String
 
 -- | Universal quantifiers
 type UnivQuants = TypeVars
@@ -103,10 +118,10 @@ instance HasTypeVars Type where
     | otherwise = t
   renameTypeVar from to (TProd l r) =
     TProd (renameTypeVar from to l) (renameTypeVar from to r)
-  renameTypeVar from to (TFn uqs io) =
+  renameTypeVar from to (TFn uqs mio) =
     TFn
       (Set.map (\tv -> if tv == from then to else tv) uqs)
-      (renameTypeVar from to io)
+      (renameTypeVar from to mio)
 
   ftv (TVar tv) = Set.singleton tv
   ftv (TProd l r) = ftv l `Set.union` ftv r
@@ -133,6 +148,12 @@ instance (HasTypeVars a, HasTypeVars b) => HasTypeVars (a, b) where
   btv (a, b) = btv a `Set.union` btv b
   atv (a, b) = atv a `union` atv b
 
+instance HasTypeVars v => HasTypeVars (Map.Map k v) where
+  renameTypeVar from to = Map.map (renameTypeVar from to)
+  ftv = ftv . Map.elems
+  btv = btv . Map.elems
+  atv = atv . Map.elems
+
 -- | Get a fresh type variable
 freshTypeVar :: TypeVars -> (TypeVar, TypeVars)
 freshTypeVar reserved = iter 0
@@ -158,6 +179,42 @@ instantiate t reserved =
       conflicting = quantified `intersect` Set.toList reserved
       reserved' = reserved `Set.union` Set.fromList atvs
    in replaceTypeVars conflicting t reserved'
+
+addMissingStack :: Type -> StackId -> TypeVars -> (Type, TypeVars)
+addMissingStack (TFn qs mio) s reserved =
+  let (tv, reserved') = freshTypeVar reserved
+      mio' = Map.insert s (TVar tv, TVar tv) mio
+   in (TFn (Set.insert tv qs) mio', reserved')
+
+addMissingStacks :: (Type, Type, TypeVars) -> (Type, Type, TypeVars)
+addMissingStacks (TProd l1 r1, TProd l2 r2, reserved) =
+  let (l1', l2', reserved2) = addMissingStacks (l1, l2, reserved)
+      (r1', r2', reserved3) = addMissingStacks (r1, r2, reserved2)
+   in (TProd l1' r1', TProd l2' r2', reserved3)
+addMissingStacks (TFn qs1 mio1, TFn qs2 mio2, reserved) =
+  let mio12 = Map.intersectionWith (,) mio1 mio2
+      (mio12', reserved') = Map.foldlWithKey folder (Map.empty, reserved) mio12
+      mio1' = Map.map fst mio12' `Map.union` mio1
+      mio2' = Map.map snd mio12' `Map.union` mio2
+   in doAdd (TFn qs1 mio1', TFn qs2 mio2', reserved')
+  where
+    folder (m, reserved) s ((i1, o1), (i2, o2)) =
+      let (i1', i2', reserved2) = addMissingStacks (i1, i2, reserved)
+          (o1', o2', reserved3) = addMissingStacks (o1, o2, reserved2)
+       in (Map.insert s ((i1', o1'), (i2', o2')) m, reserved3)
+    doAdd
+      ( f1@(TFn _ mio1),
+        f2@(TFn _ mio2),
+        reserved
+        ) =
+        let (ks1, ks2) = (Map.keys mio1, Map.keys mio2)
+            (f1', reserved') = iter (f1, reserved) (ks2 \\ ks1)
+            (f2', reserved'') = iter (f2, reserved') (ks1 \\ ks2)
+         in (f1', f2', reserved'')
+        where
+          iter (f, reserved) [] = (f, reserved)
+          iter (f, reserved) (s : ss) = iter (addMissingStack f s reserved) ss
+addMissingStacks t = t
 
 ------------------
 -- Substitution --
@@ -200,6 +257,13 @@ instance (Subs a, Subs b) => Subs (a, b) where
         (b', reserved'') = subs s b reserved'
      in ((a', b'), reserved'')
 
+instance (Ord k, Subs v) => Subs (Map.Map k v) where
+  subs s m reserved = Map.foldlWithKey folder (Map.empty, reserved) m
+    where
+      folder (m', reserved) k v =
+        let (v', reserved') = subs s v reserved
+         in (Map.insert k v' m', reserved')
+
 -- | Compose two substitutions such that:
 -- |     subs (composeSubst s2 s1) == subs s2 . subs s1
 composeSubst :: Subst -> Subst -> TypeVars -> (Subst, TypeVars)
@@ -229,8 +293,11 @@ type Result a = Either UnificationError a
 -- | where t and t' do not share any type variables.
 mgu :: Type -> Type -> TypeVars -> Result (Subst, TypeVars)
 mgu (TProd l r) (TProd l' r') reserved = mguList [(l, l'), (r, r')] reserved
-mgu (TFn _ (i, o)) (TFn _ (i', o')) reserved =
-  mguList [(i, i'), (o, o')] reserved
+mgu f1@TFn {} f2@TFn {} reserved =
+  let (TFn _ mio, TFn _ mio', reserved') = addMissingStacks (f1, f2, reserved)
+      is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
+      os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
+   in mguList (is ++ os) reserved'
 mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
@@ -254,74 +321,113 @@ mguList ((t1, t2) : ts) reserved = do
 -- Intrinsic Types --
 ---------------------
 
+infixl 2 $.
+
+($.) :: MultiIO -> MultiIO -> MultiIO
+($.) = Map.union
+
+infixl 3 $:
+
+($:) :: StackId -> (Type, Type) -> MultiIO
+k $: v = Map.singleton k v
+
 infixl 4 -->
 
-(-->) :: Type -> Type -> Type
-i --> o = TFn Set.empty (i, o)
+(-->) :: Type -> Type -> (Type, Type)
+i --> o = (i, o)
 
 infixl 7 *
 
 (*) = TProd
 
-forall :: [Type] -> Type -> Type
-forall vs (TFn qs io) =
-  let qs' = Set.fromList (map (\(TVar tv) -> tv) vs)
-   in TFn (qs' `Set.union` qs) io
+forall :: [Type] -> MultiIO -> Type
+forall vs mio =
+  let qs = Set.fromList (map (\(TVar tv) -> tv) vs)
+   in TFn qs mio
+
+forall' :: [Type] -> (Type, Type) -> Type
+forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
-intrinsicType :: Intrinsic -> Type
-intrinsicType IClone = forall [v0, v1] (v0 * v1 --> v0 * v1 * v1)
-intrinsicType IDrop = forall [v0, v1] (v0 * v1 --> v0)
-intrinsicType ISwap = forall [v0, v1, v2] (v0 * v1 * v2 --> v0 * v2 * v1)
-intrinsicType IQuote =
-  forall [v0, v1] (v0 * v1 --> v0 * forall [v2] (v2 --> v2 * v1))
-intrinsicType ICompose =
-  forall [v0, v1, v2, v3] (v0 * (v1 --> v2) * (v2 --> v3) --> v0 * (v1 --> v3))
-intrinsicType IApply = forall [v0, v1] (v0 * (v0 --> v1) --> v1)
+type Context = [StackId]
+
+intrinsicType :: Context -> Intrinsic -> Type
+intrinsicType [_] IPush = error "nowhere to push from"
+intrinsicType (to : from : _) IPush =
+  forall [v0, v1, v2] (from $: v0 * v1 --> v0 $. to $: v2 --> v2 * v1)
+intrinsicType [_] IPop = error "nowhere to pop to"
+intrinsicType (from : to : _) IPop =
+  forall [v0, v1, v2] (from $: v0 * v1 --> v0 $. to $: v2 --> v2 * v1)
+intrinsicType (s : _) IClone = forall [v0, v1] (s $: v0 * v1 --> v0 * v1 * v1)
+intrinsicType (s : _) IDrop = forall [v0, v1] (s $: v0 * v1 --> v0)
+intrinsicType (s : _) IQuote =
+  forall [v0, v1] (s $: v0 * v1 --> v0 * forall [v2] (s $: v2 --> v2 * v1))
+intrinsicType (s : _) ICompose =
+  forall
+    [v0, v1, v2, v3]
+    ( s $: v0 * forall [] (s $: v1 --> v2) * forall [] (s $: v2 --> v3)
+        --> v0 * forall [] (s $: v1 --> v3)
+    )
+intrinsicType (s : _) IApply =
+  forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
 
 --------------------
 -- Type Inference --
 --------------------
 
-quoteType :: Type -> Result Type
-quoteType f@TFn {} =
+quoteType :: Context -> Type -> Result Type
+quoteType (s : _) f@TFn {} =
   let (tv, _) = freshTypeVar (Set.fromList (atv f))
       v = TVar tv
-   in return (forall [v] (v --> v * f))
+   in return (forall [v] (s $: v --> v * f))
 
 requantify :: Type -> Type
 requantify t = recurse t
   where
     count (TVar tv) = Map.singleton tv 1
     count (TProd l r) = Map.unionWith (+) (count l) (count r)
-    count (TFn _ (i, o)) = Map.unionWith (+) (count i) (count o)
+    count (TFn _ mio) =
+      let iter (i, o) = Map.unionWith (+) (count i) (count o)
+       in foldl1 (Map.unionWith (+)) (map iter (Map.elems mio))
     counts = count t
     recurse t@(TVar _) = t
     recurse (TProd l r) = TProd (recurse l) (recurse r)
-    recurse t@(TFn _ (i, o)) =
+    recurse t@(TFn _ mio) =
       let counts' = count t
           deltas = Map.intersectionWith (-) counts counts'
           qs = Set.fromAscList $ Map.keys $ Map.filter (== 0) deltas
-          io' = (recurse i, recurse o)
-          qs' = qs `Set.difference` btv io'
-       in TFn qs' io'
+          mio' = Map.map (\(i, o) -> (recurse i, recurse o)) mio
+          qs' = qs `Set.difference` btv mio'
+       in TFn qs' mio'
 
 composeTypes :: Type -> Type -> Result Type
 composeTypes f1@TFn {} f2@TFn {} = do
   let (f1', reserved1) = instantiate f1 Set.empty
   let (f2', reserved2) = instantiate f2 reserved1
-  let (TFn _ (i1, o1), TFn _ (i2, o2)) = (f1', f2')
-  (s, reserved3) <- mgu o1 i2 reserved2
-  let (io3, _) = subs s (i1, o2) reserved3
-  return (requantify (TFn Set.empty io3))
+  let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
+  let (TFn _ mio1, TFn _ mio2) = (f1'', f2'')
+  let o1i2s = zip (map snd (Map.elems mio1)) (map fst (Map.elems mio2))
+  (s, reserved4) <- mguList o1i2s reserved3
+  let i1o2s = zip (map fst (Map.elems mio1)) (map snd (Map.elems mio2))
+  let (io3s, _) = subs s i1o2s reserved4
+  let mio3 = Map.fromDistinctAscList (zip (Map.keys mio1) io3s)
+  return (requantify (TFn Set.empty mio3))
 
-inferType :: Expr -> Result Type
-inferType (EIntrinsic i) = return $ intrinsicType i
-inferType (EQuote e) = do
-  t <- inferType e
-  quoteType t
-inferType (ECompose []) = return (forall [v0] (v0 --> v0))
-inferType (ECompose es) = do
-  ts <- mapM inferType es
+inferType :: Context -> Expr -> Result Type
+inferType ctx (EIntrinsic i) = return $ intrinsicType ctx i
+inferType ctx (EQuote e) = do
+  t <- inferType ctx e
+  quoteType ctx t
+inferType _ (ECompose []) = return (forall' [v0] (v0 --> v0))
+inferType ctx (ECompose es) = do
+  ts <- mapM (inferType ctx) es
   foldM composeTypes (head ts) (tail ts)
+inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
+
+ensureUniqueStackId :: Context -> StackId -> StackId
+ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
+ensureUniqueStackId ctx s = s
+
+inferType' :: Expr -> Result Type
+inferType' = inferType ["$"]

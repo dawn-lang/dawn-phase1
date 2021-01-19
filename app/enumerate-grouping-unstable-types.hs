@@ -16,9 +16,9 @@ main = do
   mapM printExprType (allExprsUpToWidthAndDepth 4 1)
 
 printExprType e = do
-  let t = inferNormType e
+  let t = inferNormType' e
   let es = allGroupings e
-  let ts = filter isRight (map inferNormType es)
+  let ts = filter isRight (map inferNormType' es)
   when
     (length ts > 1 && any (/= t) ts)
     ( do

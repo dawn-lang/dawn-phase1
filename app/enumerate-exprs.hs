@@ -15,6 +15,6 @@ main = do
 
 printExprType e = do
   putStr (display e)
-  case inferNormType e of
+  case inferNormType' e of
     Left err -> putStrLn $ " is not typeable. " ++ display err
     Right t -> putStrLn $ " :: " ++ display t
