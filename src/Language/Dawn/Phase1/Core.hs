@@ -12,7 +12,7 @@ module Language.Dawn.Phase1.Core
     forall,
     freshTypeVar,
     HasTypeVars (..),
-    Id,
+    VarId,
     inferType,
     instantiate,
     Intrinsic (..),
@@ -72,11 +72,11 @@ type UnivQuants = TypeVars
 type TypeVars = Set.Set TypeVar
 
 -- | Type variable
-newtype TypeVar = TypeVar Id
+newtype TypeVar = TypeVar VarId
   deriving (Eq, Ord, Show)
 
--- | Numeric identifier
-type Id = Int
+-- | Variable identifier
+type VarId = Int
 
 -------------------
 -- Instantiation --
