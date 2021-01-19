@@ -15,6 +15,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core hiding ((*))
 
+-- | Returns True if the expression is a literal
+isLiteral :: Expr -> Bool
+isLiteral (EQuote _) = True
+isLiteral _ = False
+
 partialEval :: Expr -> Expr
 partialEval e@(EIntrinsic _) = e
 partialEval (EQuote e) = EQuote (partialEval e)
@@ -31,14 +36,12 @@ partialEval (ECompose es) = case iter [] es of
           : es
         ) =
         iter (es' ++ [e, EIntrinsic IClone, EIntrinsic IApply]) es
-    iter es' (EQuote e : EIntrinsic IClone : es) =
-      iter es' (EQuote e : EQuote e : es)
-    iter es' (EQuote _ : EIntrinsic IDrop : es) =
-      iter es' es
-    iter es' (EQuote e1 : EQuote e2 : EIntrinsic ISwap : es) =
-      iter es' (EQuote e2 : EQuote e1 : es)
-    iter es' (EQuote e : EIntrinsic IQuote : es) =
-      iter es' (EQuote (EQuote e) : es)
+    iter es' (e : EIntrinsic IClone : es) | isLiteral e = iter es' (e : e : es)
+    iter es' (e : EIntrinsic IDrop : es) | isLiteral e = iter es' es
+    iter es' (e : e' : EIntrinsic ISwap : es)
+      | isLiteral e && isLiteral e' = iter es' (e' : e : es)
+    iter es' (e : EIntrinsic IQuote : es)
+      | isLiteral e = iter es' (EQuote e : es)
     iter es' (EQuote e1 : EQuote e2 : EIntrinsic ICompose : es) =
       case (e1, e2) of
         (ECompose es1, ECompose es2) -> iter es' (EQuote (ECompose (es1 ++ es2)) : es)
