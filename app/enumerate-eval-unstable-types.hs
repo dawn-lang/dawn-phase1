@@ -10,6 +10,7 @@ import Data.Either
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Exprs
+import Language.Dawn.Phase1.PartialEval
 import Language.Dawn.Phase1.Utils
 
 main = do

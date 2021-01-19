@@ -29,6 +29,7 @@ library
       Language.Dawn.Phase1.Display
       Language.Dawn.Phase1.Exprs
       Language.Dawn.Phase1.Parse
+      Language.Dawn.Phase1.PartialEval
       Language.Dawn.Phase1.Utils
   other-modules:
       Paths_dawn_phase1
@@ -123,6 +124,7 @@ test-suite dawn-phase1-test
   other-modules:
       Language.Dawn.Phase1.CoreSpec
       Language.Dawn.Phase1.ParseSpec
+      Language.Dawn.Phase1.PartialEvalSpec
       Paths_dawn_phase1
   hs-source-dirs:
       test

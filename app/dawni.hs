@@ -9,6 +9,7 @@ import Control.Monad
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Parse
+import Language.Dawn.Phase1.PartialEval
 import Language.Dawn.Phase1.Utils
 import System.Console.Haskeline hiding (display)
 import System.IO
