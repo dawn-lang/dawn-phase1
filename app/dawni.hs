@@ -32,6 +32,6 @@ readEvalPrint = do
 
 printExprType e = do
   outputStr (display e)
-  case inferNormType e of
+  case inferNormType' e of
     Left e -> outputStrLn $ " is not typeable. " ++ display e
     Right t -> outputStrLn $ " :: " ++ display t

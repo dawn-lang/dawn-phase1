@@ -19,8 +19,8 @@ import Language.Dawn.Phase1.Utils
 import Test.Hspec
 import Prelude hiding (drop, (*))
 
-[clone, drop, swap, quote, compose, apply] =
-  map EIntrinsic [IClone, IDrop, ISwap, IQuote, ICompose, IApply]
+[clone, drop, quote, compose, apply] =
+  map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
 
 spec :: Spec
 spec = do
@@ -33,11 +33,6 @@ spec = do
     it "evals `[clone] drop`" $ do
       let e = ECompose [EQuote clone, drop]
       let e' = ECompose []
-      partialEval' e `shouldBe` e'
-
-    it "evals `[clone] [drop] swap`" $ do
-      let e = ECompose [EQuote clone, EQuote drop, swap]
-      let e' = ECompose [EQuote drop, EQuote clone]
       partialEval' e `shouldBe` e'
 
     it "evals `[clone] quote`" $ do
@@ -55,14 +50,14 @@ spec = do
       let e' = clone
       partialEval' e `shouldBe` e'
 
-    it "evals `[([swap] clone) compose]`" $ do
-      let (Right e) = parseExpr "[([swap] clone) compose]"
-      let (Right e') = parseExpr "[[swap swap]]"
+    it "evals `[([drop] clone) compose]`" $ do
+      let (Right e) = parseExpr "[([drop] clone) compose]"
+      let (Right e') = parseExpr "[[drop drop]]"
       partialEval' e `shouldBe` e'
 
-    it "evals `[swap] (clone compose)`" $ do
-      let (Right e) = parseExpr "[swap] (clone compose)"
-      let (Right e') = parseExpr "[swap swap]"
+    it "evals `[drop] (clone compose)`" $ do
+      let (Right e) = parseExpr "[drop] (clone compose)"
+      let (Right e') = parseExpr "[drop drop]"
       partialEval' e `shouldBe` e'
 
     it "evals `[clone apply] clone apply`" $ do

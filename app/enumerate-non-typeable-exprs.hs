@@ -14,6 +14,6 @@ main = do
   mapM printExprType (allExprsUpToWidthAndDepth 3 1)
 
 printExprType e = do
-  case inferType e of
+  case inferType' e of
     Left err -> putStrLn $ display e ++ " is not typeable. " ++ display err
     Right _ -> return ()

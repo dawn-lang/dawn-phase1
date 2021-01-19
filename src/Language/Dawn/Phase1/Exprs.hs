@@ -16,19 +16,22 @@ import Control.Monad
 import Language.Dawn.Phase1.Core
 
 intToIntrinsic :: Int -> Expr
-intToIntrinsic 0 = EIntrinsic IClone
-intToIntrinsic 1 = EIntrinsic IDrop
-intToIntrinsic 2 = EIntrinsic ISwap
-intToIntrinsic 3 = EIntrinsic IQuote
-intToIntrinsic 4 = EIntrinsic ICompose
-intToIntrinsic 5 = EIntrinsic IApply
+intToIntrinsic 0 = EContext "$a" (EIntrinsic IPush)
+intToIntrinsic 1 = EContext "$a" (EIntrinsic IPop)
+intToIntrinsic 2 = EContext "$b" (EIntrinsic IPush)
+intToIntrinsic 3 = EContext "$b" (EIntrinsic IPop)
+intToIntrinsic 4 = EIntrinsic IClone
+intToIntrinsic 5 = EIntrinsic IDrop
+intToIntrinsic 6 = EIntrinsic IQuote
+intToIntrinsic 7 = EIntrinsic ICompose
+intToIntrinsic 8 = EIntrinsic IApply
 
 allIntCombinations :: Int -> Int -> Int -> [[Int]]
 allIntCombinations width min max = replicateM width [min .. max]
 
 allIntrinsicCombinations :: Int -> [[Expr]]
 allIntrinsicCombinations width =
-  map (map intToIntrinsic) (allIntCombinations width 0 5)
+  map (map intToIntrinsic) (allIntCombinations width 0 8)
 
 allUnquotedExprsOfWidth :: Int -> [Expr]
 allUnquotedExprsOfWidth width = map ECompose (allIntrinsicCombinations width)

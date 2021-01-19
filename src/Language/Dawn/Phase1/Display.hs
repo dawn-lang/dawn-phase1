@@ -18,6 +18,9 @@ instance Display Expr where
   display (EQuote e) = "[" ++ display e ++ "]"
   display (ECompose []) = "()"
   display (ECompose es) = unwords (displayedExprs es)
+  display (EContext s (EIntrinsic IPush)) = s ++ "<-"
+  display (EContext s (EIntrinsic IPop)) = s ++ "->"
+  display (EContext s e) = "(" ++ s ++ ": " ++ display e ++ ")"
 
 displayedExprs :: [Expr] -> [String]
 displayedExprs [] = []
@@ -28,9 +31,10 @@ displayedExprs (ECompose es : es') = case displayedExprs es of
 displayedExprs (e : es) = display e : displayedExprs es
 
 instance Display Intrinsic where
+  display IPush = "push"
+  display IPop = "pop"
   display IClone = "clone"
   display IDrop = "drop"
-  display ISwap = "swap"
   display IQuote = "quote"
   display ICompose = "compose"
   display IApply = "apply"
@@ -38,17 +42,23 @@ instance Display Intrinsic where
 instance Display Type where
   display (TVar tv) = display tv
   display (TProd t t') = display t ++ " * " ++ display t'
-  display (TFn qs (i, o)) =
+  display (TFn qs mio) =
     "("
       ++ ( if null qs
              then ""
-             else unwords $ map (\tv -> "∀" ++ display tv) (Set.toAscList qs)
+             else "∀ " ++ unwords (map display (Set.toAscList qs))
          )
       ++ (if null qs then "" else " . ")
-      ++ display i
-      ++ " -> "
-      ++ display o
+      ++ displayMultiIO mio
       ++ ")"
+
+displayMultiIO mio
+  | Map.keys mio == [""] =
+    let [("", (i, o))] = Map.toList mio
+     in display i ++ " -> " ++ display o
+  | otherwise = intercalate " . " (map iter (Map.toAscList mio))
+  where
+    iter (sid, (i, o)) = sid ++ ": " ++ display i ++ " -> " ++ display o
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n

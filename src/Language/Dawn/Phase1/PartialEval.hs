@@ -35,13 +35,11 @@ simplify :: Int -> [Expr] -> [Expr] -> (Int, [Expr])
 simplify fuel es' [] = (fuel, es')
 -- if we're out of fuel, return as is
 simplify 0 es' es = (0, es' ++ es)
--- apply IClone/IDrop/ISwap/IQuote to literals
+-- apply IClone/IDrop/IQuote to literals
 simplify fuel es' (e : EIntrinsic IClone : es)
   | isLiteral e = simplify (fuel - 1) [] (es' ++ e : e : es)
 simplify fuel es' (e : EIntrinsic IDrop : es)
   | isLiteral e = simplify (fuel - 1) [] (es' ++ es)
-simplify fuel es' (e : e' : EIntrinsic ISwap : es)
-  | isLiteral e && isLiteral e' = simplify (fuel - 1) [] (es' ++ e' : e : es)
 simplify fuel es' (e : EIntrinsic IQuote : es)
   | isLiteral e = simplify (fuel - 1) [] (es' ++ EQuote e : es)
 -- apply ICompose to EQuotes
