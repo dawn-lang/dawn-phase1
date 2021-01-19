@@ -24,48 +24,54 @@ import Prelude hiding (drop, (*))
 
 spec :: Spec
 spec = do
-  describe "partialEval" $ do
+  describe "partialEval'" $ do
     it "evals `[clone] clone`" $ do
       let e = ECompose [EQuote clone, clone]
       let e' = ECompose [EQuote clone, EQuote clone]
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone] drop`" $ do
       let e = ECompose [EQuote clone, drop]
       let e' = ECompose []
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone] [drop] swap`" $ do
       let e = ECompose [EQuote clone, EQuote drop, swap]
       let e' = ECompose [EQuote drop, EQuote clone]
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone] quote`" $ do
       let e = ECompose [EQuote clone, quote]
       let e' = EQuote (EQuote clone)
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone] [clone] compose`" $ do
       let e = ECompose [EQuote clone, EQuote clone, compose]
       let e' = EQuote (ECompose [clone, clone])
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone] apply`" $ do
       let e = ECompose [EQuote clone, apply]
       let e' = clone
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[([swap] clone) compose]`" $ do
       let (Right e) = parseExpr "[([swap] clone) compose]"
       let (Right e') = parseExpr "[[swap swap]]"
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[swap] (clone compose)`" $ do
       let (Right e) = parseExpr "[swap] (clone compose)"
       let (Right e') = parseExpr "[swap swap]"
-      partialEval e `shouldBe` e'
+      partialEval' e `shouldBe` e'
 
     it "evals `[clone apply] clone apply`" $ do
-      let (Right e) = parseExpr "[clone apply] clone apply"
-      let (Right e') = parseExpr "[clone apply] clone apply"
-      partialEval e `shouldBe` e'
+      let (Right e0) = parseExpr "[clone apply] clone apply"
+      let (Right e1) = parseExpr "[clone apply] [clone apply] apply"
+      let (Right e2) = parseExpr "[clone apply] (clone apply)"
+      partialEval 1 e0 `shouldBe` (0, e1)
+      partialEval 2 e0 `shouldBe` (0, e2)
+      partialEval 3 e0 `shouldBe` (0, e0)
+      partialEval 4 e0 `shouldBe` (0, e1)
+      partialEval 5 e0 `shouldBe` (0, e2)
+      partialEval 6 e0 `shouldBe` (0, e0)

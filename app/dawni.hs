@@ -28,7 +28,7 @@ readEvalPrint = do
       Left err -> outputStrLn (show err)
       Right e -> do
         printExprType e
-        when (e /= partialEval e) $ printExprType (partialEval e)
+        when (e /= partialEval' e) $ printExprType (partialEval' e)
 
 printExprType e = do
   outputStr (display e)

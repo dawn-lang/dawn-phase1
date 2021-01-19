@@ -5,6 +5,7 @@
 
 module Language.Dawn.Phase1.PartialEval
   ( partialEval,
+    partialEval',
   )
 where
 
@@ -15,43 +16,54 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core hiding ((*))
 
+toExprSeq :: Expr -> [Expr]
+toExprSeq (ECompose es) = es
+toExprSeq e = [e]
+
+fromExprSeq :: [Expr] -> Expr
+fromExprSeq [] = ECompose []
+fromExprSeq [e] = e
+fromExprSeq es = ECompose es
+
 -- | Returns True if the expression is a literal
 isLiteral :: Expr -> Bool
 isLiteral (EQuote _) = True
 isLiteral _ = False
 
-partialEval :: Expr -> Expr
-partialEval e@(EIntrinsic _) = e
-partialEval (EQuote e) = EQuote (partialEval e)
-partialEval (ECompose es) = case iter [] es of
-  [e] -> e
-  es -> ECompose es
-  where
-    iter es' [] = es'
-    iter
-      es'
-      ( e@(EQuote (ECompose (EIntrinsic IClone : EIntrinsic IApply : _)))
-          : EIntrinsic IClone
-          : EIntrinsic IApply
-          : es
-        ) =
-        iter (es' ++ [e, EIntrinsic IClone, EIntrinsic IApply]) es
-    iter es' (e : EIntrinsic IClone : es) | isLiteral e = iter es' (e : e : es)
-    iter es' (e : EIntrinsic IDrop : es) | isLiteral e = iter es' es
-    iter es' (e : e' : EIntrinsic ISwap : es)
-      | isLiteral e && isLiteral e' = iter es' (e' : e : es)
-    iter es' (e : EIntrinsic IQuote : es)
-      | isLiteral e = iter es' (EQuote e : es)
-    iter es' (EQuote e1 : EQuote e2 : EIntrinsic ICompose : es) =
-      case (e1, e2) of
-        (ECompose es1, ECompose es2) -> iter es' (EQuote (ECompose (es1 ++ es2)) : es)
-        (ECompose es1, _) -> iter es' (EQuote (ECompose (es1 ++ [e2])) : es)
-        (_, ECompose es2) -> iter es' (EQuote (ECompose (e1 : es2)) : es)
-        (_, _) -> iter es' (EQuote (ECompose [e1, e2]) : es)
-    iter es' (EQuote e : EIntrinsic IApply : es) =
-      if null es'
-        then iter [] (e : es)
-        else iter (init es') (last es' : e : es)
-    iter [] ((ECompose es'') : es) = iter [] (es'' ++ es)
-    iter es' ((ECompose es'') : es) = iter (init es') (last es' : es'' ++ es)
-    iter es' (e : es) = iter (es' ++ [e]) es
+simplify :: Int -> [Expr] -> [Expr] -> (Int, [Expr])
+-- if we're done, we're done
+simplify fuel es' [] = (fuel, es')
+-- if we're out of fuel, return as is
+simplify 0 es' es = (0, es' ++ es)
+-- apply IClone/IDrop/ISwap/IQuote to literals
+simplify fuel es' (e : EIntrinsic IClone : es)
+  | isLiteral e = simplify (fuel - 1) [] (es' ++ e : e : es)
+simplify fuel es' (e : EIntrinsic IDrop : es)
+  | isLiteral e = simplify (fuel - 1) [] (es' ++ es)
+simplify fuel es' (e : e' : EIntrinsic ISwap : es)
+  | isLiteral e && isLiteral e' = simplify (fuel - 1) [] (es' ++ e' : e : es)
+simplify fuel es' (e : EIntrinsic IQuote : es)
+  | isLiteral e = simplify (fuel - 1) [] (es' ++ EQuote e : es)
+-- apply ICompose to EQuotes
+simplify fuel es' (EQuote e1 : EQuote e2 : EIntrinsic ICompose : es) =
+  simplify (fuel - 1) [] (es' ++ EQuote (ECompose [e1, e2]) : es)
+-- apply IApply to EQuotes
+simplify fuel es' (EQuote e : EIntrinsic IApply : es) =
+  simplify (fuel - 1) [] (es' ++ e : es)
+-- recurse into EQuotes
+simplify fuel es' ((EQuote e) : es) =
+  let (fuel', es'') = simplify fuel [] (toExprSeq e)
+      e' = fromExprSeq es''
+   in simplify fuel' (es' ++ [EQuote e']) es
+-- expand ECompose
+simplify fuel es' ((ECompose es'') : es) = simplify (fuel - 1) [] (es' ++ es'' ++ es)
+-- otherwise, skip
+simplify fuel es' (e : es) = simplify fuel (es' ++ [e]) es
+
+partialEval :: Int -> Expr -> (Int, Expr)
+partialEval fuel e =
+  let (fuel', es') = simplify fuel [] (toExprSeq e)
+   in (fuel', fromExprSeq es')
+
+partialEval' :: Expr -> Expr
+partialEval' e = snd (partialEval 100 e)

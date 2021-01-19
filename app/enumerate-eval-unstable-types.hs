@@ -16,7 +16,7 @@ import Language.Dawn.Phase1.Utils
 main = do
   let iter e = do
         let t = inferNormType e
-        let e' = partialEval e
+        let e' = partialEval' e
         let t' = inferNormType e'
         when
           ((isRight t || isRight t') && t /= t')
