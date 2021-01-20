@@ -3,10 +3,12 @@
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
-module Language.Dawn.Phase1.Parse (parseExpr) where
+module Language.Dawn.Phase1.Parse (parseExpr, parseVal) where
 
 import Control.Monad (void)
 import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.Eval
+import Language.Dawn.Phase1.Utils
 import Text.Parsec
 import Text.Parsec.String
 import Prelude hiding (drop)
@@ -14,48 +16,73 @@ import Prelude hiding (drop)
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
+parseVal :: String -> Either ParseError Val
+parseVal = parse (skipMany space *> val <* eof) ""
+
 expr :: Parser Expr
-expr = do
-  es <- many (literal <|> grouped <|> quoted <|> sugar <|> intrinsic)
-  case es of
-    [] -> return (ECompose [])
-    [e] -> return e
-    es -> return (ECompose es)
+expr =
+  fromExprSeq
+    <$> many
+      ( literalExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr <|> intrinsicExpr
+      )
 
-literal :: Parser Expr
-literal = ELit . LU32 . fromInteger <$> integer_literal
+val :: Parser Val
+val =
+  fromValSeq
+    <$> many
+      ( literalVal <|> groupedVal <|> quotedVal <|> sugarVal <|> intrinsicVal
+      )
 
-integer_literal :: Parser Integer
+literalExpr = literal ELit
+
+literalVal = literal VLit
+
+literal litCons = litCons . LU32 . fromInteger <$> integer_literal
+
 integer_literal = read <$> lexeme (many1 digit)
 
-grouped = between (symbol '(') (symbol ')') (context <|> expr)
+groupedExpr = between (symbol '(') (symbol ')') (contextExpr <|> expr)
 
-context = EContext <$> (stackId <* symbol ':') <*> expr
+groupedVal = between (symbol '(') (symbol ')') (contextVal <|> val)
 
-quoted = between (symbol '[') (symbol ']') (EQuote <$> expr)
+contextExpr = EContext <$> (stackId <* symbol ':') <*> expr
 
-sugar =
-  EContext <$> stackId_
-    <*> ( (keyword "<-" >> return (EIntrinsic IPush))
-            <|> (keyword "->" >> return (EIntrinsic IPop))
+contextVal = VContext <$> (stackId <* symbol ':') <*> val
+
+quotedExpr = between (symbol '[') (symbol ']') (EQuote <$> expr)
+
+quotedVal = between (symbol '[') (symbol ']') (VQuote <$> val)
+
+sugarExpr = sugar EContext EIntrinsic
+
+sugarVal = sugar VContext VIntrinsic
+
+sugar contextCons intrinsicCons =
+  contextCons <$> stackId_
+    <*> ( (keyword "<-" >> return (intrinsicCons IPush))
+            <|> (keyword "->" >> return (intrinsicCons IPop))
         )
 
-intrinsic =
-  try (keyword "push" >> return (EIntrinsic IPush))
-    <|> try (keyword "pop" >> return (EIntrinsic IPop))
-    <|> try (keyword "clone" >> return (EIntrinsic IClone))
-    <|> try (keyword "drop" >> return (EIntrinsic IDrop))
-    <|> try (keyword "quote" >> return (EIntrinsic IQuote))
-    <|> try (keyword "compose" >> return (EIntrinsic ICompose))
-    <|> try (keyword "apply" >> return (EIntrinsic IApply))
-    <|> try (keyword "eqz" >> return (EIntrinsic IEqz))
-    <|> try (keyword "add" >> return (EIntrinsic IAdd))
-    <|> try (keyword "sub" >> return (EIntrinsic ISub))
-    <|> try (keyword "bit_and" >> return (EIntrinsic IBitAnd))
-    <|> try (keyword "bit_or" >> return (EIntrinsic IBitOr))
-    <|> try (keyword "bit_xor" >> return (EIntrinsic IBitXor))
-    <|> try (keyword "shl" >> return (EIntrinsic IShl))
-    <|> try (keyword "shr" >> return (EIntrinsic IShr))
+intrinsicExpr = intrinsic EIntrinsic
+
+intrinsicVal = intrinsic VIntrinsic
+
+intrinsic cons =
+  try (keyword "push" >> return (cons IPush))
+    <|> try (keyword "pop" >> return (cons IPop))
+    <|> try (keyword "clone" >> return (cons IClone))
+    <|> try (keyword "drop" >> return (cons IDrop))
+    <|> try (keyword "quote" >> return (cons IQuote))
+    <|> try (keyword "compose" >> return (cons ICompose))
+    <|> try (keyword "apply" >> return (cons IApply))
+    <|> try (keyword "eqz" >> return (cons IEqz))
+    <|> try (keyword "add" >> return (cons IAdd))
+    <|> try (keyword "sub" >> return (cons ISub))
+    <|> try (keyword "bit_and" >> return (cons IBitAnd))
+    <|> try (keyword "bit_or" >> return (cons IBitOr))
+    <|> try (keyword "bit_xor" >> return (cons IBitXor))
+    <|> try (keyword "shl" >> return (cons IShl))
+    <|> try (keyword "shr" >> return (cons IShr))
 
 stackId = lexeme stackId_
 

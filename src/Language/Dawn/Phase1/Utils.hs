@@ -4,12 +4,14 @@
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
 module Language.Dawn.Phase1.Utils
-  ( inferNormType,
+  ( fromExprSeq,
+    inferNormType,
     inferNormType',
     normalizeType,
     polymorphicRank,
     removeTrivialStacks,
     renameTypeVar,
+    toExprSeq,
     unusedQuantifiers,
   )
 where
@@ -17,6 +19,15 @@ where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
+
+toExprSeq :: Expr -> [Expr]
+toExprSeq (ECompose es) = es
+toExprSeq e = [e]
+
+fromExprSeq :: [Expr] -> Expr
+fromExprSeq [] = ECompose []
+fromExprSeq [e] = e
+fromExprSeq es = ECompose es
 
 ------------------------
 -- Type Normalization --
