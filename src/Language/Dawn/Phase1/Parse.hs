@@ -3,7 +3,13 @@
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
-module Language.Dawn.Phase1.Parse (parseExpr, parseVal) where
+module Language.Dawn.Phase1.Parse
+  ( expr,
+    keyword,
+    parseExpr,
+    parseVal,
+  )
+where
 
 import Control.Monad (void)
 import Language.Dawn.Phase1.Core

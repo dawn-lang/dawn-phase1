@@ -5,7 +5,7 @@
 
 module Main where
 
-import Control.Exception
+import qualified Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.List
@@ -18,7 +18,10 @@ import Language.Dawn.Phase1.Parse
 import Language.Dawn.Phase1.PartialEval
 import Language.Dawn.Phase1.Utils
 import System.Console.Haskeline hiding (display)
+import System.Exit
 import System.IO
+import Text.Parsec
+import Text.Parsec.String
 
 main = do
   putStrLn "Dawn Phase 1 Interpreter"
@@ -34,33 +37,57 @@ readEvalPrint ms = do
   maybeLine <- getInputLine "> "
   case maybeLine of
     Nothing -> return ms
-    Just line | ":print " `isPrefixOf` line -> do
-      case parseExpr (fromJust $ stripPrefix ":print " line) of
-        Left err -> outputStrLn (show err)
-        Right e ->
-          case inferNormType' e of
-            Left err -> outputStrLn $ display e ++ " is not typeable. " ++ display err
-            Right t -> outputStrLn $ display e ++ " :: " ++ display t
-      return ms
-    Just line ->
-      case parseExpr line of
-        Left err -> do
-          outputStrLn (show err)
-          return ms
-        Right e ->
-          case inferNormType' e of
-            Left err -> do
-              outputStrLn $ display e ++ " is not typeable. " ++ display err
-              return ms
-            Right t -> do
-              result <- try' (evaluate (eval ["$"] e ms))
-              case (result :: Either SomeException MultiStack) of
-                Left err -> do
-                  outputStrLn $ show err
-                  return ms
-                Right ms' -> do
-                  outputStrLn $ display ms'
-                  return ms'
+    Just line -> case parseCommand line of
+      Left err -> do
+        outputStrLn (show err)
+        return ms
+      Right CmdExit -> liftIO exitSuccess
+      Right CmdClear -> do
+        return (MultiStack Map.empty)
+      Right (CmdPrint e) -> do
+        printExprType e
+        return ms
+      Right (CmdPartialEval e) -> do
+        printExprType (partialEval' e)
+        return ms
+      Right (CmdEval e) ->
+        case inferNormType' e of
+          Left err -> do
+            outputStrLn $ display e ++ " is not typeable. " ++ display err
+            return ms
+          Right t -> do
+            result <- tryEval e ms
+            case result :: Either SomeException MultiStack of
+              Left err -> do
+                outputStrLn $ show err
+                return ms
+              Right ms' -> do
+                outputStrLn $ display ms'
+                return ms'
 
-try' :: Exception e => IO a -> InputT IO (Either e a)
-try' = liftIO . Control.Exception.try
+printExprType e =
+  case inferNormType' e of
+    Left err -> outputStrLn $ display e ++ " is not typeable. " ++ display err
+    Right t -> outputStrLn $ display e ++ " :: " ++ display t
+
+tryEval :: Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
+tryEval e ms =
+  liftIO (Control.Exception.try (Control.Exception.evaluate (eval ["$"] e ms)))
+
+parseCommand :: String -> Either ParseError Command
+parseCommand = parse (skipMany space *> command <* eof) ""
+
+command :: Parser Command
+command =
+  try (keyword ":exit" >> return CmdExit)
+    <|> try (keyword ":clear" >> return CmdClear)
+    <|> try (CmdPrint <$> (keyword ":print" *> expr))
+    <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
+    <|> CmdEval <$> expr
+
+data Command
+  = CmdExit
+  | CmdClear
+  | CmdPrint Expr
+  | CmdPartialEval Expr
+  | CmdEval Expr
