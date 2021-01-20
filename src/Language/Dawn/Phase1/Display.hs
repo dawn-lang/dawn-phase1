@@ -21,6 +21,7 @@ instance Display Expr where
   display (EContext s (EIntrinsic IPush)) = s ++ "<-"
   display (EContext s (EIntrinsic IPop)) = s ++ "->"
   display (EContext s e) = "(" ++ s ++ ": " ++ display e ++ ")"
+  display (ELit (LU32 i)) = show i
 
 displayedExprs :: [Expr] -> [String]
 displayedExprs [] = []

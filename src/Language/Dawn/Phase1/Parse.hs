@@ -16,11 +16,17 @@ parseExpr = parse (skipMany space *> expr <* eof) ""
 
 expr :: Parser Expr
 expr = do
-  es <- many (grouped <|> quoted <|> sugar <|> intrinsic)
+  es <- many (literal <|> grouped <|> quoted <|> sugar <|> intrinsic)
   case es of
     [] -> return (ECompose [])
     [e] -> return e
     es -> return (ECompose es)
+
+literal :: Parser Expr
+literal = ELit . LU32 . fromInteger <$> integer_literal
+
+integer_literal :: Parser Integer
+integer_literal = read <$> lexeme (many1 digit)
 
 grouped = between (symbol '(') (symbol ')') (context <|> expr)
 

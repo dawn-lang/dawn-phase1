@@ -94,3 +94,11 @@ spec = do
     it "parses `$a->`" $ do
       parseExpr "$a->"
         `shouldBe` Right (EContext "$a" (EIntrinsic IPop))
+
+    it "parses `123`" $ do
+      parseExpr "123"
+        `shouldBe` Right (ELit (LU32 123))
+
+    it "parses `($a: 123)`" $ do
+      parseExpr "($a: 123)"
+        `shouldBe` Right (EContext "$a" (ELit (LU32 123)))

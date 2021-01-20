@@ -22,6 +22,7 @@ module Language.Dawn.Phase1.Core
     instantiate,
     Intrinsic (..),
     intrinsicType,
+    Literal (..),
     mgu,
     replaceTypeVars,
     requantify,
@@ -44,6 +45,7 @@ import Control.Monad.Except
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Word
 import Prelude hiding ((*))
 
 ---------------------
@@ -56,6 +58,11 @@ data Expr
   | EQuote Expr
   | ECompose [Expr]
   | EContext StackId Expr
+  | ELit Literal
+  deriving (Eq, Ord, Show)
+
+newtype Literal
+  = LU32 Word32
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -329,9 +336,9 @@ mguList ((t1, t2) : ts) reserved = do
   let (s3, reserved5) = composeSubst s2 s1 reserved4
   return (s3, reserved5)
 
----------------------
--- Intrinsic Types --
----------------------
+---------------------------------
+-- Intrinsic and Literal Types --
+---------------------------------
 
 infixl 2 $.
 
@@ -383,6 +390,11 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
+
+literalType :: Context -> Literal -> Type
+literalType (s : _) (LU32 _) =
+  let t = TCons (TypeCons "U32")
+   in forall [v0] (s $: v0 --> v0 * t)
 
 --------------------
 -- Type Inference --
@@ -438,6 +450,7 @@ inferType ctx (ECompose es) = do
   ts <- mapM (inferType ctx) es
   foldM composeTypes (head ts) (tail ts)
 inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
+inferType ctx (ELit l) = return $ literalType ctx l
 
 ensureUniqueStackId :: Context -> StackId -> StackId
 ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)

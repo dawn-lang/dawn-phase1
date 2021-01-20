@@ -28,6 +28,7 @@ fromExprSeq es = ECompose es
 -- | Returns True if the expression is a literal
 isLiteral :: Expr -> Bool
 isLiteral (EQuote _) = True
+isLiteral (ELit _) = True
 isLiteral _ = False
 
 simplify :: Int -> [Expr] -> [Expr] -> (Int, [Expr])
