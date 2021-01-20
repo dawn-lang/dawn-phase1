@@ -51,6 +51,7 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
+  display (TCons tc) = display tc
 
 displayMultiIO mio
   | Map.keys mio == [""] =
@@ -59,6 +60,9 @@ displayMultiIO mio
   | otherwise = intercalate " . " (map iter (Map.toAscList mio))
   where
     iter (sid, (i, o)) = sid ++ ": " ++ display i ++ " -> " ++ display o
+
+instance Display TypeCons where
+  display (TypeCons s) = s
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n

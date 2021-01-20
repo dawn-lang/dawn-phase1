@@ -30,6 +30,7 @@ module Language.Dawn.Phase1.Core
     Subs (..),
     Subst (..),
     Type (..),
+    TypeCons (..),
     TypeVar (..),
     TypeVars,
     UnificationError (..),
@@ -71,6 +72,10 @@ data Type
   = TVar TypeVar
   | TProd Type Type
   | TFn UnivQuants MultiIO
+  | TCons TypeCons
+  deriving (Eq, Ord, Show)
+
+newtype TypeCons = TypeCons String
   deriving (Eq, Ord, Show)
 
 -- | Multi-stack input/output
@@ -122,18 +127,22 @@ instance HasTypeVars Type where
     TFn
       (Set.map (\tv -> if tv == from then to else tv) uqs)
       (renameTypeVar from to mio)
+  renameTypeVar from to t@(TCons _) = t
 
   ftv (TVar tv) = Set.singleton tv
   ftv (TProd l r) = ftv l `Set.union` ftv r
   ftv (TFn qs io) = ftv io `Set.difference` qs
+  ftv (TCons _) = Set.empty
 
   btv (TVar _) = Set.empty
   btv (TProd l r) = btv l `Set.union` btv r
   btv (TFn qs io) = qs `Set.union` btv io
+  btv (TCons _) = Set.empty
 
   atv (TVar tv) = [tv]
   atv (TProd l r) = atv l `union` atv r
   atv (TFn _ io) = atv io
+  atv (TCons _) = []
 
 instance HasTypeVars a => HasTypeVars [a] where
   renameTypeVar from to ts = map (renameTypeVar from to) ts
@@ -243,6 +252,7 @@ instance Subs Type where
       else
         let (io', reserved') = subs s io reserved
          in (TFn qs io', reserved')
+  subs s t@(TCons _) reserved = (t, reserved)
 
 instance Subs a => Subs [a] where
   subs s ts reserved = foldr helper ([], reserved) ts
@@ -298,6 +308,8 @@ mgu f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in mguList (is ++ os) reserved'
+mgu (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
+  | s == s' = return (Subst Map.empty, reserved)
 mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
@@ -390,6 +402,7 @@ requantify t = recurse t
     count (TFn _ mio) =
       let iter (i, o) = Map.unionWith (+) (count i) (count o)
        in foldl1 (Map.unionWith (+)) (map iter (Map.elems mio))
+    count (TCons _) = Map.empty
     counts = count t
     recurse t@(TVar _) = t
     recurse (TProd l r) = TProd (recurse l) (recurse r)
@@ -400,6 +413,7 @@ requantify t = recurse t
           mio' = Map.map (\(i, o) -> (recurse i, recurse o)) mio
           qs' = qs `Set.difference` btv mio'
        in TFn qs' mio'
+    recurse t@(TCons _) = t
 
 composeTypes :: Type -> Type -> Result Type
 composeTypes f1@TFn {} f2@TFn {} = do
