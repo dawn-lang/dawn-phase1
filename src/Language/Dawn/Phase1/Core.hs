@@ -22,6 +22,7 @@ module Language.Dawn.Phase1.Core
     instantiate,
     Intrinsic (..),
     intrinsicType,
+    Literal (..),
     mgu,
     replaceTypeVars,
     requantify,
@@ -30,6 +31,7 @@ module Language.Dawn.Phase1.Core
     Subs (..),
     Subst (..),
     Type (..),
+    TypeCons (..),
     TypeVar (..),
     TypeVars,
     UnificationError (..),
@@ -43,6 +45,7 @@ import Control.Monad.Except
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Word
 import Prelude hiding ((*))
 
 ---------------------
@@ -55,6 +58,11 @@ data Expr
   | EQuote Expr
   | ECompose [Expr]
   | EContext StackId Expr
+  | ELit Literal
+  deriving (Eq, Ord, Show)
+
+newtype Literal
+  = LU32 Word32
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -65,12 +73,24 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
+  | IEqz
+  | IAdd
+  | ISub
+  | IBitAnd
+  | IBitOr
+  | IBitXor
+  | IShl
+  | IShr
   deriving (Eq, Ord, Show)
 
 data Type
   = TVar TypeVar
   | TProd Type Type
   | TFn UnivQuants MultiIO
+  | TCons TypeCons
+  deriving (Eq, Ord, Show)
+
+newtype TypeCons = TypeCons String
   deriving (Eq, Ord, Show)
 
 -- | Multi-stack input/output
@@ -122,18 +142,22 @@ instance HasTypeVars Type where
     TFn
       (Set.map (\tv -> if tv == from then to else tv) uqs)
       (renameTypeVar from to mio)
+  renameTypeVar from to t@(TCons _) = t
 
   ftv (TVar tv) = Set.singleton tv
   ftv (TProd l r) = ftv l `Set.union` ftv r
   ftv (TFn qs io) = ftv io `Set.difference` qs
+  ftv (TCons _) = Set.empty
 
   btv (TVar _) = Set.empty
   btv (TProd l r) = btv l `Set.union` btv r
   btv (TFn qs io) = qs `Set.union` btv io
+  btv (TCons _) = Set.empty
 
   atv (TVar tv) = [tv]
   atv (TProd l r) = atv l `union` atv r
   atv (TFn _ io) = atv io
+  atv (TCons _) = []
 
 instance HasTypeVars a => HasTypeVars [a] where
   renameTypeVar from to ts = map (renameTypeVar from to) ts
@@ -243,6 +267,7 @@ instance Subs Type where
       else
         let (io', reserved') = subs s io reserved
          in (TFn qs io', reserved')
+  subs s t@(TCons _) reserved = (t, reserved)
 
 instance Subs a => Subs [a] where
   subs s ts reserved = foldr helper ([], reserved) ts
@@ -298,6 +323,8 @@ mgu f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in mguList (is ++ os) reserved'
+mgu (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
+  | s == s' = return (Subst Map.empty, reserved)
 mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
@@ -317,9 +344,9 @@ mguList ((t1, t2) : ts) reserved = do
   let (s3, reserved5) = composeSubst s2 s1 reserved4
   return (s3, reserved5)
 
----------------------
--- Intrinsic Types --
----------------------
+---------------------------------
+-- Intrinsic and Literal Types --
+---------------------------------
 
 infixl 2 $.
 
@@ -350,6 +377,8 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
+tU32 = TCons (TypeCons "U32")
+
 type Context = [StackId]
 
 intrinsicType :: Context -> Intrinsic -> Type
@@ -371,6 +400,25 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
+intrinsicType (s : _) IEqz =
+  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IAdd =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ISub =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitAnd =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitOr =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitXor =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IShl =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IShr =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+
+literalType :: Context -> Literal -> Type
+literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 --------------------
 -- Type Inference --
@@ -390,6 +438,7 @@ requantify t = recurse t
     count (TFn _ mio) =
       let iter (i, o) = Map.unionWith (+) (count i) (count o)
        in foldl1 (Map.unionWith (+)) (map iter (Map.elems mio))
+    count (TCons _) = Map.empty
     counts = count t
     recurse t@(TVar _) = t
     recurse (TProd l r) = TProd (recurse l) (recurse r)
@@ -400,6 +449,7 @@ requantify t = recurse t
           mio' = Map.map (\(i, o) -> (recurse i, recurse o)) mio
           qs' = qs `Set.difference` btv mio'
        in TFn qs' mio'
+    recurse t@(TCons _) = t
 
 composeTypes :: Type -> Type -> Result Type
 composeTypes f1@TFn {} f2@TFn {} = do
@@ -424,6 +474,7 @@ inferType ctx (ECompose es) = do
   ts <- mapM (inferType ctx) es
   foldM composeTypes (head ts) (tail ts)
 inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
+inferType ctx (ELit l) = return $ literalType ctx l
 
 ensureUniqueStackId :: Context -> StackId -> StackId
 ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)

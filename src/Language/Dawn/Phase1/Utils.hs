@@ -46,6 +46,7 @@ removeTrivialStacks (TFn qs mio) =
   where
     isTrivial qs (TVar i, TVar o) | i == o && i `elem` qs = True
     isTrivial _ _ = False
+removeTrivialStacks t@(TCons _) = t
 
 normalizeTypeVars :: Type -> Type
 normalizeTypeVars t =
@@ -79,6 +80,7 @@ unusedQuantifiers (TFn qs mio) =
       folder s (i, o) =
         s `Set.union` unusedQuantifiers i `Set.union` unusedQuantifiers o
    in unused `Set.union` foldl folder Set.empty mio
+unusedQuantifiers (TCons _) = Set.empty
 
 ----------------------
 -- Polymorphic Rank --
@@ -95,3 +97,4 @@ polymorphicRank (TFn qs mio) =
     else
       let iter (i, o) = max (polymorphicRank i) (polymorphicRank o - 1)
        in 1 + maximum (map iter (Map.elems mio))
+polymorphicRank (TCons _) = 0

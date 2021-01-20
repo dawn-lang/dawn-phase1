@@ -21,6 +21,7 @@ instance Display Expr where
   display (EContext s (EIntrinsic IPush)) = s ++ "<-"
   display (EContext s (EIntrinsic IPop)) = s ++ "->"
   display (EContext s e) = "(" ++ s ++ ": " ++ display e ++ ")"
+  display (ELit (LU32 i)) = show i
 
 displayedExprs :: [Expr] -> [String]
 displayedExprs [] = []
@@ -38,6 +39,14 @@ instance Display Intrinsic where
   display IQuote = "quote"
   display ICompose = "compose"
   display IApply = "apply"
+  display IEqz = "eqz"
+  display IAdd = "add"
+  display ISub = "sub"
+  display IBitAnd = "bit_and"
+  display IBitOr = "bit_or"
+  display IBitXor = "bit_xor"
+  display IShl = "shl"
+  display IShr = "shr"
 
 instance Display Type where
   display (TVar tv) = display tv
@@ -51,6 +60,7 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
+  display (TCons tc) = display tc
 
 displayMultiIO mio
   | Map.keys mio == [""] =
@@ -59,6 +69,9 @@ displayMultiIO mio
   | otherwise = intercalate " . " (map iter (Map.toAscList mio))
   where
     iter (sid, (i, o)) = sid ++ ": " ++ display i ++ " -> " ++ display o
+
+instance Display TypeCons where
+  display (TypeCons s) = s
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n

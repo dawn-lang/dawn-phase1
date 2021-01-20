@@ -25,13 +25,23 @@ intToIntrinsic 5 = EIntrinsic IDrop
 intToIntrinsic 6 = EIntrinsic IQuote
 intToIntrinsic 7 = EIntrinsic ICompose
 intToIntrinsic 8 = EIntrinsic IApply
+intToIntrinsic 9 = ELit (LU32 0)
+intToIntrinsic 10 = ELit (LU32 1)
+intToIntrinsic 11 = EIntrinsic IEqz
+intToIntrinsic 12 = EIntrinsic IAdd
+intToIntrinsic 13 = EIntrinsic ISub
+intToIntrinsic 14 = EIntrinsic IBitAnd
+intToIntrinsic 15 = EIntrinsic IBitOr
+intToIntrinsic 16 = EIntrinsic IBitXor
+intToIntrinsic 17 = EIntrinsic IShl
+intToIntrinsic 18 = EIntrinsic IShr
 
 allIntCombinations :: Int -> Int -> Int -> [[Int]]
 allIntCombinations width min max = replicateM width [min .. max]
 
 allIntrinsicCombinations :: Int -> [[Expr]]
 allIntrinsicCombinations width =
-  map (map intToIntrinsic) (allIntCombinations width 0 8)
+  map (map intToIntrinsic) (allIntCombinations width 0 18)
 
 allUnquotedExprsOfWidth :: Int -> [Expr]
 allUnquotedExprsOfWidth width = map ECompose (allIntrinsicCombinations width)

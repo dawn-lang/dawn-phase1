@@ -194,6 +194,7 @@ spec = do
                 counts = foldl1 (Map.unionWith (+)) (map iter' (Map.elems mio))
                 counts' = foldl (\m v -> Map.insert v 1 m) Map.empty (Set.toList qs)
              in Map.unionWith (+) counts counts'
+          count (TCons _) = Map.empty
       let iter e = case inferType' e of
             Left _ -> return ()
             Right t ->
@@ -234,3 +235,27 @@ spec = do
         `shouldBe` Right (forall [v0, v1, v2] ("$b" $: v0 * v1 * v2 --> v0 * v2 * v1))
       inferNormType ["$c"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$c" $: v0 * v1 * v2 --> v0 * v2 * v1))
+
+    it "infers `[drop]" $ do
+      let (Right e) = parseExpr "[drop]"
+      inferNormType' e
+        `shouldBe` Right (forall' [v0] (v0 --> v0 * forall' [v1, v2] (v1 * v2 --> v1)))
+
+    it "infers `($a: [drop])" $ do
+      let (Right e) = parseExpr "($a: [drop])"
+      inferNormType' e
+        `shouldBe` Right
+          ( forall [v0] ("$a" $: v0 --> v0 * forall [v1, v2] ("$a" $: v1 * v2 --> v1))
+          )
+
+    it "infers `123`" $ do
+      let (Right e) = parseExpr "123"
+      let t = TCons (TypeCons "U32")
+      inferNormType ["$"] e
+        `shouldBe` Right (forall [v0] ("$" $: v0 --> v0 * t))
+
+    it "infers `($a: 123)`" $ do
+      let (Right e) = parseExpr "($a: 123)"
+      let t = TCons (TypeCons "U32")
+      inferNormType ["$"] e
+        `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
