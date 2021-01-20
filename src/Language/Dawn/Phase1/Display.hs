@@ -9,6 +9,7 @@ import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.Eval
 
 class Display t where
   display :: t -> String
@@ -63,8 +64,8 @@ instance Display Type where
   display (TCons tc) = display tc
 
 displayMultiIO mio
-  | Map.keys mio == [""] =
-    let [("", (i, o))] = Map.toList mio
+  | Map.keys mio == ["$"] =
+    let [("$", (i, o))] = Map.toList mio
      in display i ++ " -> " ++ display o
   | otherwise = intercalate " . " (map iter (Map.toAscList mio))
   where
@@ -93,3 +94,11 @@ instance Display a => Display [a] where
 
 instance (Display a, Display b) => Display (a, b) where
   display (a, b) = "(" ++ display a ++ ", " ++ display b ++ ")"
+
+instance Display MultiStack where
+  display (MultiStack m) = intercalate "\n" (map iter (Map.toAscList m))
+    where
+      iter (sid, vs) = sid ++ ": " ++ unwords (map display (reverse vs))
+
+instance Display Val where
+  display v = display (fromVal v)

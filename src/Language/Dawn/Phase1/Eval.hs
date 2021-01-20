@@ -6,8 +6,10 @@
 module Language.Dawn.Phase1.Eval
   ( eval,
     eval',
+    fromVal,
     fromValSeq,
     MultiStack (..),
+    toVal,
     toValSeq,
     Val (..),
   )
