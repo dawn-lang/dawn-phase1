@@ -9,22 +9,14 @@ module Language.Dawn.Phase1.PartialEval
   )
 where
 
-import Data.Bits
 import Control.Monad
 import Control.Monad.Except
+import Data.Bits
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core hiding ((*))
-
-toExprSeq :: Expr -> [Expr]
-toExprSeq (ECompose es) = es
-toExprSeq e = [e]
-
-fromExprSeq :: [Expr] -> Expr
-fromExprSeq [] = ECompose []
-fromExprSeq [e] = e
-fromExprSeq es = ECompose es
+import Language.Dawn.Phase1.Utils
 
 -- | Returns True if the expression is a literal
 isLiteral :: Expr -> Bool
