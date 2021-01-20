@@ -41,21 +41,21 @@ sugar =
         )
 
 intrinsic =
-  try push <|> try pop <|> try clone <|> try drop <|> try quote <|> try compose <|> try apply
-
-push = keyword "push" >> return (EIntrinsic IPush)
-
-pop = keyword "pop" >> return (EIntrinsic IPop)
-
-clone = keyword "clone" >> return (EIntrinsic IClone)
-
-drop = keyword "drop" >> return (EIntrinsic IDrop)
-
-quote = keyword "quote" >> return (EIntrinsic IQuote)
-
-compose = keyword "compose" >> return (EIntrinsic ICompose)
-
-apply = keyword "apply" >> return (EIntrinsic IApply)
+  try (keyword "push" >> return (EIntrinsic IPush))
+    <|> try (keyword "pop" >> return (EIntrinsic IPop))
+    <|> try (keyword "clone" >> return (EIntrinsic IClone))
+    <|> try (keyword "drop" >> return (EIntrinsic IDrop))
+    <|> try (keyword "quote" >> return (EIntrinsic IQuote))
+    <|> try (keyword "compose" >> return (EIntrinsic ICompose))
+    <|> try (keyword "apply" >> return (EIntrinsic IApply))
+    <|> try (keyword "eqz" >> return (EIntrinsic IEqz))
+    <|> try (keyword "add" >> return (EIntrinsic IAdd))
+    <|> try (keyword "sub" >> return (EIntrinsic ISub))
+    <|> try (keyword "bit_and" >> return (EIntrinsic IBitAnd))
+    <|> try (keyword "bit_or" >> return (EIntrinsic IBitOr))
+    <|> try (keyword "bit_xor" >> return (EIntrinsic IBitXor))
+    <|> try (keyword "shl" >> return (EIntrinsic IShl))
+    <|> try (keyword "shr" >> return (EIntrinsic IShr))
 
 stackId = lexeme stackId_
 

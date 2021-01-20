@@ -47,6 +47,30 @@ spec = do
     it "parses `apply`" $ do
       parseExpr "apply" `shouldBe` Right apply
 
+    it "parses `eqz`" $ do
+      parseExpr "eqz" `shouldBe` Right (EIntrinsic IEqz)
+
+    it "parses `add`" $ do
+      parseExpr "add" `shouldBe` Right (EIntrinsic IAdd)
+
+    it "parses `sub`" $ do
+      parseExpr "sub" `shouldBe` Right (EIntrinsic ISub)
+
+    it "parses `bit_and`" $ do
+      parseExpr "bit_and" `shouldBe` Right (EIntrinsic IBitAnd)
+
+    it "parses `bit_or`" $ do
+      parseExpr "bit_or" `shouldBe` Right (EIntrinsic IBitOr)
+
+    it "parses `bit_xor`" $ do
+      parseExpr "bit_xor" `shouldBe` Right (EIntrinsic IBitXor)
+
+    it "parses `shl`" $ do
+      parseExpr "shl" `shouldBe` Right (EIntrinsic IShl)
+
+    it "parses `shr`" $ do
+      parseExpr "shr" `shouldBe` Right (EIntrinsic IShr)
+
     it "parses `clone drop quote compose apply`" $ do
       parseExpr "clone drop quote compose apply"
         `shouldBe` Right (ECompose [clone, drop, quote, compose, apply])
@@ -80,7 +104,7 @@ spec = do
     it "parses `($_Ab12_C: drop)`" $ do
       parseExpr "($_Ab12_C: drop)"
         `shouldBe` Right (EContext "$_Ab12_C" (EIntrinsic IDrop))
-        
+
     it "fails on `($1234: drop)`" $ do
       let (Left err) = parseExpr "($1234: drop)"
       let pos = errorPos err

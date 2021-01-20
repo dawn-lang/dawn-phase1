@@ -9,6 +9,7 @@ module Language.Dawn.Phase1.PartialEval
   )
 where
 
+import Data.Bits
 import Control.Monad
 import Control.Monad.Except
 import Data.List
@@ -56,6 +57,31 @@ simplify fuel es' ((EQuote e) : es) =
    in simplify fuel' (es' ++ [EQuote e']) es
 -- expand ECompose
 simplify fuel es' ((ECompose es'') : es) = simplify (fuel - 1) [] (es' ++ es'' ++ es)
+-- arithmetic
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IEqz : es) =
+  let c = if a == 0 then 1 else 0
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IAdd : es) =
+  let c = a + b
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic ISub : es) =
+  let c = a - b
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitAnd : es) =
+  let c = a .&. b
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitOr : es) =
+  let c = a .|. b
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitXor : es) =
+  let c = a `xor` b
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShl : es) =
+  let c = a `shiftL` fromInteger (toInteger b)
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShr : es) =
+  let c = a `shiftR` fromInteger (toInteger b)
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
 -- otherwise, skip
 simplify fuel es' (e : es) = simplify fuel (es' ++ [e]) es
 

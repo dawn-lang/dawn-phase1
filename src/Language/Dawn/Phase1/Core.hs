@@ -73,6 +73,14 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
+  | IEqz
+  | IAdd
+  | ISub
+  | IBitAnd
+  | IBitOr
+  | IBitXor
+  | IShl
+  | IShr
   deriving (Eq, Ord, Show)
 
 data Type
@@ -369,6 +377,8 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
+tU32 = TCons (TypeCons "U32")
+
 type Context = [StackId]
 
 intrinsicType :: Context -> Intrinsic -> Type
@@ -390,11 +400,25 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
+intrinsicType (s : _) IEqz =
+  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IAdd =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ISub =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitAnd =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitOr =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitXor =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IShl =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IShr =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 
 literalType :: Context -> Literal -> Type
-literalType (s : _) (LU32 _) =
-  let t = TCons (TypeCons "U32")
-   in forall [v0] (s $: v0 --> v0 * t)
+literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 --------------------
 -- Type Inference --

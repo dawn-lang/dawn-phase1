@@ -70,3 +70,48 @@ spec = do
       partialEval 4 e0 `shouldBe` (0, e1)
       partialEval 5 e0 `shouldBe` (0, e2)
       partialEval 6 e0 `shouldBe` (0, e0)
+
+    it "evals `0 eqz`" $ do
+      let (Right e) = parseExpr "0 eqz"
+      let (Right e') = parseExpr "1"
+      partialEval' e `shouldBe` e'
+
+    it "evals `1 eqz`" $ do
+      let (Right e) = parseExpr "1 eqz"
+      let (Right e') = parseExpr "0"
+      partialEval' e `shouldBe` e'
+
+    it "evals `2 2 add`" $ do
+      let (Right e) = parseExpr "2 2 add"
+      let (Right e') = parseExpr "4"
+      partialEval' e `shouldBe` e'
+
+    it "evals `4 2 sub`" $ do
+      let (Right e) = parseExpr "4 2 sub"
+      let (Right e') = parseExpr "2"
+      partialEval' e `shouldBe` e'
+
+    it "evals `2 3 bit_and`" $ do
+      let (Right e) = parseExpr "2 3 bit_and"
+      let (Right e') = parseExpr "2"
+      partialEval' e `shouldBe` e'
+
+    it "evals `1 2 bit_or`" $ do
+      let (Right e) = parseExpr "1 2 bit_or"
+      let (Right e') = parseExpr "3"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 6 bit_xor`" $ do
+      let (Right e) = parseExpr "5 6 bit_xor"
+      let (Right e') = parseExpr "3"
+      partialEval' e `shouldBe` e'
+
+    it "evals `1 2 shl`" $ do
+      let (Right e) = parseExpr "1 2 shl"
+      let (Right e') = parseExpr "4"
+      partialEval' e `shouldBe` e'
+
+    it "evals `8 2 shr`" $ do
+      let (Right e) = parseExpr "8 2 shr"
+      let (Right e') = parseExpr "2"
+      partialEval' e `shouldBe` e'
