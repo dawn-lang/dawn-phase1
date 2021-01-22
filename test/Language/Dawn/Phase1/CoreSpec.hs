@@ -278,3 +278,8 @@ spec = do
       let (Right e) = parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
       inferNormType ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tU32 * tU32 --> v0 * tU32))
+
+    it "infers `{match {case 0 => [clone] apply} {case => drop [clone] apply}}`" $ do
+      let (Right e) = parseExpr "{match {case 0 => [clone] apply} {case => drop [clone] apply}}"
+      inferNormType ["$"] e
+        `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
