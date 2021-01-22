@@ -7,10 +7,8 @@ module Language.Dawn.Phase1.Eval
   ( eval,
     eval',
     fromVal,
-    fromValSeq,
     MultiStack (..),
     toVal,
-    toValSeq,
     Val (..),
   )
 where
@@ -23,40 +21,23 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Word
 import Language.Dawn.Phase1.Core hiding ((*))
+import Language.Dawn.Phase1.Utils
 
 newtype MultiStack = MultiStack (Map.Map StackId [Val])
   deriving (Eq, Show)
 
 data Val
-  = VIntrinsic Intrinsic
-  | VQuote Val
-  | VCompose [Val]
-  | VContext StackId Val
+  = VQuote Expr
   | VLit Literal
   deriving (Eq, Ord, Show)
 
 toVal :: Expr -> Val
-toVal (EIntrinsic i) = VIntrinsic i
-toVal (EQuote e) = VQuote (toVal e)
-toVal (ECompose es) = VCompose (map toVal es)
-toVal (EContext s e) = VContext s (toVal e)
+toVal (EQuote e) = VQuote e
 toVal (ELit l) = VLit l
 
 fromVal :: Val -> Expr
-fromVal (VIntrinsic i) = EIntrinsic i
-fromVal (VQuote e) = EQuote (fromVal e)
-fromVal (VCompose es) = ECompose (map fromVal es)
-fromVal (VContext s e) = EContext s (fromVal e)
+fromVal (VQuote e) = EQuote e
 fromVal (VLit l) = ELit l
-
-toValSeq :: Val -> [Val]
-toValSeq (VCompose es) = es
-toValSeq e = [e]
-
-fromValSeq :: [Val] -> Val
-fromValSeq [] = VCompose []
-fromValSeq [e] = e
-fromValSeq es = VCompose es
 
 insertListOrDelete s [] m = Map.delete s m
 insertListOrDelete s vs m = Map.insert s vs m
@@ -84,17 +65,17 @@ eval (s : _) (EIntrinsic IDrop) (MultiStack m) =
    in MultiStack m'
 eval (s : _) (EIntrinsic IQuote) (MultiStack m) =
   let (v : vs) = Map.findWithDefault [] s m
-      m' = insertListOrDelete s (VQuote v : vs) m
+      m' = insertListOrDelete s (VQuote (fromVal v) : vs) m
    in MultiStack m'
 eval (s : _) (EIntrinsic ICompose) (MultiStack m) =
   let (VQuote b : VQuote a : vs) = Map.findWithDefault [] s m
-      v' = fromValSeq (toValSeq a ++ toValSeq b)
-      m' = insertListOrDelete s (VQuote v' : vs) m
+      e = fromExprSeq (toExprSeq a ++ toExprSeq b)
+      m' = insertListOrDelete s (VQuote e : vs) m
    in MultiStack m'
 eval ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
-  let (VQuote v : vs) = Map.findWithDefault [] s m
+  let (VQuote e : vs) = Map.findWithDefault [] s m
       m' = insertListOrDelete s vs m
-   in eval ctx (fromVal v) (MultiStack m')
+   in eval ctx e (MultiStack m')
 eval (s : _) (EIntrinsic IEqz) (MultiStack m) =
   let (VLit (LU32 a) : vs) = Map.findWithDefault [] s m
       c = if a == 0 then 1 else 0

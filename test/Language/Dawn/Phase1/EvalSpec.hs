@@ -28,8 +28,7 @@ spec = do
   describe "eval'" $ do
     it "evals `[clone] clone`" $ do
       let (Right e) = parseExpr "[clone] clone"
-      let (Right v) = parseVal "[clone] [clone]"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "[clone] [clone]"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
@@ -40,112 +39,96 @@ spec = do
 
     it "evals `[clone] quote`" $ do
       let (Right e) = parseExpr "[clone] quote"
-      let (Right v) = parseVal "[[clone]]"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "[[clone]]"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `[clone] [clone] compose`" $ do
       let (Right e) = parseExpr "[clone] [clone] compose"
-      let (Right v) = parseVal "[clone clone]"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "[clone clone]"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `0 [clone] apply`" $ do
       let (Right e) = parseExpr "0 [clone] apply"
-      let (Right v) = parseVal "0 0"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "0 0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `0 [clone] apply`" $ do
       let (Right e) = parseExpr "0 [clone] apply"
-      let (Right v) = parseVal "0 0"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "0 0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `[drop] (clone compose)`" $ do
       let (Right e) = parseExpr "[drop] (clone compose)"
-      let (Right v) = parseVal "[drop drop]"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "[drop drop]"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `0 eqz`" $ do
       let (Right e) = parseExpr "0 eqz"
-      let (Right v) = parseVal "1"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `1 eqz`" $ do
       let (Right e) = parseExpr "1 eqz"
-      let (Right v) = parseVal "0"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `2 2 add`" $ do
       let (Right e) = parseExpr "2 2 add"
-      let (Right v) = parseVal "4"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "4"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `4 2 sub`" $ do
       let (Right e) = parseExpr "4 2 sub"
-      let (Right v) = parseVal "2"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "2"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `2 3 bit_and`" $ do
       let (Right e) = parseExpr "2 3 bit_and"
-      let (Right v) = parseVal "2"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "2"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `1 2 bit_or`" $ do
       let (Right e) = parseExpr "1 2 bit_or"
-      let (Right v) = parseVal "3"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "3"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `5 6 bit_xor`" $ do
       let (Right e) = parseExpr "5 6 bit_xor"
-      let (Right v) = parseVal "3"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "3"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `1 2 shl`" $ do
       let (Right e) = parseExpr "1 2 shl"
-      let (Right v) = parseVal "4"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "4"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `8 2 shr`" $ do
       let (Right e) = parseExpr "8 2 shr"
-      let (Right v) = parseVal "2"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "2"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
       let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
-      let (Right v) = parseVal "1 0"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "1 0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
     it "evals `0 1 ($a: push eqz pop) sub eqz`" $ do
       let (Right e) = parseExpr "0 1 ($a: push eqz pop) sub eqz"
-      let (Right v) = parseVal "1"
-      let vs = reverse (toValSeq v)
+      let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms

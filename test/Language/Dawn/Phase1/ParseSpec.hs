@@ -6,6 +6,7 @@
 module Language.Dawn.Phase1.ParseSpec (spec) where
 
 import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
 import Test.Hspec
 import Text.Parsec.Error
@@ -126,3 +127,10 @@ spec = do
     it "parses `($a: 123)`" $ do
       parseExpr "($a: 123)"
         `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
+
+  describe "parseVal" $ do
+    it "parses `[clone] [drop] 0`" $ do
+      -- Note that the values are in reverse, so that `eval` can
+      -- easily pattern match on the top of the stack.
+      parseVals "[clone] [drop] 0"
+        `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
