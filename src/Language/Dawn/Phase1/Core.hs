@@ -459,8 +459,10 @@ requantify t = recurse t
        in TFn qs' mio'
     recurse t@(TCons _) = t
 
-composeTypes :: Type -> Type -> Result Type
-composeTypes f1@TFn {} f2@TFn {} = do
+composeTypes :: [Type] -> Result Type
+composeTypes [] = return (forall' [v0] (v0 --> v0))
+composeTypes [t@TFn {}] = return t
+composeTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let (f1', reserved1) = instantiate f1 Set.empty
   let (f2', reserved2) = instantiate f2 reserved1
   let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
@@ -470,7 +472,8 @@ composeTypes f1@TFn {} f2@TFn {} = do
   let i1o2s = zip (map fst (Map.elems mio1)) (map snd (Map.elems mio2))
   let (io3s, _) = subs s i1o2s reserved4
   let mio3 = Map.fromDistinctAscList (zip (Map.keys mio1) io3s)
-  return (requantify (TFn Set.empty mio3))
+  let t3 = requantify (TFn Set.empty mio3)
+  composeTypes (t3 : ts)
 
 stackTypes :: [Type] -> Type
 stackTypes [t] = t
@@ -496,7 +499,7 @@ caseType :: Context -> (Pattern, Expr) -> Result Type
 caseType ctx (p, e) = do
   let pt = patternType ctx p
   et <- inferType ctx e
-  composeTypes pt et
+  composeTypes [pt, et]
 
 unifyCaseTypes :: [Type] -> Result Type
 unifyCaseTypes [] = error "empty match"
@@ -515,10 +518,9 @@ inferType ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType ctx (EQuote e) = do
   t <- inferType ctx e
   quoteType ctx t
-inferType _ (ECompose []) = return (forall' [v0] (v0 --> v0))
 inferType ctx (ECompose es) = do
   ts <- mapM (inferType ctx) es
-  foldM composeTypes (head ts) (tail ts)
+  composeTypes ts
 inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
 inferType ctx (ELit l) = return $ literalType ctx l
 inferType ctx (EMatch cases) = do
