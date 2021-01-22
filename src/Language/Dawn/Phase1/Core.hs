@@ -504,12 +504,13 @@ caseType ctx (p, e) = do
 unifyCaseTypes :: [Type] -> Result Type
 unifyCaseTypes [] = error "empty match"
 unifyCaseTypes [t@TFn {}] = return t
-unifyCaseTypes (t1@TFn {} : t2@TFn {} : ts) = do
-  let (t1', t2', reserved1) = addMissingStacks (t1, t2, Set.empty)
-  let ((t1'', t2''), reserved2) = instantiate (t1', t2') reserved1
-  (s, reserved3) <- mgu t1'' t2'' reserved2
-  let TFn _ mio1 = t1''
-  let (mio3, _) = subs s mio1 reserved3
+unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
+  let (f1', reserved1) = instantiate f1 Set.empty
+  let (f2', reserved2) = instantiate f2 reserved1
+  let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
+  (s, reserved4) <- mgu f1'' f2'' reserved3
+  let TFn _ mio1 = f1''
+  let (mio3, _) = subs s mio1 reserved4
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
