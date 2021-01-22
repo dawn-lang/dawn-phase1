@@ -5,6 +5,7 @@
 
 module Main where
 
+import Control.Exception (SomeException)
 import qualified Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
