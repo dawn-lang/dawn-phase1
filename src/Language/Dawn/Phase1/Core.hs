@@ -24,6 +24,7 @@ module Language.Dawn.Phase1.Core
     intrinsicType,
     Literal (..),
     mgu,
+    Pattern (..),
     replaceTypeVars,
     requantify,
     Result,
@@ -59,10 +60,17 @@ data Expr
   | ECompose [Expr]
   | EContext StackId Expr
   | ELit Literal
+  | EMatch [(Pattern, Expr)]
   deriving (Eq, Ord, Show)
 
 newtype Literal
   = LU32 Word32
+  deriving (Eq, Ord, Show)
+
+data Pattern
+  = PEmpty
+  | PProd Pattern Pattern
+  | PLit Literal
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -464,6 +472,44 @@ composeTypes f1@TFn {} f2@TFn {} = do
   let mio3 = Map.fromDistinctAscList (zip (Map.keys mio1) io3s)
   return (requantify (TFn Set.empty mio3))
 
+stackTypes :: [Type] -> Type
+stackTypes [t] = t
+stackTypes (t : t' : ts) = iter (TProd t t') ts
+  where
+    iter t [] = t
+    iter t (t' : ts) = iter (TProd t t') ts
+
+patternType :: Context -> Pattern -> Type
+patternType (s : _) p =
+  let ts = patternTypes p
+      (tv, _) = freshTypeVar Set.empty
+      v = TVar tv
+      i = stackTypes (v : ts)
+   in forall [v] (s $: i --> v)
+  where
+    patternTypes :: Pattern -> [Type]
+    patternTypes PEmpty = []
+    patternTypes (PLit (LU32 _)) = [tU32]
+    patternTypes (PProd l r) = patternTypes l ++ patternTypes r
+
+caseType :: Context -> (Pattern, Expr) -> Result Type
+caseType ctx (p, e) = do
+  let pt = patternType ctx p
+  et <- inferType ctx e
+  composeTypes pt et
+
+unifyCaseTypes :: [Type] -> Result Type
+unifyCaseTypes [] = error "empty match"
+unifyCaseTypes [t@TFn {}] = return t
+unifyCaseTypes (t1@TFn {} : t2@TFn {} : ts) = do
+  let (t1', t2', reserved1) = addMissingStacks (t1, t2, Set.empty)
+  let ((t1'', t2''), reserved2) = instantiate (t1', t2') reserved1
+  (s, reserved3) <- mgu t1'' t2'' reserved2
+  let TFn _ mio1 = t1''
+  let (mio3, _) = subs s mio1 reserved3
+  let t3 = requantify (TFn Set.empty mio3)
+  unifyCaseTypes (t3 : ts)
+
 inferType :: Context -> Expr -> Result Type
 inferType ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType ctx (EQuote e) = do
@@ -475,6 +521,9 @@ inferType ctx (ECompose es) = do
   foldM composeTypes (head ts) (tail ts)
 inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
 inferType ctx (ELit l) = return $ literalType ctx l
+inferType ctx (EMatch cases) = do
+  ts <- mapM (caseType ctx) cases
+  unifyCaseTypes ts
 
 ensureUniqueStackId :: Context -> StackId -> StackId
 ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)

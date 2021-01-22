@@ -16,6 +16,10 @@ import Prelude hiding (drop, (*))
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
 
+pU32 n = PLit (LU32 n)
+
+eU32 n = ELit (LU32 n)
+
 spec :: Spec
 spec = do
   describe "parseExpr" $ do
@@ -127,6 +131,28 @@ spec = do
     it "parses `($a: 123)`" $ do
       parseExpr "($a: 123)"
         `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
+
+    it "parses `{match {case =>}}`" $ do
+      parseExpr "{match {case =>}}"
+        `shouldBe` Right (EMatch [(PEmpty, ECompose [])])
+
+    it "parses `{match {case 0 => 1} {case => drop 0}}`" $ do
+      parseExpr "{match {case 0 => 1} {case => drop 0}}"
+        `shouldBe` Right
+          ( EMatch
+              [ (pU32 0, eU32 1),
+                (PEmpty, ECompose [drop, eU32 0])
+              ]
+          )
+
+    it "parses `{match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
+        `shouldBe` Right
+          ( EMatch
+              [ (PProd (pU32 0) (pU32 0), eU32 1),
+                (PEmpty, ECompose [drop, drop, eU32 0])
+              ]
+          )
 
   describe "parseVal" $ do
     it "parses `[clone] [drop] 0`" $ do

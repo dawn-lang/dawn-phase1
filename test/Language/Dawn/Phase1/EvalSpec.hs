@@ -132,3 +132,32 @@ spec = do
       let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
+
+    it "evals `{match {case =>}}`" $ do
+      let (Right e) = parseExpr "{match {case =>}}"
+      let ms = MultiStack Map.empty
+      eval' e `shouldBe` ms
+
+    it "evals `0 {match {case 0 => 1} {case => drop 0}}`" $ do
+      let (Right e) = parseExpr "0 {match {case 0 => 1} {case => drop 0}}"
+      let (Right vs) = parseVals "1"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `1 {match {case 0 => 1} {case => drop 0}}`" $ do
+      let (Right e) = parseExpr "1 {match {case 0 => 1} {case => drop 0}}"
+      let (Right vs) = parseVals "0"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `0 0 {match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      let (Right e) = parseExpr "0 0 {match {case 0 0 => 1} {case => drop drop 0}}"
+      let (Right vs) = parseVals "1"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `0 1 {match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      let (Right e) = parseExpr "0 1 {match {case 0 0 => 1} {case => drop drop 0}}"
+      let (Right vs) = parseVals "0"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
