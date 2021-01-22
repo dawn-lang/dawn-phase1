@@ -1,4 +1,7 @@
-# dawn-phase1
+# Dawn: Phase 1 &emsp; [![build-status]][actions]
+
+[build-status]: https://github.com/dawn-lang/dawn-phase1/workflows/CI/badge.svg
+[actions]: https://github.com/dawn-lang/dawn-phase1/actions?query=branch%3Amain
 
 ## License
 
