@@ -117,7 +117,8 @@ eval ctx (EMatch cs) ms = iter ctx cs ms
       Just ms' -> popMatches ctx l ms'
     popMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] s m of
       (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
-      _ -> Nothing
+      (VLit l' : vs) -> Nothing
+      _ -> error "EMatch arity/type mismatch"
 
 eval' :: Expr -> MultiStack
 eval' e = eval ["$"] e (MultiStack Map.empty)
