@@ -22,6 +22,8 @@ import Prelude hiding (drop, (*))
 
 [v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = map (TVar . TypeVar) [0 .. 10]
 
+tU32 = TCons (TypeCons "U32")
+
 spec :: Spec
 spec = do
   describe "renameTypeVar" $ do
@@ -173,12 +175,7 @@ spec = do
               )
       requantify t `shouldBe` t'
 
-  describe "inferType" $ do
-    it "infers `[clone] apply` == `clone` " $ do
-      let (Right e1) = parseExpr "[clone] apply"
-      let (Right e2) = parseExpr "clone"
-      inferNormType' e1 `shouldBe` inferNormType' e2
-
+  describe "inferType invariants" $ do
     it "does not infer free type variables" $ do
       let iter e = case inferType' e of
             Left _ -> return ()
@@ -207,6 +204,12 @@ spec = do
             Left _ -> return ()
             Right t -> (display e, unusedQuantifiers t) `shouldBe` (display e, Set.empty)
       mapM_ iter (allExprsUpToWidthAndDepth 3 1)
+
+  describe "inferType examples" $ do
+    it "infers `[clone] apply` == `clone` " $ do
+      let (Right e1) = parseExpr "[clone] apply"
+      let (Right e2) = parseExpr "clone"
+      inferNormType' e1 `shouldBe` inferNormType' e2
 
     it "infers `($a: push) ($b: push) ($a: pop) ($b: pop)` is swap" $ do
       let (Right e) = parseExpr "($a: push) ($b: push) ($a: pop) ($b: pop)"
@@ -259,3 +262,19 @@ spec = do
       let t = TCons (TypeCons "U32")
       inferNormType ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
+
+    it "infers `{match {case =>}}`" $ do
+      let (Right e) = parseExpr "{match {case =>}}"
+      let (Right e') = parseExpr ""
+      inferNormType ["$"] e
+        `shouldBe` inferNormType ["$"] e'
+
+    it "infers `{match {case 0 => 1} {case => drop 0}}`" $ do
+      let (Right e) = parseExpr "{match {case 0 => 1} {case => drop 0}}"
+      inferNormType ["$"] e
+        `shouldBe` Right (forall' [v0] (v0 * tU32 --> v0 * tU32))
+
+    it "infers `{match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      let (Right e) = parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
+      inferNormType ["$"] e
+        `shouldBe` Right (forall' [v0] (v0 * tU32 * tU32 --> v0 * tU32))

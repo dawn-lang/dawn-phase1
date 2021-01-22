@@ -15,9 +15,11 @@ where
 
 import Control.Monad
 import Control.Monad.Except
+import Data.Bifunctor
 import Data.Bits
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
 import Language.Dawn.Phase1.Core hiding ((*))
@@ -100,6 +102,22 @@ eval (s : _) e@(ELit _) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
       m' = insertListOrDelete s (toVal e : vs) m
    in MultiStack m'
+eval ctx (EMatch cs) ms = iter ctx cs ms
+  where
+    iter :: Context -> [(Pattern, Expr)] -> MultiStack -> MultiStack
+    iter _ [] _ = error "Non-exhaustive patterns"
+    iter ctx ((p, e) : cs) ms = case popMatches ctx p ms of
+      Nothing -> iter ctx cs ms
+      Just ms' -> eval ctx e ms'
+
+    popMatches :: Context -> Pattern -> MultiStack -> Maybe MultiStack
+    popMatches ctx PEmpty ms = Just ms
+    popMatches (s : _) (PProd l r) ms = case popMatches ctx r ms of
+      Nothing -> Nothing
+      Just ms' -> popMatches ctx l ms'
+    popMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] s m of
+      (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
+      _ -> Nothing
 
 eval' :: Expr -> MultiStack
 eval' e = eval ["$"] e (MultiStack Map.empty)

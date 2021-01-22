@@ -29,7 +29,8 @@ expr :: Parser Expr
 expr =
   fromExprSeq
     <$> many
-      ( literalExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr <|> intrinsicExpr
+      ( literalExpr <|> matchExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
+          <|> intrinsicExpr
       )
 
 vals :: Parser [Val]
@@ -37,11 +38,27 @@ vals = reverse <$> many (literalVal <|> quotedVal)
 
 literalExpr = literal ELit
 
+literalPattern = literal PLit
+
 literalVal = literal VLit
 
 literal litCons = litCons . LU32 . fromInteger <$> integer_literal
 
 integer_literal = read <$> lexeme (many1 digit)
+
+betweenBraces = between (symbol '{') (symbol '}')
+
+matchExpr :: Parser Expr
+matchExpr = betweenBraces (EMatch <$> (keyword "match" *> many1 matchExprCase))
+
+matchExprCase :: Parser (Pattern, Expr)
+matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (keyword "=>" *> expr))
+
+pattern' :: Parser Pattern
+pattern' =
+  try (PProd <$> literalPattern <*> literalPattern)
+    <|> try literalPattern
+    <|> return PEmpty
 
 groupedExpr = between (symbol '(') (symbol ')') (contextExpr <|> expr)
 
