@@ -7,7 +7,7 @@ module Language.Dawn.Phase1.Parse
   ( expr,
     keyword,
     parseExpr,
-    parseVal,
+    parseVals,
   )
 where
 
@@ -22,8 +22,8 @@ import Prelude hiding (drop)
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
-parseVal :: String -> Either ParseError Val
-parseVal = parse (skipMany space *> val <* eof) ""
+parseVals :: String -> Either ParseError [Val]
+parseVals = parse (skipMany space *> vals <* eof) ""
 
 expr :: Parser Expr
 expr =
@@ -32,12 +32,8 @@ expr =
       ( literalExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr <|> intrinsicExpr
       )
 
-val :: Parser Val
-val =
-  fromValSeq
-    <$> many
-      ( literalVal <|> groupedVal <|> quotedVal <|> sugarVal <|> intrinsicVal
-      )
+vals :: Parser [Val]
+vals = reverse <$> many (literalVal <|> quotedVal)
 
 literalExpr = literal ELit
 
@@ -49,19 +45,13 @@ integer_literal = read <$> lexeme (many1 digit)
 
 groupedExpr = between (symbol '(') (symbol ')') (contextExpr <|> expr)
 
-groupedVal = between (symbol '(') (symbol ')') (contextVal <|> val)
-
 contextExpr = EContext <$> (stackId <* symbol ':') <*> expr
-
-contextVal = VContext <$> (stackId <* symbol ':') <*> val
 
 quotedExpr = between (symbol '[') (symbol ']') (EQuote <$> expr)
 
-quotedVal = between (symbol '[') (symbol ']') (VQuote <$> val)
+quotedVal = between (symbol '[') (symbol ']') (VQuote <$> expr)
 
 sugarExpr = sugar EContext EIntrinsic
-
-sugarVal = sugar VContext VIntrinsic
 
 sugar contextCons intrinsicCons =
   contextCons <$> stackId_
@@ -70,8 +60,6 @@ sugar contextCons intrinsicCons =
         )
 
 intrinsicExpr = intrinsic EIntrinsic
-
-intrinsicVal = intrinsic VIntrinsic
 
 intrinsic cons =
   try (keyword "push" >> return (cons IPush))
