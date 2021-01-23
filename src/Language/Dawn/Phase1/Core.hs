@@ -15,7 +15,7 @@ module Language.Dawn.Phase1.Core
     defineFn,
     Expr (..),
     FnDef (..),
-    FnDefError,
+    FnDefError (..),
     FnEnv,
     FnId,
     FnIds,
@@ -608,7 +608,7 @@ inferNormType env ctx e = do
 -------------------------
 
 data FnDef = FnDef FnId Expr
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 type StackIds = Set.Set StackId
 
@@ -616,9 +616,10 @@ type FnIds = Set.Set FnId
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnUndefined FnIds
+  | FnsUndefined FnIds
   | FnTypeError UnificationError
   | FnStackError StackIds
+  deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
@@ -648,7 +649,7 @@ defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
 defineFn env (FnDef fid e)
   | fid `Map.member` env = throwError $ FnAlreadyDefined fid
   | not (null (undefinedFnIds env e)) =
-    throwError $ FnUndefined $ undefinedFnIds env e
+    throwError $ FnsUndefined $ undefinedFnIds env e
   | otherwise = case inferNormType env ["$"] e of
     Left err -> throwError $ FnTypeError err
     Right t | not (null (tempStackIds t)) ->

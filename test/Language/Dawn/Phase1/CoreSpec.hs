@@ -283,3 +283,34 @@ spec = do
       let (Right e) = parseExpr "{match {case 0 => [clone] apply} {case => drop [clone] apply}}"
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
+
+  describe "defineFn examples" $ do
+    it "defines drop2" $ do
+      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right e) = parseExpr "drop drop"
+      let (Right t) = inferNormType Map.empty ["$"] e
+      defineFn Map.empty f
+        `shouldBe` Right (Map.singleton "drop2" (e, t))
+
+    it "fails with FnAlreadyDefined" $ do
+      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right env) = defineFn Map.empty f
+      defineFn env f
+        `shouldBe` Left (FnAlreadyDefined "drop2")
+
+    it "fails with FnsUndefined" $ do
+      let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnsUndefined (Set.fromList ["test2", "test3"]))
+
+    it "fails with FnTypeError" $ do
+      let (Right f) = parseFnDef "{fn test = clone apply}"
+      let (Right e) = parseExpr "clone apply"
+      let (Left err) = inferNormType Map.empty ["$"] e
+      defineFn Map.empty f
+        `shouldBe` Left (FnTypeError err)
+
+    it "fails with FnStackError" $ do
+      let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnStackError (Set.fromList ["$$a", "$$b"]))
