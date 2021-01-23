@@ -70,13 +70,13 @@ normalizeTypeVars t =
           (t''', _) = replaceTypeVars (atv t'') t'' Set.empty
        in t'''
 
-inferNormType :: Context -> Expr -> Result Type
-inferNormType ctx e = do
-  t <- inferType ctx e
+inferNormType :: FnEnv -> Context -> Expr -> Result Type
+inferNormType env ctx e = do
+  t <- inferType env ctx e
   return (normalizeType t)
 
 inferNormType' :: Expr -> Result Type
-inferNormType' = inferNormType ["$"]
+inferNormType' = inferNormType Map.empty ["$"]
 
 ---------------------
 -- Type Validation --

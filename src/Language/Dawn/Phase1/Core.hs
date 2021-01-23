@@ -13,6 +13,10 @@ module Language.Dawn.Phase1.Core
     composeSubst,
     Context,
     Expr (..),
+    FnDef (..),
+    FnEnv,
+    FnId,
+    FnIds,
     forall,
     forall',
     freshTypeVar,
@@ -35,6 +39,7 @@ module Language.Dawn.Phase1.Core
     TypeCons (..),
     TypeVar (..),
     TypeVars,
+    undefinedFnIds,
     UnificationError (..),
     UnivQuants,
     VarId,
@@ -53,6 +58,10 @@ import Prelude hiding ((*))
 -- Abstract Syntax --
 ---------------------
 
+-- | Function definition
+data FnDef = FnDef FnId Expr
+  deriving (Eq, Ord, Show)
+
 -- | Expressions
 data Expr
   = EIntrinsic Intrinsic
@@ -61,6 +70,7 @@ data Expr
   | EContext StackId Expr
   | ELit Literal
   | EMatch [(Pattern, Expr)]
+  | ECall FnId
   deriving (Eq, Ord, Show)
 
 newtype Literal
@@ -106,6 +116,9 @@ type MultiIO = Map.Map StackId (Type, Type)
 
 -- | Stack identifier
 type StackId = String
+
+-- | Function identifier
+type FnId = String
 
 -- | Universal quantifiers
 type UnivQuants = TypeVars
@@ -495,10 +508,10 @@ patternType (s : _) p =
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
-caseType :: Context -> (Pattern, Expr) -> Result Type
-caseType ctx (p, e) = do
+caseType :: FnEnv -> Context -> (Pattern, Expr) -> Result Type
+caseType env ctx (p, e) = do
   let pt = patternType ctx p
-  et <- inferType ctx e
+  et <- inferType env ctx e
   composeTypes [pt, et]
 
 unifyCaseTypes :: [Type] -> Result Type
@@ -514,23 +527,43 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
-inferType :: Context -> Expr -> Result Type
-inferType ctx (EIntrinsic i) = return $ intrinsicType ctx i
-inferType ctx (EQuote e) = do
-  t <- inferType ctx e
+type FnEnv = Map.Map FnId (Expr, Type)
+
+-- Infer an expression's type in the given FnEnv and Context. If there are any
+-- ECall's to functions not in FnEnv, then a type of (forall v0 v1 . v0 -> v1)
+-- is assumed for those functions.
+inferType :: FnEnv -> Context -> Expr -> Result Type
+inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
+inferType env ctx (EQuote e) = do
+  t <- inferType env ctx e
   quoteType ctx t
-inferType ctx (ECompose es) = do
-  ts <- mapM (inferType ctx) es
+inferType env ctx (ECompose es) = do
+  ts <- mapM (inferType env ctx) es
   composeTypes ts
-inferType ctx (EContext s e) = inferType (ensureUniqueStackId ctx s : ctx) e
-inferType ctx (ELit l) = return $ literalType ctx l
-inferType ctx (EMatch cases) = do
-  ts <- mapM (caseType ctx) cases
+inferType env ctx (EContext s e) = inferType env (ensureUniqueStackId ctx s : ctx) e
+inferType env ctx (ELit l) = return $ literalType ctx l
+inferType env ctx (EMatch cases) = do
+  ts <- mapM (caseType env ctx) cases
   unifyCaseTypes ts
+inferType env ctx (ECall fid) = case Map.lookup fid env of
+  Nothing -> return (forall' [v0, v1] (v0 --> v1))
+  Just (e, t) -> return t
 
 ensureUniqueStackId :: Context -> StackId -> StackId
 ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
 ensureUniqueStackId ctx s = s
 
 inferType' :: Expr -> Result Type
-inferType' = inferType ["$"]
+inferType' = inferType Map.empty ["$"]
+
+type FnIds = Set.Set FnId
+
+undefinedFnIds :: FnEnv -> Expr -> FnIds
+undefinedFnIds env (EIntrinsic _) = Set.empty
+undefinedFnIds env (EQuote e) = undefinedFnIds env e
+undefinedFnIds env (ECompose es) = foldr (Set.union . undefinedFnIds env) Set.empty es
+undefinedFnIds env (EContext s e) = undefinedFnIds env e
+undefinedFnIds env (ELit _) = Set.empty
+undefinedFnIds env (EMatch cs) = foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
+undefinedFnIds env (ECall fid) =
+  if Map.member fid env then Set.empty else Set.singleton fid

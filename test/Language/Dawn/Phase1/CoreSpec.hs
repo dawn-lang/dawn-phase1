@@ -230,13 +230,13 @@ spec = do
 
     it "infers `$a<- $b<- $a-> $b->` is swap in any context" $ do
       let (Right e) = parseExpr "$a<- $b<- $a-> $b->"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$a"] e
+      inferNormType Map.empty ["$a"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$a" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$b"] e
+      inferNormType Map.empty ["$b"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$b" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$c"] e
+      inferNormType Map.empty ["$c"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$c" $: v0 * v1 * v2 --> v0 * v2 * v1))
 
     it "infers `[drop]" $ do
@@ -254,32 +254,32 @@ spec = do
     it "infers `123`" $ do
       let (Right e) = parseExpr "123"
       let t = TCons (TypeCons "U32")
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$" $: v0 --> v0 * t))
 
     it "infers `($a: 123)`" $ do
       let (Right e) = parseExpr "($a: 123)"
       let t = TCons (TypeCons "U32")
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
 
     it "infers `{match {case =>}}`" $ do
       let (Right e) = parseExpr "{match {case =>}}"
       let (Right e') = parseExpr ""
-      inferNormType ["$"] e
-        `shouldBe` inferNormType ["$"] e'
+      inferNormType Map.empty ["$"] e
+        `shouldBe` inferNormType Map.empty ["$"] e'
 
     it "infers `{match {case 0 => 1} {case => drop 0}}`" $ do
       let (Right e) = parseExpr "{match {case 0 => 1} {case => drop 0}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tU32 --> v0 * tU32))
 
     it "infers `{match {case 0 0 => 1} {case => drop drop 0}}`" $ do
       let (Right e) = parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tU32 * tU32 --> v0 * tU32))
 
     it "infers `{match {case 0 => [clone] apply} {case => drop [clone] apply}}`" $ do
       let (Right e) = parseExpr "{match {case 0 => [clone] apply} {case => drop [clone] apply}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))

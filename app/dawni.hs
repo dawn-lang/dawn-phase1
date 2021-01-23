@@ -12,6 +12,7 @@ import Control.Monad.IO.Class
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Eval
@@ -26,54 +27,69 @@ import Text.Parsec.String
 
 main = do
   putStrLn "Dawn Phase 1 Interpreter"
-  runInputT defaultSettings (readEvalPrintLoop (MultiStack Map.empty))
+  runInputT defaultSettings (readEvalPrintLoop (Map.empty, MultiStack Map.empty))
 
-readEvalPrintLoop :: MultiStack -> InputT IO MultiStack
-readEvalPrintLoop ms = do
-  ms' <- readEvalPrint ms
-  readEvalPrintLoop ms'
+readEvalPrintLoop :: (FnEnv, MultiStack) -> InputT IO (FnEnv, MultiStack)
+readEvalPrintLoop (env, ms) = do
+  (env', ms') <- readEvalPrint (env, ms)
+  readEvalPrintLoop (env', ms')
 
-readEvalPrint :: MultiStack -> InputT IO MultiStack
-readEvalPrint ms = do
+readEvalPrint :: (FnEnv, MultiStack) -> InputT IO (FnEnv, MultiStack)
+readEvalPrint (env, ms) = do
   maybeLine <- getInputLine "> "
   case maybeLine of
-    Nothing -> return ms
+    Nothing -> return (env, ms)
     Just line -> case parseCommand line of
       Left err -> do
         outputStrLn (show err)
-        return ms
+        return (env, ms)
       Right CmdExit -> liftIO exitSuccess
       Right CmdClear -> do
-        return (MultiStack Map.empty)
+        return (Map.empty, MultiStack Map.empty)
       Right (CmdPrint e) -> do
-        printExprType e
-        return ms
+        printExprType env e
+        return (env, ms)
       Right (CmdPartialEval e) -> do
-        printExprType (partialEval' e)
-        return ms
-      Right (CmdEval e) ->
-        case inferNormType' e of
+        printExprType env (partialEval' e)
+        return (env, ms)
+      Right (CmdFnDef (FnDef fid e))
+        | fid `Map.member` env -> do
+          outputStrLn (fid ++ "is already defined")
+          return (env, ms)
+      Right (CmdFnDef (FnDef fid e)) -> case undefinedFnIds env e of
+        fids | not (null fids) -> do
+          outputStrLn ("undefined: " ++ head (Set.toList fids))
+          return (env, ms)
+        _ -> case inferNormType env ["$"] e of
           Left err -> do
             outputStrLn $ display e ++ " is not typeable. " ++ display err
-            return ms
+            return (env, ms)
           Right t -> do
-            result <- tryEval e ms
+            outputStrLn $ "{fn " ++ fid ++ " :: " ++ display t ++ "}"
+            return (Map.insert fid (e, t) env, ms)
+      Right (CmdEval e) ->
+        case inferNormType env ["$"] e of
+          Left err -> do
+            outputStrLn $ display e ++ " is not typeable. " ++ display err
+            return (env, ms)
+          Right t -> do
+            result <- tryEval env e ms
             case result :: Either SomeException MultiStack of
               Left err -> do
                 outputStrLn $ show err
-                return ms
+                return (env, ms)
               Right ms' -> do
                 outputStrLn $ display ms'
-                return ms'
+                return (env, ms')
 
-printExprType e =
-  case inferNormType' e of
+printExprType env e =
+  case inferNormType env ["$"] e of
     Left err -> outputStrLn $ display e ++ " is not typeable. " ++ display err
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
-tryEval :: Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
-tryEval e ms =
-  liftIO (Control.Exception.try (Control.Exception.evaluate (eval ["$"] e ms)))
+tryEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
+tryEval env e ms =
+  liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
 
 parseCommand :: String -> Either ParseError Command
 parseCommand = parse (skipMany space *> command <* eof) ""
@@ -84,6 +100,7 @@ command =
     <|> try (keyword ":clear" >> return CmdClear)
     <|> try (CmdPrint <$> (keyword ":print" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
+    <|> try (CmdFnDef <$> fnDef)
     <|> CmdEval <$> expr
 
 data Command
@@ -91,4 +108,5 @@ data Command
   | CmdClear
   | CmdPrint Expr
   | CmdPartialEval Expr
+  | CmdFnDef FnDef
   | CmdEval Expr
