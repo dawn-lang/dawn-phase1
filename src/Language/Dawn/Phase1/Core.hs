@@ -12,8 +12,10 @@ module Language.Dawn.Phase1.Core
     addMissingStacks,
     composeSubst,
     Context,
+    defineFn,
     Expr (..),
     FnDef (..),
+    FnDefError,
     FnEnv,
     FnId,
     FnIds,
@@ -21,18 +23,21 @@ module Language.Dawn.Phase1.Core
     forall',
     freshTypeVar,
     HasTypeVars (..),
+    inferNormType,
     inferType,
-    inferType',
     instantiate,
     Intrinsic (..),
     intrinsicType,
     Literal (..),
     mgu,
+    normalizeType,
     Pattern (..),
+    removeTrivialStacks,
     replaceTypeVars,
     requantify,
     Result,
     StackId,
+    StackIds,
     Subs (..),
     Subst (..),
     tempStackIds,
@@ -58,10 +63,6 @@ import Prelude hiding ((*))
 ---------------------
 -- Abstract Syntax --
 ---------------------
-
--- | Function definition
-data FnDef = FnDef FnId Expr
-  deriving (Eq, Ord, Show)
 
 -- | Expressions
 data Expr
@@ -446,6 +447,8 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 -- Type Inference --
 --------------------
 
+type FnEnv = Map.Map FnId (Expr, Type)
+
 quoteType :: Context -> Type -> Result Type
 quoteType (s : _) f@TFn {} =
   let (tv, _) = freshTypeVar (Set.fromList (atv f))
@@ -528,8 +531,6 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
-type FnEnv = Map.Map FnId (Expr, Type)
-
 -- Infer an expression's type in the given FnEnv and Context. If there are any
 -- ECall's to functions not in FnEnv, then a type of (forall v0 v1 . v0 -> v1)
 -- is assumed for those functions.
@@ -541,7 +542,8 @@ inferType env ctx (EQuote e) = do
 inferType env ctx (ECompose es) = do
   ts <- mapM (inferType env ctx) es
   composeTypes ts
-inferType env ctx (EContext s e) = inferType env (ensureUniqueStackId ctx s : ctx) e
+inferType env ctx (EContext s e) =
+  inferType env (ensureUniqueStackId ctx s : ctx) e
 inferType env ctx (ELit l) = return $ literalType ctx l
 inferType env ctx (EMatch cases) = do
   ts <- mapM (caseType env ctx) cases
@@ -550,14 +552,74 @@ inferType env ctx (ECall fid) = case Map.lookup fid env of
   Nothing -> return (forall' [v0, v1] (v0 --> v1))
   Just (e, t) -> return t
 
+-- ensure unique StackIds by prepending "$", creating a temporary StackId
 ensureUniqueStackId :: Context -> StackId -> StackId
 ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
 ensureUniqueStackId ctx s = s
 
-inferType' :: Expr -> Result Type
-inferType' = inferType Map.empty ["$"]
+------------------------
+-- Type Normalization --
+------------------------
+
+removeTrivialStacks :: Type -> Type
+removeTrivialStacks t@(TVar _) = t
+removeTrivialStacks (TProd l r) = TProd (removeTrivialStacks l) (removeTrivialStacks r)
+removeTrivialStacks (TFn qs mio) =
+  let trivialMIO = Map.filter (isTrivial qs) mio
+      mio' = mio `Map.difference` trivialMIO
+   in if null mio'
+        then
+          let v = TVar (Set.findMin qs)
+           in forall' [v] (v --> v)
+        else
+          let ftvs = ftv trivialMIO
+              qs' =
+                if any (`elem` atv mio') (Set.elems ftvs)
+                  then error "invalid reuse of trivial stack variable"
+                  else qs `Set.difference` ftvs
+              iter (i, o) = (removeTrivialStacks i, removeTrivialStacks o)
+           in TFn qs' (Map.map iter mio')
+  where
+    isTrivial qs (TVar i, TVar o) | i == o && i `elem` qs = True
+    isTrivial _ _ = False
+removeTrivialStacks t@(TCons _) = t
+
+normalizeTypeVars :: Type -> Type
+normalizeTypeVars t =
+  if not $ null $ ftv t
+    then error "unexpected free type variables"
+    else
+      let (t', _) = instantiate t Set.empty
+          maxId = maximum $ map (\(TypeVar id) -> id) (atv t')
+          (t'', _) = instantiate t' (Set.fromList (map TypeVar [0 .. maxId]))
+          (t''', _) = replaceTypeVars (atv t'') t'' Set.empty
+       in t'''
+
+normalizeType :: Type -> Type
+normalizeType = normalizeTypeVars . removeTrivialStacks
+
+inferNormType :: FnEnv -> Context -> Expr -> Result Type
+inferNormType env ctx e = do
+  t <- inferType env ctx e
+  return (normalizeType t)
+
+-------------------------
+-- Function Definition --
+-------------------------
+
+data FnDef = FnDef FnId Expr
+  deriving (Eq, Ord, Show)
 
 type StackIds = Set.Set StackId
+
+type FnIds = Set.Set FnId
+
+data FnDefError
+  = FnAlreadyDefined FnId
+  | FnUndefined FnIds
+  | FnTypeError UnificationError
+  | FnStackError StackIds
+
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
 tempStackIds (TProd l r) =
@@ -570,14 +632,25 @@ tempStackIds (TFn _ mio) =
   in sids `Set.union` sids'
 tempStackIds (TCons _) = Set.empty
 
-type FnIds = Set.Set FnId
-
 undefinedFnIds :: FnEnv -> Expr -> FnIds
 undefinedFnIds env (EIntrinsic _) = Set.empty
 undefinedFnIds env (EQuote e) = undefinedFnIds env e
-undefinedFnIds env (ECompose es) = foldr (Set.union . undefinedFnIds env) Set.empty es
+undefinedFnIds env (ECompose es) =
+  foldr (Set.union . undefinedFnIds env) Set.empty es
 undefinedFnIds env (EContext s e) = undefinedFnIds env e
 undefinedFnIds env (ELit _) = Set.empty
-undefinedFnIds env (EMatch cs) = foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
+undefinedFnIds env (EMatch cs) =
+  foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
 undefinedFnIds env (ECall fid) =
   if Map.member fid env then Set.empty else Set.singleton fid
+
+defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
+defineFn env (FnDef fid e)
+  | fid `Map.member` env = throwError $ FnAlreadyDefined fid
+  | not (null (undefinedFnIds env e)) =
+    throwError $ FnUndefined $ undefinedFnIds env e
+  | otherwise = case inferNormType env ["$"] e of
+    Left err -> throwError $ FnTypeError err
+    Right t | not (null (tempStackIds t)) ->
+      throwError $ FnStackError (tempStackIds t)
+    Right t -> return (Map.insert fid (e, t) env)

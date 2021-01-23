@@ -119,7 +119,7 @@ eval env ctx (EMatch cs) ms = iter ctx cs ms
       (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
       (VLit l' : vs) -> Nothing
       _ -> error "EMatch arity/type mismatch"
-eval env ctx (ECall fid) ms =  case Map.lookup fid env of
+eval env ctx (ECall fid) ms = case Map.lookup fid env of
   Nothing -> error ("undefined function: " ++ fid)
   Just (e, t) -> eval env ctx e ms
 
