@@ -67,8 +67,11 @@ readEvalPrint (env, ms) = do
           Right t -> do
             outputStrLn $ "{fn " ++ fid ++ " :: " ++ display t ++ "}"
             return (Map.insert fid (e, t) env, ms)
-      Right (CmdEval e) ->
-        case inferNormType env ["$"] e of
+      Right (CmdEval e) -> case undefinedFnIds env e of
+        fids | not (null fids) -> do
+          outputStrLn ("undefined: " ++ head (Set.toList fids))
+          return (env, ms)
+        _ -> case inferNormType env ["$"] e of
           Left err -> do
             outputStrLn $ display e ++ " is not typeable. " ++ display err
             return (env, ms)
