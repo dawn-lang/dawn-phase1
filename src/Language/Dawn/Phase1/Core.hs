@@ -35,6 +35,7 @@ module Language.Dawn.Phase1.Core
     StackId,
     Subs (..),
     Subst (..),
+    tempStackIds,
     Type (..),
     TypeCons (..),
     TypeVar (..),
@@ -555,6 +556,19 @@ ensureUniqueStackId ctx s = s
 
 inferType' :: Expr -> Result Type
 inferType' = inferType Map.empty ["$"]
+
+type StackIds = Set.Set StackId
+tempStackIds :: Type -> StackIds
+tempStackIds (TVar _) = Set.empty
+tempStackIds (TProd l r) =
+  tempStackIds l `Set.union` tempStackIds r
+tempStackIds (TFn _ mio) =
+  let sids = Set.filter ("$$" `isPrefixOf`) (Map.keysSet mio)
+      folder (i, o) acc =
+        tempStackIds i `Set.union` tempStackIds o  `Set.union` acc
+      sids' = foldr folder Set.empty (Map.elems mio)
+  in sids `Set.union` sids'
+tempStackIds (TCons _) = Set.empty
 
 type FnIds = Set.Set FnId
 

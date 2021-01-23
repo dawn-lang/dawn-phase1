@@ -54,26 +54,31 @@ readEvalPrint (env, ms) = do
         return (env, ms)
       Right (CmdFnDef (FnDef fid e))
         | fid `Map.member` env -> do
-          outputStrLn (fid ++ "is already defined")
+          outputStrLn ("Error: " ++ fid ++ " is already defined")
           return (env, ms)
-      Right (CmdFnDef (FnDef fid e)) -> case undefinedFnIds env e of
-        fids | not (null fids) -> do
-          outputStrLn ("undefined: " ++ head (Set.toList fids))
+        | not (null (undefinedFnIds env e)) -> do
+          printUndefinedFnIdsError env e
           return (env, ms)
-        _ -> case inferNormType env ["$"] e of
+        | otherwise -> case inferNormType env ["$"] e of
           Left err -> do
-            outputStrLn $ display e ++ " is not typeable. " ++ display err
+            printInferTypeError e err
+            return (env, ms)
+          Right t | exposedTempStackIds t -> do
+            printExposedTempStackIds t
             return (env, ms)
           Right t -> do
             outputStrLn $ "{fn " ++ fid ++ " :: " ++ display t ++ "}"
             return (Map.insert fid (e, t) env, ms)
-      Right (CmdEval e) -> case undefinedFnIds env e of
-        fids | not (null fids) -> do
-          outputStrLn ("undefined: " ++ head (Set.toList fids))
+      Right (CmdEval e)
+        | not (null (undefinedFnIds env e)) -> do
+          printUndefinedFnIdsError env e
           return (env, ms)
-        _ -> case inferNormType env ["$"] e of
+        | otherwise -> case inferNormType env ["$"] e of
           Left err -> do
-            outputStrLn $ display e ++ " is not typeable. " ++ display err
+            printInferTypeError e err
+            return (env, ms)
+          Right t | exposedTempStackIds t -> do
+            printExposedTempStackIds t
             return (env, ms)
           Right t -> do
             result <- tryEval env e ms
@@ -85,9 +90,22 @@ readEvalPrint (env, ms) = do
                 outputStrLn $ display ms'
                 return (env, ms')
 
+printUndefinedFnIdsError env e =
+  outputStrLn ("Error: undefined: " ++ head (Set.toList (undefinedFnIds env e)))
+
+printInferTypeError e err =
+  outputStrLn $ "Error: " ++ display e ++ " is not typeable. " ++ display err
+
+exposedTempStackIds t = not (null (tempStackIds t))
+
+printExposedTempStackIds t = do
+  let s = intercalate ", " (Set.toList (tempStackIds t))
+  outputStrLn ("Error: exposed temporary stacks: " ++ s)
+
 printExprType env e =
   case inferNormType env ["$"] e of
-    Left err -> outputStrLn $ display e ++ " is not typeable. " ++ display err
+    Left err -> printInferTypeError e err
+    Right t | exposedTempStackIds t -> printExposedTempStackIds t
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
 tryEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
