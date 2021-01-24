@@ -687,12 +687,29 @@ defineFn env (FnDef fid e)
   | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
   | fid `Map.member` env = throwError $ FnAlreadyDefined fid
   | otherwise = case undefinedFnIds env e of
-    fids | not (null (Set.filter (/= fid) fids)) -> 
-      throwError $ FnsUndefined $ undefinedFnIds env e
-    fids | not (null fids) -> undefined -- TODO
-    _ -> case inferNormType env ["$"] e of
-      Left err -> throwError $ FnTypeError err
-      Right t
-        | not (null (tempStackIds t)) ->
-          throwError $ FnStackError (tempStackIds t)
-      Right t -> return (Map.insert fid (e, t) env)
+    fids
+      | not (null (Set.filter (/= fid) fids)) ->
+        throwError $ FnsUndefined $ Set.filter (/= fid) fids
+    fids | not (null fids) ->
+      -- recursive
+      case inferNormType env ["$"] e of
+        Left err -> throwError $ FnTypeError err
+        Right t
+          | not (null (tempStackIds t)) ->
+            throwError $ FnStackError (tempStackIds t)
+        Right t ->
+          let env' = Map.insert fid (e, t) env
+           in case inferNormType env' ["$"] e of
+                Left err -> throwError $ FnTypeError err
+                Right t
+                  | not (null (tempStackIds t)) ->
+                    throwError $ FnStackError (tempStackIds t)
+                Right t -> return (Map.insert fid (e, t) env')
+    _ ->
+      -- non-recursive
+      case inferNormType env ["$"] e of
+        Left err -> throwError $ FnTypeError err
+        Right t
+          | not (null (tempStackIds t)) ->
+            throwError $ FnStackError (tempStackIds t)
+        Right t -> return (Map.insert fid (e, t) env)

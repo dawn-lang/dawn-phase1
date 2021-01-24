@@ -296,7 +296,7 @@ spec = do
       let (Right f) = parseFnDef "{fn clone = clone}"
       defineFn Map.empty f
         `shouldBe` Left (FnAlreadyDefined "clone")
-        
+
       let (Right f) = parseFnDef "{fn drop2 = drop drop}"
       let (Right env) = defineFn Map.empty f
       defineFn env f
@@ -318,3 +318,19 @@ spec = do
       let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
       defineFn Map.empty f
         `shouldBe` Left (FnStackError (Set.fromList ["$$a", "$$b"]))
+
+    it "defines fib" $ do
+      let (Right f) = parseFnDef "{fn swap = $a<- $b<- $a-> $b->}"
+      let (Right env) = defineFn Map.empty f
+      let eSrc =
+            "{match "
+              ++ "  {case 0 => 0} "
+              ++ "  {case 1 => 1} "
+              ++ "  {case => clone 1 sub fib swap 2 sub fib add} "
+              ++ "}"
+      let fSrc = "{fn fib = " ++ eSrc ++ "}"
+      let (Right f) = parseFnDef fSrc
+      let (Right e) = parseExpr eSrc
+      let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
+      defineFn env f
+        `shouldBe` Right (Map.insert "fib" (e, t) env)
