@@ -686,11 +686,13 @@ defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
 defineFn env (FnDef fid e)
   | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
   | fid `Map.member` env = throwError $ FnAlreadyDefined fid
-  | not (null (undefinedFnIds env e)) =
-    throwError $ FnsUndefined $ undefinedFnIds env e
-  | otherwise = case inferNormType env ["$"] e of
-    Left err -> throwError $ FnTypeError err
-    Right t
-      | not (null (tempStackIds t)) ->
-        throwError $ FnStackError (tempStackIds t)
-    Right t -> return (Map.insert fid (e, t) env)
+  | otherwise = case undefinedFnIds env e of
+    fids | not (null (Set.filter (/= fid) fids)) -> 
+      throwError $ FnsUndefined $ undefinedFnIds env e
+    fids | not (null fids) -> undefined -- TODO
+    _ -> case inferNormType env ["$"] e of
+      Left err -> throwError $ FnTypeError err
+      Right t
+        | not (null (tempStackIds t)) ->
+          throwError $ FnStackError (tempStackIds t)
+      Right t -> return (Map.insert fid (e, t) env)
