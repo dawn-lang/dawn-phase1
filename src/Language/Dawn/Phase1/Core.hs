@@ -658,7 +658,7 @@ data FnDefError
   | FnsUndefined FnIds
   | FnTypeError UnificationError
   | FnStackError StackIds
-  | FnDiverges
+  | FnDiverges FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -694,7 +694,7 @@ fnDefType env (FnDef fid e) =
         throwError $ FnStackError (tempStackIds t)
     Right t
       | t == forall' [v0, v1] (v0 --> v1) ->
-        throwError FnDiverges
+        throwError (FnDiverges fid)
     Right t -> return t
 
 recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
@@ -703,7 +703,7 @@ recFnDefType env (FnDef fid e) =
     Left err -> Left err
     Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
       Left err -> Left err
-      Right t' | t /= t' -> throwError FnDiverges
+      Right t' | t /= t' -> throwError (FnDiverges fid)
       Right t' -> return t'
 
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv

@@ -288,30 +288,30 @@ spec = do
     it "fails with FnDiverges if trivially diverges" $ do
       let (Right f) = parseFnDef "{fn test = test}"
       fnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
       let (Right f) = parseFnDef "{fn test = 0 test}"
       fnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
   describe "recFnDefType examples" $ do
     it "fails with FnDiverges if trivially diverges" $ do
       let (Right f) = parseFnDef "{fn test = test}"
       recFnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
       let (Right f) = parseFnDef "{fn test = 0 test}"
       recFnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
     it "fails with FnDiverges if type unstable" $ do
       let (Right f) = parseFnDef "{fn test = test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
       let (Right f) = parseFnDef "{fn test = drop test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left FnDiverges
+        `shouldBe` Left (FnDiverges "test")
 
   describe "defineFn examples" $ do
     it "defines drop2" $ do
