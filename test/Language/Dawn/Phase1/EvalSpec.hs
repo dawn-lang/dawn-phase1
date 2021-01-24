@@ -161,3 +161,36 @@ spec = do
       let (Right vs) = parseVals "0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
+
+    it "evals fib" $ do
+      let (Right env) = defineFn Map.empty swap
+      let (Right env') = defineFn env fib
+      let (Right e) = parseExpr "0 fib"
+      let (Right vs) = parseVals "0"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval env' ["$"] e (MultiStack Map.empty) `shouldBe` ms
+
+      let (Right e) = parseExpr "1 fib"
+      let (Right vs) = parseVals "1"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval env' ["$"] e (MultiStack Map.empty) `shouldBe` ms
+
+      let (Right e) = parseExpr "6 fib"
+      let (Right vs) = parseVals "8"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval env' ["$"] e (MultiStack Map.empty) `shouldBe` ms
+
+swapSrc = "{fn swap = $a<- $b<- $a-> $b->}"
+
+(Right swap) = parseFnDef swapSrc
+
+fibSrc =
+  unlines
+    [ "{fn fib = {match",
+      "  {case 0 => 0}",
+      "  {case 1 => 1}",
+      "  {case => clone 1 sub fib swap 2 sub fib add}",
+      "}}"
+    ]
+
+(Right fib) = parseFnDef fibSrc
