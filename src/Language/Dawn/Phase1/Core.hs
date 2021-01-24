@@ -27,6 +27,7 @@ module Language.Dawn.Phase1.Core
     inferType,
     instantiate,
     Intrinsic (..),
+    intrinsicFnId,
     intrinsicType,
     Literal (..),
     mgu,
@@ -614,6 +615,42 @@ type StackIds = Set.Set StackId
 
 type FnIds = Set.Set FnId
 
+intrinsicFnId :: Intrinsic -> FnId
+intrinsicFnId IPush = "push"
+intrinsicFnId IPop = "pop"
+intrinsicFnId IClone = "clone"
+intrinsicFnId IDrop = "drop"
+intrinsicFnId IQuote = "quote"
+intrinsicFnId ICompose = "compose"
+intrinsicFnId IApply = "apply"
+intrinsicFnId IEqz = "eqz"
+intrinsicFnId IAdd = "add"
+intrinsicFnId ISub = "sub"
+intrinsicFnId IBitAnd = "bit_and"
+intrinsicFnId IBitOr = "bit_or"
+intrinsicFnId IBitXor = "bit_xor"
+intrinsicFnId IShl = "shl"
+intrinsicFnId IShr = "shr"
+
+intrinsicFnIds =
+  Set.fromList
+    [ "push",
+      "pop",
+      "clone",
+      "drop",
+      "quote",
+      "compose",
+      "apply",
+      "eqz",
+      "add",
+      "sub",
+      "bit_and",
+      "bit_or",
+      "bit_xor",
+      "shl",
+      "shr"
+    ]
+
 data FnDefError
   = FnAlreadyDefined FnId
   | FnsUndefined FnIds
@@ -628,9 +665,9 @@ tempStackIds (TProd l r) =
 tempStackIds (TFn _ mio) =
   let sids = Set.filter ("$$" `isPrefixOf`) (Map.keysSet mio)
       folder (i, o) acc =
-        tempStackIds i `Set.union` tempStackIds o  `Set.union` acc
+        tempStackIds i `Set.union` tempStackIds o `Set.union` acc
       sids' = foldr folder Set.empty (Map.elems mio)
-  in sids `Set.union` sids'
+   in sids `Set.union` sids'
 tempStackIds (TCons _) = Set.empty
 
 undefinedFnIds :: FnEnv -> Expr -> FnIds
@@ -647,11 +684,13 @@ undefinedFnIds env (ECall fid) =
 
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
 defineFn env (FnDef fid e)
+  | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
   | fid `Map.member` env = throwError $ FnAlreadyDefined fid
   | not (null (undefinedFnIds env e)) =
     throwError $ FnsUndefined $ undefinedFnIds env e
   | otherwise = case inferNormType env ["$"] e of
     Left err -> throwError $ FnTypeError err
-    Right t | not (null (tempStackIds t)) ->
-      throwError $ FnStackError (tempStackIds t)
+    Right t
+      | not (null (tempStackIds t)) ->
+        throwError $ FnStackError (tempStackIds t)
     Right t -> return (Map.insert fid (e, t) env)

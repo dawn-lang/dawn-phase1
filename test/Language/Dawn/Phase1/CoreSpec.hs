@@ -293,6 +293,10 @@ spec = do
         `shouldBe` Right (Map.singleton "drop2" (e, t))
 
     it "fails with FnAlreadyDefined" $ do
+      let (Right f) = parseFnDef "{fn clone = clone}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnAlreadyDefined "clone")
+        
       let (Right f) = parseFnDef "{fn drop2 = drop drop}"
       let (Right env) = defineFn Map.empty f
       defineFn env f

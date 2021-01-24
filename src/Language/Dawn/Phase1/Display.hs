@@ -33,21 +33,7 @@ displayedExprs (ECompose es : es') = case displayedExprs es of
 displayedExprs (e : es) = display e : displayedExprs es
 
 instance Display Intrinsic where
-  display IPush = "push"
-  display IPop = "pop"
-  display IClone = "clone"
-  display IDrop = "drop"
-  display IQuote = "quote"
-  display ICompose = "compose"
-  display IApply = "apply"
-  display IEqz = "eqz"
-  display IAdd = "add"
-  display ISub = "sub"
-  display IBitAnd = "bit_and"
-  display IBitOr = "bit_or"
-  display IBitXor = "bit_xor"
-  display IShl = "shl"
-  display IShr = "shr"
+  display = intrinsicFnId
 
 instance Display Type where
   display (TVar tv) = display tv
