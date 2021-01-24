@@ -52,23 +52,28 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
-      Right (CmdFnDef (FnDef fid e))
-        | fid `Map.member` env -> do
-          outputStrLn ("Error: " ++ fid ++ " is already defined")
+      Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
+        Left (FnAlreadyDefined fid) -> do
+          outputStrLn ("Error: already defined: " ++ fid)
           return (env, ms)
-        | not (null (undefinedFnIds env e)) -> do
-          printUndefinedFnIdsError env e
+        Left (FnsUndefined fids) -> do
+          let s = intercalate ", " (Set.toList fids)
+          outputStrLn ("Error: undefined: " ++ s)
           return (env, ms)
-        | otherwise -> case inferNormType env ["$"] e of
-          Left err -> do
-            printInferTypeError e err
-            return (env, ms)
-          Right t | exposedTempStackIds t -> do
-            printExposedTempStackIds t
-            return (env, ms)
-          Right t -> do
-            outputStrLn $ "{fn " ++ fid ++ " :: " ++ display t ++ "}"
-            return (Map.insert fid (e, t) env, ms)
+        Left (FnTypeError err) -> do
+          printInferTypeError e err
+          return (env, ms)
+        Left (FnStackError sids) -> do
+          let s = intercalate ", " (Set.toList sids)
+          outputStrLn ("Error: exposed temporary stacks: " ++ s)
+          return (env, ms)
+        Left FnDiverges -> do
+          outputStrLn ("Error: function diverges: " ++ fid)
+          return (env, ms)
+        Right env' -> do
+          let (Just (_, t)) = Map.lookup fid env'
+          outputStrLn $ fid ++ " :: " ++ display t
+          return (env', ms)
       Right (CmdEval e)
         | not (null (undefinedFnIds env e)) -> do
           printUndefinedFnIdsError env e
