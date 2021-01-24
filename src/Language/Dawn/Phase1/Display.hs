@@ -23,6 +23,8 @@ instance Display Expr where
   display (EContext s (EIntrinsic IPop)) = s ++ "->"
   display (EContext s e) = "(" ++ s ++ ": " ++ display e ++ ")"
   display (ELit (LU32 i)) = show i
+  display (EMatch cases) = "{match " ++ unwords (map displayCase cases) ++ "}"
+  display (ECall fid) = fid
 
 displayedExprs :: [Expr] -> [String]
 displayedExprs [] = []
@@ -31,6 +33,13 @@ displayedExprs (ECompose es : es') = case displayedExprs es of
   [de] -> de : displayedExprs es'
   (de : des) -> ["(" ++ de] ++ init des ++ [last des ++ ")"] ++ displayedExprs es'
 displayedExprs (e : es) = display e : displayedExprs es
+
+displayCase (p, e) = "{case " ++ display p ++ " => " ++ display e ++ "}"
+
+instance Display Pattern where
+  display PEmpty = ""
+  display (PProd l r) = unwords [display l, display r]
+  display (PLit (LU32 i)) = show i
 
 instance Display Intrinsic where
   display = intrinsicFnId
