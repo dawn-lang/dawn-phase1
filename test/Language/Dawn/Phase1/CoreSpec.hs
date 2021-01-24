@@ -284,6 +284,35 @@ spec = do
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
 
+  describe "fnDefType examples" $ do
+    it "fails with FnDiverges if trivially diverges" $ do
+      let (Right f) = parseFnDef "{fn test = test}"
+      fnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
+      let (Right f) = parseFnDef "{fn test = 0 test}"
+      fnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
+  describe "recFnDefType examples" $ do
+    it "fails with FnDiverges if trivially diverges" $ do
+      let (Right f) = parseFnDef "{fn test = test}"
+      recFnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
+      let (Right f) = parseFnDef "{fn test = 0 test}"
+      recFnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
+    it "fails with FnDiverges if type unstable" $ do
+      let (Right f) = parseFnDef "{fn test = test 0}"
+      recFnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
+      let (Right f) = parseFnDef "{fn test = drop test 0}"
+      recFnDefType Map.empty f
+        `shouldBe` Left FnDiverges
+
   describe "defineFn examples" $ do
     it "defines drop2" $ do
       let (Right f) = parseFnDef "{fn drop2 = drop drop}"

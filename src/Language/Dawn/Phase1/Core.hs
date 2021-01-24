@@ -16,6 +16,7 @@ module Language.Dawn.Phase1.Core
     Expr (..),
     FnDef (..),
     FnDefError (..),
+    fnDefType,
     FnEnv,
     FnId,
     FnIds,
@@ -33,6 +34,7 @@ module Language.Dawn.Phase1.Core
     mgu,
     normalizeType,
     Pattern (..),
+    recFnDefType,
     removeTrivialStacks,
     replaceTypeVars,
     requantify,
@@ -656,6 +658,7 @@ data FnDefError
   | FnsUndefined FnIds
   | FnTypeError UnificationError
   | FnStackError StackIds
+  | FnDiverges
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -682,6 +685,27 @@ undefinedFnIds env (EMatch cs) =
 undefinedFnIds env (ECall fid) =
   if Map.member fid env then Set.empty else Set.singleton fid
 
+fnDefType :: FnEnv -> FnDef -> Either FnDefError Type
+fnDefType env (FnDef fid e) =
+  case inferNormType env ["$"] e of
+    Left err -> throwError $ FnTypeError err
+    Right t
+      | not (null (tempStackIds t)) ->
+        throwError $ FnStackError (tempStackIds t)
+    Right t
+      | t == forall' [v0, v1] (v0 --> v1) ->
+        throwError FnDiverges
+    Right t -> return t
+
+recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
+recFnDefType env (FnDef fid e) =
+  case fnDefType env (FnDef fid e) of
+    Left err -> Left err
+    Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
+      Left err -> Left err
+      Right t' | t /= t' -> throwError FnDiverges
+      Right t' -> return t'
+
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
 defineFn env (FnDef fid e)
   | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
@@ -691,25 +715,10 @@ defineFn env (FnDef fid e)
       | not (null (Set.filter (/= fid) fids)) ->
         throwError $ FnsUndefined $ Set.filter (/= fid) fids
     fids | not (null fids) ->
-      -- recursive
-      case inferNormType env ["$"] e of
-        Left err -> throwError $ FnTypeError err
-        Right t
-          | not (null (tempStackIds t)) ->
-            throwError $ FnStackError (tempStackIds t)
-        Right t ->
-          let env' = Map.insert fid (e, t) env
-           in case inferNormType env' ["$"] e of
-                Left err -> throwError $ FnTypeError err
-                Right t
-                  | not (null (tempStackIds t)) ->
-                    throwError $ FnStackError (tempStackIds t)
-                Right t -> return (Map.insert fid (e, t) env')
+      case recFnDefType env (FnDef fid e) of
+        Left err -> Left err
+        Right t -> return (Map.insert fid (e, t) env)
     _ ->
-      -- non-recursive
-      case inferNormType env ["$"] e of
-        Left err -> throwError $ FnTypeError err
-        Right t
-          | not (null (tempStackIds t)) ->
-            throwError $ FnStackError (tempStackIds t)
+      case fnDefType env (FnDef fid e) of
+        Left err -> Left err
         Right t -> return (Map.insert fid (e, t) env)
