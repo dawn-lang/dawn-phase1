@@ -230,13 +230,13 @@ spec = do
 
     it "infers `$a<- $b<- $a-> $b->` is swap in any context" $ do
       let (Right e) = parseExpr "$a<- $b<- $a-> $b->"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$a"] e
+      inferNormType Map.empty ["$a"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$a" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$b"] e
+      inferNormType Map.empty ["$b"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$b" $: v0 * v1 * v2 --> v0 * v2 * v1))
-      inferNormType ["$c"] e
+      inferNormType Map.empty ["$c"] e
         `shouldBe` Right (forall [v0, v1, v2] ("$c" $: v0 * v1 * v2 --> v0 * v2 * v1))
 
     it "infers `[drop]" $ do
@@ -254,32 +254,112 @@ spec = do
     it "infers `123`" $ do
       let (Right e) = parseExpr "123"
       let t = TCons (TypeCons "U32")
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$" $: v0 --> v0 * t))
 
     it "infers `($a: 123)`" $ do
       let (Right e) = parseExpr "($a: 123)"
       let t = TCons (TypeCons "U32")
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
 
     it "infers `{match {case =>}}`" $ do
       let (Right e) = parseExpr "{match {case =>}}"
       let (Right e') = parseExpr ""
-      inferNormType ["$"] e
-        `shouldBe` inferNormType ["$"] e'
+      inferNormType Map.empty ["$"] e
+        `shouldBe` inferNormType Map.empty ["$"] e'
 
     it "infers `{match {case 0 => 1} {case => drop 0}}`" $ do
       let (Right e) = parseExpr "{match {case 0 => 1} {case => drop 0}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tU32 --> v0 * tU32))
 
     it "infers `{match {case 0 0 => 1} {case => drop drop 0}}`" $ do
       let (Right e) = parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tU32 * tU32 --> v0 * tU32))
 
     it "infers `{match {case 0 => [clone] apply} {case => drop [clone] apply}}`" $ do
       let (Right e) = parseExpr "{match {case 0 => [clone] apply} {case => drop [clone] apply}}"
-      inferNormType ["$"] e
+      inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
+
+  describe "fnDefType examples" $ do
+    it "fails with FnDiverges if trivially diverges" $ do
+      let (Right f) = parseFnDef "{fn test = test}"
+      fnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+      let (Right f) = parseFnDef "{fn test = 0 test}"
+      fnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+  describe "recFnDefType examples" $ do
+    it "fails with FnDiverges if trivially diverges" $ do
+      let (Right f) = parseFnDef "{fn test = test}"
+      recFnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+      let (Right f) = parseFnDef "{fn test = 0 test}"
+      recFnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+    it "fails with FnDiverges if type unstable" $ do
+      let (Right f) = parseFnDef "{fn test = test 0}"
+      recFnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+      let (Right f) = parseFnDef "{fn test = drop test 0}"
+      recFnDefType Map.empty f
+        `shouldBe` Left (FnDiverges "test")
+
+  describe "defineFn examples" $ do
+    it "defines drop2" $ do
+      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right e) = parseExpr "drop drop"
+      let (Right t) = inferNormType Map.empty ["$"] e
+      defineFn Map.empty f
+        `shouldBe` Right (Map.singleton "drop2" (e, t))
+
+    it "fails with FnAlreadyDefined" $ do
+      let (Right f) = parseFnDef "{fn clone = clone}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnAlreadyDefined "clone")
+
+      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right env) = defineFn Map.empty f
+      defineFn env f
+        `shouldBe` Left (FnAlreadyDefined "drop2")
+
+    it "fails with FnsUndefined" $ do
+      let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnsUndefined (Set.fromList ["test2", "test3"]))
+
+    it "fails with FnTypeError" $ do
+      let (Right f) = parseFnDef "{fn test = clone apply}"
+      let (Right e) = parseExpr "clone apply"
+      let (Left err) = inferNormType Map.empty ["$"] e
+      defineFn Map.empty f
+        `shouldBe` Left (FnTypeError err)
+
+    it "fails with FnStackError" $ do
+      let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
+      defineFn Map.empty f
+        `shouldBe` Left (FnStackError (Set.fromList ["$$a", "$$b"]))
+
+    it "defines fib" $ do
+      let (Right f) = parseFnDef "{fn swap = $a<- $b<- $a-> $b->}"
+      let (Right env) = defineFn Map.empty f
+      let eSrc =
+            "{match "
+              ++ "  {case 0 => 0} "
+              ++ "  {case 1 => 1} "
+              ++ "  {case => clone 1 sub fib swap 2 sub fib add} "
+              ++ "}"
+      let fSrc = "{fn fib = " ++ eSrc ++ "}"
+      let (Right f) = parseFnDef fSrc
+      let (Right e) = parseExpr eSrc
+      let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
+      defineFn env f
+        `shouldBe` Right (Map.insert "fib" (e, t) env)

@@ -5,8 +5,10 @@
 
 module Language.Dawn.Phase1.Parse
   ( expr,
+    fnDef,
     keyword,
     parseExpr,
+    parseFnDef,
     parseVals,
   )
 where
@@ -19,11 +21,17 @@ import Text.Parsec
 import Text.Parsec.String
 import Prelude hiding (drop)
 
+parseFnDef :: String -> Either ParseError FnDef
+parseFnDef = parse (skipMany space *> fnDef <* eof) ""
+
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseVals :: String -> Either ParseError [Val]
 parseVals = parse (skipMany space *> vals <* eof) ""
+
+fnDef :: Parser FnDef
+fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=" *> expr))
 
 expr :: Parser Expr
 expr =
@@ -31,6 +39,7 @@ expr =
     <$> many
       ( literalExpr <|> matchExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
+          <|> callExpr
       )
 
 vals :: Parser [Val]
@@ -46,13 +55,13 @@ literal litCons = litCons . LU32 . fromInteger <$> integer_literal
 
 integer_literal = read <$> lexeme (many1 digit)
 
-betweenBraces = between (symbol '{') (symbol '}')
+betweenBraces = between (symbol "{") (symbol "}")
 
 matchExpr :: Parser Expr
 matchExpr = betweenBraces (EMatch <$> (keyword "match" *> many1 matchExprCase))
 
 matchExprCase :: Parser (Pattern, Expr)
-matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (keyword "=>" *> expr))
+matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (symbol "=>" *> expr))
 
 pattern' :: Parser Pattern
 pattern' =
@@ -60,20 +69,20 @@ pattern' =
     <|> try literalPattern
     <|> return PEmpty
 
-groupedExpr = between (symbol '(') (symbol ')') (contextExpr <|> expr)
+groupedExpr = between (symbol "(") (symbol ")") (contextExpr <|> expr)
 
-contextExpr = EContext <$> (stackId <* symbol ':') <*> expr
+contextExpr = EContext <$> (stackId <* symbol ":") <*> expr
 
-quotedExpr = between (symbol '[') (symbol ']') (EQuote <$> expr)
+quotedExpr = between (symbol "[") (symbol "]") (EQuote <$> expr)
 
-quotedVal = between (symbol '[') (symbol ']') (VQuote <$> expr)
+quotedVal = between (symbol "[") (symbol "]") (VQuote <$> expr)
 
 sugarExpr = sugar EContext EIntrinsic
 
 sugar contextCons intrinsicCons =
   contextCons <$> stackId_
-    <*> ( (keyword "<-" >> return (intrinsicCons IPush))
-            <|> (keyword "->" >> return (intrinsicCons IPop))
+    <*> ( (symbol "<-" >> return (intrinsicCons IPush))
+            <|> (symbol "->" >> return (intrinsicCons IPop))
         )
 
 intrinsicExpr = intrinsic EIntrinsic
@@ -95,18 +104,23 @@ intrinsic cons =
     <|> try (keyword "shl" >> return (cons IShl))
     <|> try (keyword "shr" >> return (cons IShr))
 
+callExpr = ECall <$> fnId
+
 stackId = lexeme stackId_
+
+fnId = lexeme ident_
 
 stackId_ = (:) <$> char '$' <*> ident_
 
-ident_ = (:) <$> firstChar <*> many nonFirstChar
-  where
-    firstChar = letter <|> char '_'
-    nonFirstChar = digit <|> firstChar
+ident_ = (:) <$> identFirstChar <*> many identChar
 
-keyword s = void $ lexeme (string s)
+identFirstChar = letter <|> char '_'
 
-symbol c = void $ lexeme (char c)
+identChar = letter <|> char '_' <|> digit
+
+keyword s = void $ lexeme (string s <* notFollowedBy identChar)
+
+symbol s = void $ lexeme (string s)
 
 lexeme p = p <* (skip <|> eof)
 

@@ -96,11 +96,9 @@ spec = do
       parseExpr "clone (drop clone)"
         `shouldBe` Right (ECompose [clone, ECompose [drop, clone]])
 
-    it "fails on `foo`" $ do
-      let (Left err) = parseExpr "foo"
-      let pos = errorPos err
-      sourceLine pos `shouldBe` 1
-      sourceColumn pos `shouldBe` 1
+    it "parses `foo`" $ do
+      parseExpr "foo"
+        `shouldBe` Right (ECall "foo")
 
     it "parses `($a: drop)`" $ do
       parseExpr "($a: drop)"
@@ -154,9 +152,33 @@ spec = do
               ]
           )
 
+    it "parses `drop2`" $ do
+      parseExpr "drop2"
+        `shouldBe` Right (ECall "drop2")
+
   describe "parseVal" $ do
     it "parses `[clone] [drop] 0`" $ do
       -- Note that the values are in reverse, so that `eval` can
       -- easily pattern match on the top of the stack.
       parseVals "[clone] [drop] 0"
         `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
+
+  describe "parseFnDef `and`" $ do
+    it "parses `{fn drop2 = drop drop}`" $ do
+      let (Right e) = parseExpr "drop drop"
+      parseFnDef "{fn drop2 = drop drop}"
+        `shouldBe` Right (FnDef "drop2" e)
+
+    it "parses fib" $ do
+      let fibExprSrc =
+            unlines
+              [ "{match",
+                "  {case 0 => 0}",
+                "  {case 1 => 1}",
+                "  {case => clone 1 sub fib swap 2 sub fib add}",
+                "}"
+              ]
+      let fibSrc = "{fn fib = " ++ fibExprSrc ++ "}"
+      let (Right e) = parseExpr fibExprSrc
+      parseFnDef fibSrc
+        `shouldBe` Right (FnDef "fib" e)
