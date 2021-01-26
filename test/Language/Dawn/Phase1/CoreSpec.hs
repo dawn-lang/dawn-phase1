@@ -285,33 +285,36 @@ spec = do
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
 
   describe "fnDefType examples" $ do
-    it "fails with FnDiverges if trivially diverges" $ do
+    it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = test}"
       fnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
+    it "infers {fn test = 0 test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = 0 test}"
       fnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
   describe "recFnDefType examples" $ do
-    it "fails with FnDiverges if trivially diverges" $ do
+    it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = test}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
+    it "infers {fn test = 0 test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = 0 test}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
-    it "fails with FnDiverges if type unstable" $ do
+    it "fails {fn test = test 0} with FnTypeDiverges" $ do
       let (Right f) = parseFnDef "{fn test = test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Left (FnTypeDiverges "test")
 
+    it "fails {fn test = drop test 0} with FnTypeDiverges" $ do
       let (Right f) = parseFnDef "{fn test = drop test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnDiverges "test")
+        `shouldBe` Left (FnTypeDiverges "test")
 
   describe "defineFn examples" $ do
     it "defines drop2" $ do

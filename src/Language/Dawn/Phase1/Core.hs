@@ -535,7 +535,7 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   unifyCaseTypes (t3 : ts)
 
 -- Infer an expression's type in the given FnEnv and Context. If there are any
--- ECall's to functions not in FnEnv, then a type of (forall v0 v1 . v0 -> v1)
+-- ECall's to functions not in FnEnv, then a type of (∀ v0 v1 . v0 -> v1)
 -- is assumed for those functions.
 inferType :: FnEnv -> Context -> Expr -> Result Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
@@ -658,7 +658,7 @@ data FnDefError
   | FnsUndefined FnIds
   | FnTypeError UnificationError
   | FnStackError StackIds
-  | FnDiverges FnId
+  | FnTypeDiverges FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -692,9 +692,6 @@ fnDefType env (FnDef fid e) =
     Right t
       | not (null (tempStackIds t)) ->
         throwError $ FnStackError (tempStackIds t)
-    Right t
-      | t == forall' [v0, v1] (v0 --> v1) ->
-        throwError (FnDiverges fid)
     Right t -> return t
 
 recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
@@ -703,7 +700,7 @@ recFnDefType env (FnDef fid e) =
     Left err -> Left err
     Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
       Left err -> Left err
-      Right t' | t /= t' -> throwError (FnDiverges fid)
+      Right t' | t /= t' -> throwError (FnTypeDiverges fid)
       Right t' -> return t'
 
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
