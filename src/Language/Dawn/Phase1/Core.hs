@@ -655,9 +655,9 @@ intrinsicFnIds =
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnsUndefined FnIds
-  | FnTypeError UnificationError
-  | FnStackError StackIds
+  | FnCallsUndefined FnId FnIds
+  | FnTypeError FnId UnificationError
+  | FnStackError FnId StackIds
   | FnTypeDiverges FnId
   deriving (Eq, Show)
 
@@ -688,10 +688,10 @@ undefinedFnIds env (ECall fid) =
 fnDefType :: FnEnv -> FnDef -> Either FnDefError Type
 fnDefType env (FnDef fid e) =
   case inferNormType env ["$"] e of
-    Left err -> throwError $ FnTypeError err
+    Left err -> throwError $ FnTypeError fid err
     Right t
       | not (null (tempStackIds t)) ->
-        throwError $ FnStackError (tempStackIds t)
+        throwError $ FnStackError fid (tempStackIds t)
     Right t -> return t
 
 recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
@@ -710,7 +710,7 @@ defineFn env (FnDef fid e)
   | otherwise = case undefinedFnIds env e of
     fids
       | not (null (Set.filter (/= fid) fids)) ->
-        throwError $ FnsUndefined $ Set.filter (/= fid) fids
+        throwError $ FnCallsUndefined fid (Set.filter (/= fid) fids)
     fids | not (null fids) ->
       case recFnDefType env (FnDef fid e) of
         Left err -> Left err

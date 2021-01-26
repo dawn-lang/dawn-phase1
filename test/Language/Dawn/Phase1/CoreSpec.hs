@@ -334,22 +334,22 @@ spec = do
       defineFn env f
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
-    it "fails with FnsUndefined" $ do
+    it "fails with FnCallsUndefined" $ do
       let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
       defineFn Map.empty f
-        `shouldBe` Left (FnsUndefined (Set.fromList ["test2", "test3"]))
+        `shouldBe` Left (FnCallsUndefined "test1" (Set.fromList ["test2", "test3"]))
 
     it "fails with FnTypeError" $ do
       let (Right f) = parseFnDef "{fn test = clone apply}"
       let (Right e) = parseExpr "clone apply"
       let (Left err) = inferNormType Map.empty ["$"] e
       defineFn Map.empty f
-        `shouldBe` Left (FnTypeError err)
+        `shouldBe` Left (FnTypeError "test" err)
 
     it "fails with FnStackError" $ do
       let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
       defineFn Map.empty f
-        `shouldBe` Left (FnStackError (Set.fromList ["$$a", "$$b"]))
+        `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
       let (Right f) = parseFnDef "{fn swap = $a<- $b<- $a-> $b->}"
