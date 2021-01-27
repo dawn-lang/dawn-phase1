@@ -67,7 +67,7 @@ readEvalPrint (env, ms) = do
           let s = intercalate ", " (Set.toList sids)
           outputStrLn ("Error: exposed temporary stacks: " ++ s)
           return (env, ms)
-        Left (FnTypeDiverges _) -> do
+        Left (FnTypeUnstable _) -> do
           outputStrLn ("Error: function type diverges: " ++ fid)
           return (env, ms)
         Right env' -> do

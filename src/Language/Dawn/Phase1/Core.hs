@@ -659,7 +659,7 @@ data FnDefError
   | FnCallsUndefined FnId FnIds
   | FnTypeError FnId UnificationError
   | FnStackError FnId StackIds
-  | FnTypeDiverges FnId
+  | FnTypeUnstable FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -701,7 +701,7 @@ recFnDefType env (FnDef fid e) =
     Left err -> Left err
     Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
       Left err -> Left err
-      Right t' | t /= t' -> throwError (FnTypeDiverges fid)
+      Right t' | t /= t' -> throwError (FnTypeUnstable fid)
       Right t' -> return t'
 
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
@@ -787,4 +787,4 @@ defineFns env defs =
       Left err -> (err : errs, Map.delete fid env)
       Right t -> case Map.lookup fid env of
         Just (_, t') | t == t' -> (errs, Map.insert fid (e, t) env)
-        _ -> (FnTypeDiverges fid : errs, Map.delete fid env)
+        _ -> (FnTypeUnstable fid : errs, Map.delete fid env)

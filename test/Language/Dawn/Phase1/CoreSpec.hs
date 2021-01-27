@@ -306,15 +306,15 @@ spec = do
       recFnDefType Map.empty f
         `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
-    it "fails {fn test = test 0} with FnTypeDiverges" $ do
+    it "fails {fn test = test 0} with FnTypeUnstable" $ do
       let (Right f) = parseFnDef "{fn test = test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeDiverges "test")
+        `shouldBe` Left (FnTypeUnstable "test")
 
-    it "fails {fn test = drop test 0} with FnTypeDiverges" $ do
+    it "fails {fn test = drop test 0} with FnTypeUnstable" $ do
       let (Right f) = parseFnDef "{fn test = drop test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeDiverges "test")
+        `shouldBe` Left (FnTypeUnstable "test")
 
   describe "defineFn examples" $ do
     it "defines drop2" $ do
