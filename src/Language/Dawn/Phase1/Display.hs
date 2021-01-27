@@ -21,7 +21,7 @@ instance Display Expr where
   display (ECompose es) = unwords (displayedExprs es)
   display (EContext s (EIntrinsic IPush)) = s ++ "<-"
   display (EContext s (EIntrinsic IPop)) = s ++ "->"
-  display (EContext s e) = "(" ++ s ++ ": " ++ display e ++ ")"
+  display (EContext s e) = "{" ++ s ++ " " ++ display e ++ "}"
   display (ELit (LU32 i)) = show i
   display (EMatch cases) = "{match " ++ unwords (map displayCase cases) ++ "}"
   display (ECall fid) = fid
@@ -62,9 +62,9 @@ displayMultiIO mio
   | Map.keys mio == ["$"] =
     let [("$", (i, o))] = Map.toList mio
      in display i ++ " -> " ++ display o
-  | otherwise = intercalate " . " (map iter (Map.toAscList mio))
+  | otherwise = unwords (map iter (Map.toAscList mio))
   where
-    iter (sid, (i, o)) = sid ++ ": " ++ display i ++ " -> " ++ display o
+    iter (sid, (i, o)) = "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
 
 instance Display TypeCons where
   display (TypeCons s) = s

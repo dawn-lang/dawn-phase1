@@ -37,7 +37,7 @@ expr :: Parser Expr
 expr =
   fromExprSeq
     <$> many
-      ( literalExpr <|> matchExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
+      ( literalExpr <|> bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
           <|> callExpr
       )
@@ -57,8 +57,11 @@ integer_literal = read <$> lexeme (many1 digit)
 
 betweenBraces = between (symbol "{") (symbol "}")
 
-matchExpr :: Parser Expr
-matchExpr = betweenBraces (EMatch <$> (keyword "match" *> many1 matchExprCase))
+bracedExpr =
+  betweenBraces
+    ( EContext <$> stackId <*> expr
+        <|> EMatch <$> (keyword "match" *> many1 matchExprCase)
+    )
 
 matchExprCase :: Parser (Pattern, Expr)
 matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (symbol "=>" *> expr))
@@ -69,9 +72,7 @@ pattern' =
     <|> try literalPattern
     <|> return PEmpty
 
-groupedExpr = between (symbol "(") (symbol ")") (contextExpr <|> expr)
-
-contextExpr = EContext <$> (stackId <* symbol ":") <*> expr
+groupedExpr = between (symbol "(") (symbol ")") expr
 
 quotedExpr = between (symbol "[") (symbol "]") (EQuote <$> expr)
 

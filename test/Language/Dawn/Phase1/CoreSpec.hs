@@ -211,8 +211,8 @@ spec = do
       let (Right e2) = parseExpr "clone"
       inferNormType' e1 `shouldBe` inferNormType' e2
 
-    it "infers `($a: push) ($b: push) ($a: pop) ($b: pop)` is swap" $ do
-      let (Right e) = parseExpr "($a: push) ($b: push) ($a: pop) ($b: pop)"
+    it "infers `{$a push} {$b push} {$a pop} {$b pop}` is swap" $ do
+      let (Right e) = parseExpr "{$a push} {$b push} {$a pop} {$b pop}"
       inferNormType' e
         `shouldBe` Right (forall' [v0, v1, v2] (v0 * v1 * v2 --> v0 * v2 * v1))
 
@@ -244,8 +244,8 @@ spec = do
       inferNormType' e
         `shouldBe` Right (forall' [v0] (v0 --> v0 * forall' [v1, v2] (v1 * v2 --> v1)))
 
-    it "infers `($a: [drop])" $ do
-      let (Right e) = parseExpr "($a: [drop])"
+    it "infers `{$a [drop]}`" $ do
+      let (Right e) = parseExpr "{$a [drop]}"
       inferNormType' e
         `shouldBe` Right
           ( forall [v0] ("$a" $: v0 --> v0 * forall [v1, v2] ("$a" $: v1 * v2 --> v1))
@@ -257,8 +257,8 @@ spec = do
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$" $: v0 --> v0 * t))
 
-    it "infers `($a: 123)`" $ do
-      let (Right e) = parseExpr "($a: 123)"
+    it "infers `{$a 123}`" $ do
+      let (Right e) = parseExpr "{$a 123}"
       let t = TCons (TypeCons "U32")
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
@@ -347,7 +347,7 @@ spec = do
         `shouldBe` Left (FnTypeError "test" err)
 
     it "fails with FnStackError" $ do
-      let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
+      let (Right f) = parseFnDef "{fn test = {$a $a<-} {$b $b<-}}"
       defineFn Map.empty f
         `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
 

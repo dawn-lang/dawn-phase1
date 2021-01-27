@@ -100,16 +100,16 @@ spec = do
       parseExpr "foo"
         `shouldBe` Right (ECall "foo")
 
-    it "parses `($a: drop)`" $ do
-      parseExpr "($a: drop)"
+    it "parses `{$a drop}`" $ do
+      parseExpr "{$a drop}"
         `shouldBe` Right (EContext "$a" (EIntrinsic IDrop))
 
-    it "parses `($_Ab12_C: drop)`" $ do
-      parseExpr "($_Ab12_C: drop)"
+    it "parses `{$_Ab12_C drop}`" $ do
+      parseExpr "{$_Ab12_C drop}"
         `shouldBe` Right (EContext "$_Ab12_C" (EIntrinsic IDrop))
 
-    it "fails on `($1234: drop)`" $ do
-      let (Left err) = parseExpr "($1234: drop)"
+    it "fails on `{$1234 drop}`" $ do
+      let (Left err) = parseExpr "{$1234 drop}"
       let pos = errorPos err
       sourceLine pos `shouldBe` 1
       sourceColumn pos `shouldBe` 3
@@ -126,8 +126,8 @@ spec = do
       parseExpr "123"
         `shouldBe` Right (ELit (LU32 123))
 
-    it "parses `($a: 123)`" $ do
-      parseExpr "($a: 123)"
+    it "parses `{$a 123}`" $ do
+      parseExpr "{$a 123}"
         `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
 
     it "parses `{match {case =>}}`" $ do
