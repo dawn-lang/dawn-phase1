@@ -78,6 +78,8 @@ eval env ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m
       m' = insertListOrDelete s vs m
    in eval env ctx e (MultiStack m')
+eval env (s : _) (EIntrinsic IIncr) (MultiStack m) = evalUnOp s m (+ 1)
+eval env (s : _) (EIntrinsic IDecr) (MultiStack m) = evalUnOp s m decr
 eval env (s : _) (EIntrinsic IAdd) (MultiStack m) = evalBinOp s m (+)
 eval env (s : _) (EIntrinsic ISub) (MultiStack m) = evalBinOp s m (-)
 eval env (s : _) (EIntrinsic IBitAnd) (MultiStack m) = evalBinOp s m (.&.)
@@ -133,6 +135,9 @@ evalBinOp s m op =
       c = op a b
       m' = insertListOrDelete s (VLit (LU32 c) : vs) m
    in MultiStack m'
+
+decr :: Word32 -> Word32
+decr a = a - 1
 
 shl a b = a `shiftL` fromInteger (toInteger b)
 

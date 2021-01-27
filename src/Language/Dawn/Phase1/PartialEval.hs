@@ -50,6 +50,12 @@ simplify fuel es' ((EQuote e) : es) =
 -- expand ECompose
 simplify fuel es' ((ECompose es'') : es) = simplify (fuel - 1) [] (es' ++ es'' ++ es)
 -- arithmetic
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IIncr : es) =
+  let c = a + 1
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IDecr : es) =
+  let c = a - 1
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IAdd : es) =
   let c = a + b
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)

@@ -103,6 +103,8 @@ intrinsic cons =
     <|> try (keyword "quote" >> return (cons IQuote))
     <|> try (keyword "compose" >> return (cons ICompose))
     <|> try (keyword "apply" >> return (cons IApply))
+    <|> try (keyword "incr" >> return (cons IIncr))
+    <|> try (keyword "decr" >> return (cons IDecr))
     <|> try (keyword "add" >> return (cons IAdd))
     <|> try (keyword "sub" >> return (cons ISub))
     <|> try (keyword "bit_and" >> return (cons IBitAnd))
