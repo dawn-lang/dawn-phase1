@@ -81,8 +81,9 @@ data Expr
   | ECall FnId
   deriving (Eq, Ord, Show)
 
-newtype Literal
-  = LU32 Word32
+data Literal
+  = LBool Bool
+  | LU32 Word32
   deriving (Eq, Ord, Show)
 
 data Pattern
@@ -408,6 +409,8 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
+tBool = TCons (TypeCons "Bool")
+
 tU32 = TCons (TypeCons "U32")
 
 type Context = [StackId]
@@ -453,6 +456,7 @@ intrinsicType (s : _) IShr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 
 literalType :: Context -> Literal -> Type
+literalType (s : _) (LBool _) = forall [v0] (s $: v0 --> v0 * tBool)
 literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 --------------------
@@ -521,6 +525,7 @@ patternType (s : _) p =
   where
     patternTypes :: Pattern -> [Type]
     patternTypes PEmpty = []
+    patternTypes (PLit (LBool _)) = [tBool]
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 

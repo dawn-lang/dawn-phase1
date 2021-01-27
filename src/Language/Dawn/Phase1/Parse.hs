@@ -45,11 +45,20 @@ expr =
 vals :: Parser [Val]
 vals = reverse <$> many (literalVal <|> quotedVal)
 
-literalExpr = ELit <$> u32Lit
+literalExpr = ELit <$> literal
 
-literalPattern = PLit <$> u32Lit
+literalPattern = PLit <$> literal
 
-literalVal = VLit <$> u32Lit
+literalVal = VLit <$> literal
+
+literal = boolLit <|> u32Lit
+
+boolLit :: Parser Literal
+boolLit = LBool <$> (false <|> true)
+
+false = try (keyword "False") >> return False
+
+true = try (keyword "True") >> return True
 
 u32Lit :: Parser Literal
 u32Lit = do
