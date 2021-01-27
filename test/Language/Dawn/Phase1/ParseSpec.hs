@@ -126,6 +126,12 @@ spec = do
       parseExpr "123"
         `shouldBe` Right (ELit (LU32 123))
 
+    it "fails `999999999999`" $ do
+      let (Left err) = parseExpr "999999999999"
+      let pos = errorPos err
+      sourceLine pos `shouldBe` 1
+      sourceColumn pos `shouldBe` 13
+
     it "parses `{$a 123}`" $ do
       parseExpr "{$a 123}"
         `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
