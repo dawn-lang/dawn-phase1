@@ -127,8 +127,8 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 1 ($a: push eqz pop) sub eqz`" $ do
-      let (Right e) = parseExpr "0 1 ($a: push eqz pop) sub eqz"
+    it "evals `0 1 {$a push eqz pop} sub eqz`" $ do
+      let (Right e) = parseExpr "0 1 {$a push eqz pop} sub eqz"
       let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
