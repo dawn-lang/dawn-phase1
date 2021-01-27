@@ -91,6 +91,12 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
+    it "evals `0 bit_not bit_not`" $ do
+      let (Right e) = parseExpr "0 bit_not bit_not"
+      let (Right vs) = parseVals "0"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
     it "evals `5 6 bit_xor`" $ do
       let (Right e) = parseExpr "5 6 bit_xor"
       let (Right vs) = parseVals "3"

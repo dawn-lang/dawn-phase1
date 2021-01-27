@@ -91,6 +91,11 @@ spec = do
       let (Right e') = parseExpr "3"
       partialEval' e `shouldBe` e'
 
+    it "evals `0 bit_not bit_not`" $ do
+      let (Right e) = parseExpr "0 bit_not bit_not"
+      let (Right e') = parseExpr "0"
+      partialEval' e `shouldBe` e'
+
     it "evals `5 6 bit_xor`" $ do
       let (Right e) = parseExpr "5 6 bit_xor"
       let (Right e') = parseExpr "3"

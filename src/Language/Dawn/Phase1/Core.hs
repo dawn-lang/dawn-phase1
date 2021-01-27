@@ -103,6 +103,7 @@ data Intrinsic
   | ISub
   | IBitAnd
   | IBitOr
+  | IBitNot
   | IBitXor
   | IShl
   | IShr
@@ -436,6 +437,8 @@ intrinsicType (s : _) IBitAnd =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IBitOr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitNot =
+  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IBitXor =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IShl =
@@ -629,6 +632,7 @@ intrinsicFnId IAdd = "add"
 intrinsicFnId ISub = "sub"
 intrinsicFnId IBitAnd = "bit_and"
 intrinsicFnId IBitOr = "bit_or"
+intrinsicFnId IBitNot = "bit_not"
 intrinsicFnId IBitXor = "bit_xor"
 intrinsicFnId IShl = "shl"
 intrinsicFnId IShr = "shr"
@@ -646,6 +650,7 @@ intrinsicFnIds =
       "sub",
       "bit_and",
       "bit_or",
+      "bit_not",
       "bit_xor",
       "shl",
       "shr"

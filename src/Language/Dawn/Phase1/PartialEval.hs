@@ -62,6 +62,9 @@ simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitAnd : es) =
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitOr : es) =
   let c = a .|. b
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IBitNot : es) =
+  let c = complement a
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitXor : es) =
   let c = a `xor` b
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)

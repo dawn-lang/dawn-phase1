@@ -107,6 +107,7 @@ intrinsic cons =
     <|> try (keyword "sub" >> return (cons ISub))
     <|> try (keyword "bit_and" >> return (cons IBitAnd))
     <|> try (keyword "bit_or" >> return (cons IBitOr))
+    <|> try (keyword "bit_not" >> return (cons IBitNot))
     <|> try (keyword "bit_xor" >> return (cons IBitXor))
     <|> try (keyword "shl" >> return (cons IShl))
     <|> try (keyword "shr" >> return (cons IShr))

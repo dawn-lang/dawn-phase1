@@ -64,6 +64,9 @@ spec = do
     it "parses `bit_or`" $ do
       parseExpr "bit_or" `shouldBe` Right (EIntrinsic IBitOr)
 
+    it "parses `bit_not`" $ do
+      parseExpr "bit_not" `shouldBe` Right (EIntrinsic IBitNot)
+
     it "parses `bit_xor`" $ do
       parseExpr "bit_xor" `shouldBe` Right (EIntrinsic IBitXor)
 
