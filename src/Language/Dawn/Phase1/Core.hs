@@ -13,6 +13,8 @@ module Language.Dawn.Phase1.Core
     composeSubst,
     Context,
     defineFn,
+    defineFns,
+    dependencySortFns,
     Expr (..),
     FnDef (..),
     FnDefError (..),
@@ -57,6 +59,7 @@ where
 
 import Control.Monad
 import Control.Monad.Except
+import Data.Graph
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -655,10 +658,10 @@ intrinsicFnIds =
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnsUndefined FnIds
-  | FnTypeError UnificationError
-  | FnStackError StackIds
-  | FnTypeDiverges FnId
+  | FnCallsUndefined FnId FnIds
+  | FnTypeError FnId UnificationError
+  | FnStackError FnId StackIds
+  | FnTypeUnstable FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -688,10 +691,10 @@ undefinedFnIds env (ECall fid) =
 fnDefType :: FnEnv -> FnDef -> Either FnDefError Type
 fnDefType env (FnDef fid e) =
   case inferNormType env ["$"] e of
-    Left err -> throwError $ FnTypeError err
+    Left err -> throwError $ FnTypeError fid err
     Right t
       | not (null (tempStackIds t)) ->
-        throwError $ FnStackError (tempStackIds t)
+        throwError $ FnStackError fid (tempStackIds t)
     Right t -> return t
 
 recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
@@ -700,7 +703,7 @@ recFnDefType env (FnDef fid e) =
     Left err -> Left err
     Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
       Left err -> Left err
-      Right t' | t /= t' -> throwError (FnTypeDiverges fid)
+      Right t' | t /= t' -> throwError (FnTypeUnstable fid)
       Right t' -> return t'
 
 defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
@@ -710,7 +713,7 @@ defineFn env (FnDef fid e)
   | otherwise = case undefinedFnIds env e of
     fids
       | not (null (Set.filter (/= fid) fids)) ->
-        throwError $ FnsUndefined $ Set.filter (/= fid) fids
+        throwError $ FnCallsUndefined fid (Set.filter (/= fid) fids)
     fids | not (null fids) ->
       case recFnDefType env (FnDef fid e) of
         Left err -> Left err
@@ -719,3 +722,71 @@ defineFn env (FnDef fid e)
       case fnDefType env (FnDef fid e) of
         Left err -> Left err
         Right t -> return (Map.insert fid (e, t) env)
+
+fnDefFnId :: FnDef -> FnId
+fnDefFnId (FnDef fid _) = fid
+
+fnIds :: Expr -> FnIds
+fnIds (EIntrinsic _) = Set.empty
+fnIds (EQuote e) = fnIds e
+fnIds (ECompose es) =
+  foldr (Set.union . fnIds) Set.empty es
+fnIds (EContext s e) = fnIds e
+fnIds (ELit _) = Set.empty
+fnIds (EMatch cs) =
+  foldr (Set.union . fnIds . snd) Set.empty cs
+fnIds (ECall fid) = Set.singleton fid
+
+-- | Sort FnDef's such that f precedes g if f calls g (directly or
+-- | transitively) and g does not call f.
+dependencySortFns :: [FnDef] -> [FnDef]
+dependencySortFns defs =
+  let fnDefToTuple def@(FnDef fid e) = (def, fid, Set.toList (fnIds e))
+      (graph, vertToTuple, fidToVert) = graphFromEdges (map fnDefToTuple defs)
+      tupleToFnDef (def, _, _) = def
+      vertToFnDef v = tupleToFnDef (vertToTuple v)
+   in map vertToFnDef (topSort graph)
+
+defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
+defineFns env defs =
+  let -- check for and remove FnAlreadyDefined
+      existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
+      (errs1, defs1) = removeAlreadyDefined existingFnIds defs
+      -- check for and remove FnCallsUndefined
+      newFnIds = Set.fromList (map fnDefFnId defs)
+      allFnIds = existingFnIds `Set.union` newFnIds
+      (errs2, defs2) = removeFnCallsUndefined allFnIds defs1
+      -- topologically sort the FnDef's
+      defs3 = dependencySortFns defs2
+      -- call `fnDefType env` on each FnDef to produce env2
+      (errs3, env2) = foldr folder1 ([], env) defs3
+      -- call `fnDefType env2` on each FnDef to check for unstable types
+      (errs4, env3) = foldr folder2 (errs2, env2) defs3
+   in (errs1 ++ errs2 ++ errs3 ++ errs4, env3)
+  where
+    removeAlreadyDefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
+    removeAlreadyDefined fids [] = ([], [])
+    removeAlreadyDefined fids (FnDef fid e : defs) =
+      let (errs, defs') = removeAlreadyDefined (Set.insert fid fids) defs
+       in if fid `Set.member` fids
+            then (FnAlreadyDefined fid : errs, defs')
+            else (errs, FnDef fid e : defs)
+
+    removeFnCallsUndefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
+    removeFnCallsUndefined fids [] = ([], [])
+    removeFnCallsUndefined fids (FnDef fid e : defs) =
+      let (errs, defs') = removeFnCallsUndefined fids defs
+          undefinedFnCalls = Set.filter (`Set.notMember` fids) (fnIds e)
+       in if null undefinedFnCalls
+            then (errs, FnDef fid e : defs)
+            else (FnCallsUndefined fid undefinedFnCalls : errs, defs')
+
+    folder1 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
+      Left err -> (err : errs, env)
+      Right t -> (errs, Map.insert fid (e, t) env)
+
+    folder2 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
+      Left err -> (err : errs, Map.delete fid env)
+      Right t -> case Map.lookup fid env of
+        Just (_, t') | t == t' -> (errs, Map.insert fid (e, t) env)
+        _ -> (FnTypeUnstable fid : errs, Map.delete fid env)

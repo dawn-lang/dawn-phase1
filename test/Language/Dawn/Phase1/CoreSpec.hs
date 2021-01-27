@@ -306,15 +306,15 @@ spec = do
       recFnDefType Map.empty f
         `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
 
-    it "fails {fn test = test 0} with FnTypeDiverges" $ do
+    it "fails {fn test = test 0} with FnTypeUnstable" $ do
       let (Right f) = parseFnDef "{fn test = test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeDiverges "test")
+        `shouldBe` Left (FnTypeUnstable "test")
 
-    it "fails {fn test = drop test 0} with FnTypeDiverges" $ do
+    it "fails {fn test = drop test 0} with FnTypeUnstable" $ do
       let (Right f) = parseFnDef "{fn test = drop test 0}"
       recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeDiverges "test")
+        `shouldBe` Left (FnTypeUnstable "test")
 
   describe "defineFn examples" $ do
     it "defines drop2" $ do
@@ -334,22 +334,22 @@ spec = do
       defineFn env f
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
-    it "fails with FnsUndefined" $ do
+    it "fails with FnCallsUndefined" $ do
       let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
       defineFn Map.empty f
-        `shouldBe` Left (FnsUndefined (Set.fromList ["test2", "test3"]))
+        `shouldBe` Left (FnCallsUndefined "test1" (Set.fromList ["test2", "test3"]))
 
     it "fails with FnTypeError" $ do
       let (Right f) = parseFnDef "{fn test = clone apply}"
       let (Right e) = parseExpr "clone apply"
       let (Left err) = inferNormType Map.empty ["$"] e
       defineFn Map.empty f
-        `shouldBe` Left (FnTypeError err)
+        `shouldBe` Left (FnTypeError "test" err)
 
     it "fails with FnStackError" $ do
       let (Right f) = parseFnDef "{fn test = ($a: $a<-) ($b: $b<-)}"
       defineFn Map.empty f
-        `shouldBe` Left (FnStackError (Set.fromList ["$$a", "$$b"]))
+        `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
       let (Right f) = parseFnDef "{fn swap = $a<- $b<- $a-> $b->}"
@@ -366,3 +366,58 @@ spec = do
       let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       defineFn env f
         `shouldBe` Right (Map.insert "fib" (e, t) env)
+
+  describe "dependencySortFns examples" $ do
+    it "sorts drop2 drop3" $ do
+      let (Right drop2) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right drop3) = parseFnDef "{fn drop3 = drop2 drop}"
+      dependencySortFns [drop2, drop3]
+        `shouldBe` [drop3, drop2]
+
+  describe "defineFns examples" $ do
+    it "defines drop2 and drop3" $ do
+      let (Right drop2) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right drop3) = parseFnDef "{fn drop3 = drop2 drop}"
+      let (Right drop2e) = parseExpr "drop drop"
+      let (Right drop2t) = inferNormType Map.empty ["$"] drop2e
+      let (Right drop3e) = parseExpr "drop2 drop"
+      let (Right drop3te) = parseExpr "drop drop drop"
+      let (Right drop3t) = inferNormType Map.empty ["$"] drop3te
+      let errs = []
+      let env :: FnEnv
+          env = Map.fromList [("drop2", (drop2e, drop2t)), ("drop3", (drop3e, drop3t))]
+      defineFns Map.empty [drop2, drop3]
+        `shouldBe` (errs, env)
+
+    it "defines mutually recursive fns" $ do
+      let is_odd_es = "1 bit_and"
+      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd_e) = parseExpr is_odd_es
+      let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tU32)
+
+      let decr_even_es = "clone is_odd {match {case 0 0 => } {case 0 => 1 sub decr_odd} {case => drop decr_odd}}"
+      let (Right decr_even) = parseFnDef ("{fn decr_even = " ++ decr_even_es ++ "}")
+      let (Right decr_even_e) = parseExpr decr_even_es
+      let decr_even_t = forall' [v0] (v0 * tU32 --> v0)
+
+      let decr_odd_es = "clone is_odd {match {case 0 1 => } {case 1 => 1 sub decr_even} {case => drop decr_even}}"
+      let (Right decr_odd) = parseFnDef ("{fn decr_odd = " ++ decr_odd_es ++ "}")
+      let (Right decr_odd_e) = parseExpr decr_odd_es
+      let decr_odd_t = forall' [v0] (v0 * tU32 --> v0)
+
+      let count_down_es = "decr_odd"
+      let (Right count_down) = parseFnDef ("{fn count_down = " ++ count_down_es ++ "}")
+      let (Right count_down_e) = parseExpr count_down_es
+      let count_down_t = forall' [v0] (v0 * tU32 --> v0)
+
+      let errs = []
+      let env :: FnEnv
+          env =
+            Map.fromList
+              [ ("is_odd", (is_odd_e, is_odd_t)),
+                ("decr_even", (decr_even_e, decr_even_t)),
+                ("decr_odd", (decr_odd_e, decr_odd_t)),
+                ("count_down", (count_down_e, count_down_t))
+              ]
+      defineFns Map.empty [is_odd, decr_even, decr_odd, count_down]
+        `shouldBe` (errs, env)
