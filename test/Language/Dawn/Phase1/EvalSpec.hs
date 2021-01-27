@@ -67,18 +67,6 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 eqz`" $ do
-      let (Right e) = parseExpr "0 eqz"
-      let (Right vs) = parseVals "1"
-      let ms = MultiStack (Map.singleton "$" vs)
-      eval' e `shouldBe` ms
-
-    it "evals `1 eqz`" $ do
-      let (Right e) = parseExpr "1 eqz"
-      let (Right vs) = parseVals "0"
-      let ms = MultiStack (Map.singleton "$" vs)
-      eval' e `shouldBe` ms
-
     it "evals `2 2 add`" $ do
       let (Right e) = parseExpr "2 2 add"
       let (Right vs) = parseVals "4"
@@ -124,12 +112,6 @@ spec = do
     it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
       let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
       let (Right vs) = parseVals "1 0"
-      let ms = MultiStack (Map.singleton "$" vs)
-      eval' e `shouldBe` ms
-
-    it "evals `0 1 {$a push eqz pop} sub eqz`" $ do
-      let (Right e) = parseExpr "0 1 {$a push eqz pop} sub eqz"
-      let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 

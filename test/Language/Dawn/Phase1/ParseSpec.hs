@@ -52,9 +52,6 @@ spec = do
     it "parses `apply`" $ do
       parseExpr "apply" `shouldBe` Right apply
 
-    it "parses `eqz`" $ do
-      parseExpr "eqz" `shouldBe` Right (EIntrinsic IEqz)
-
     it "parses `add`" $ do
       parseExpr "add" `shouldBe` Right (EIntrinsic IAdd)
 

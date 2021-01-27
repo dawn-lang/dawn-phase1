@@ -71,16 +71,6 @@ spec = do
       partialEval 5 e0 `shouldBe` (0, e2)
       partialEval 6 e0 `shouldBe` (0, e0)
 
-    it "evals `0 eqz`" $ do
-      let (Right e) = parseExpr "0 eqz"
-      let (Right e') = parseExpr "1"
-      partialEval' e `shouldBe` e'
-
-    it "evals `1 eqz`" $ do
-      let (Right e) = parseExpr "1 eqz"
-      let (Right e') = parseExpr "0"
-      partialEval' e `shouldBe` e'
-
     it "evals `2 2 add`" $ do
       let (Right e) = parseExpr "2 2 add"
       let (Right e') = parseExpr "4"

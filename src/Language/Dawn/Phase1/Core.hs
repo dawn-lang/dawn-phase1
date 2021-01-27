@@ -99,7 +99,6 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
-  | IEqz
   | IAdd
   | ISub
   | IBitAnd
@@ -429,8 +428,6 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
-intrinsicType (s : _) IEqz =
-  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IAdd =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) ISub =
@@ -628,7 +625,6 @@ intrinsicFnId IDrop = "drop"
 intrinsicFnId IQuote = "quote"
 intrinsicFnId ICompose = "compose"
 intrinsicFnId IApply = "apply"
-intrinsicFnId IEqz = "eqz"
 intrinsicFnId IAdd = "add"
 intrinsicFnId ISub = "sub"
 intrinsicFnId IBitAnd = "bit_and"
@@ -646,7 +642,6 @@ intrinsicFnIds =
       "quote",
       "compose",
       "apply",
-      "eqz",
       "add",
       "sub",
       "bit_and",

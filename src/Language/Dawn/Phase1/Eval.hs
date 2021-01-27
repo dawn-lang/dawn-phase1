@@ -78,11 +78,6 @@ eval env ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m
       m' = insertListOrDelete s vs m
    in eval env ctx e (MultiStack m')
-eval env (s : _) (EIntrinsic IEqz) (MultiStack m) =
-  let (VLit (LU32 a) : vs) = Map.findWithDefault [] s m
-      c = if a == 0 then 1 else 0
-      m' = insertListOrDelete s (VLit (LU32 c) : vs) m
-   in MultiStack m'
 eval env (s : _) (EIntrinsic IAdd) (MultiStack m) = evalBinOp s m (+)
 eval env (s : _) (EIntrinsic ISub) (MultiStack m) = evalBinOp s m (-)
 eval env (s : _) (EIntrinsic IBitAnd) (MultiStack m) = evalBinOp s m (.&.)
