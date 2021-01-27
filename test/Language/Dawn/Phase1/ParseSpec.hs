@@ -98,6 +98,21 @@ spec = do
     it "parses `shr`" $ do
       parseExpr "shr" `shouldBe` Right (EIntrinsic IShr)
 
+    it "parses `eq`" $ do
+      parseExpr "eq" `shouldBe` Right (EIntrinsic IEq)
+
+    it "parses `lt`" $ do
+      parseExpr "lt" `shouldBe` Right (EIntrinsic ILt)
+
+    it "parses `gt`" $ do
+      parseExpr "gt" `shouldBe` Right (EIntrinsic IGt)
+
+    it "parses `lteq`" $ do
+      parseExpr "lteq" `shouldBe` Right (EIntrinsic ILteq)
+
+    it "parses `gteq`" $ do
+      parseExpr "gteq" `shouldBe` Right (EIntrinsic IGteq)
+
     it "parses `clone drop quote compose apply`" $ do
       parseExpr "clone drop quote compose apply"
         `shouldBe` Right (ECompose [clone, drop, quote, compose, apply])

@@ -114,6 +114,11 @@ data Intrinsic
   | IBitXor
   | IShl
   | IShr
+  | IEq
+  | ILt
+  | IGt
+  | ILteq
+  | IGteq
   deriving (Eq, Ord, Show)
 
 data Type
@@ -466,6 +471,16 @@ intrinsicType (s : _) IShl =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IShr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IEq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ILt =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IGt =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ILteq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IGteq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 
 literalType :: Context -> Literal -> Type
 literalType (s : _) (LBool _) = forall [v0] (s $: v0 --> v0 * tBool)
@@ -665,6 +680,11 @@ intrinsicFnId IBitNot = "bit_not"
 intrinsicFnId IBitXor = "bit_xor"
 intrinsicFnId IShl = "shl"
 intrinsicFnId IShr = "shr"
+intrinsicFnId IEq = "eq"
+intrinsicFnId ILt = "lt"
+intrinsicFnId IGt = "gt"
+intrinsicFnId ILteq = "lteq"
+intrinsicFnId IGteq = "gteq"
 
 intrinsicFnIds =
   Set.fromList
@@ -688,7 +708,12 @@ intrinsicFnIds =
       "bit_not",
       "bit_xor",
       "shl",
-      "shr"
+      "shr",
+      "eq",
+      "lt",
+      "gt",
+      "lteq",
+      "gteq"
     ]
 
 data FnDefError

@@ -140,3 +140,28 @@ spec = do
       let (Right e) = parseExpr "8 2 shr"
       let (Right e') = parseExpr "2"
       partialEval' e `shouldBe` e'
+
+    it "evals `5 5 eq`" $ do
+      let (Right e) = parseExpr "5 5 eq"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 lt`" $ do
+      let (Right e) = parseExpr "5 5 lt"
+      let (Right e') = parseExpr "False"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 gt`" $ do
+      let (Right e) = parseExpr "5 5 gt"
+      let (Right e') = parseExpr "False"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 lteq`" $ do
+      let (Right e) = parseExpr "5 5 lteq"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 gteq`" $ do
+      let (Right e) = parseExpr "5 5 gteq"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'

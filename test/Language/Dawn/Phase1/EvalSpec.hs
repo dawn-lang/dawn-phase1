@@ -151,6 +151,36 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
+    it "evals `5 5 eq`" $ do
+      let (Right e) = parseExpr "5 5 eq"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 lt`" $ do
+      let (Right e) = parseExpr "5 5 lt"
+      let (Right vs) = parseVals "False"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 gt`" $ do
+      let (Right e) = parseExpr "5 5 gt"
+      let (Right vs) = parseVals "False"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 lteq`" $ do
+      let (Right e) = parseExpr "5 5 lteq"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 gteq`" $ do
+      let (Right e) = parseExpr "5 5 gteq"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
     it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
       let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
       let (Right vs) = parseVals "1 0"

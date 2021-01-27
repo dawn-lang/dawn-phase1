@@ -92,6 +92,11 @@ eval env (s : _) (EIntrinsic IBitNot) (MultiStack m) = evalUnOp s m complement
 eval env (s : _) (EIntrinsic IBitXor) (MultiStack m) = evalBinOp s m xor
 eval env (s : _) (EIntrinsic IShl) (MultiStack m) = evalBinOp s m shl
 eval env (s : _) (EIntrinsic IShr) (MultiStack m) = evalBinOp s m shr
+eval env (s : _) (EIntrinsic IEq) (MultiStack m) = evalBinCmpOp s m (==)
+eval env (s : _) (EIntrinsic ILt) (MultiStack m) = evalBinCmpOp s m (<)
+eval env (s : _) (EIntrinsic IGt) (MultiStack m) = evalBinCmpOp s m (>)
+eval env (s : _) (EIntrinsic ILteq) (MultiStack m) = evalBinCmpOp s m (<=)
+eval env (s : _) (EIntrinsic IGteq) (MultiStack m) = evalBinCmpOp s m (>=)
 eval env (s : _) e@(EQuote _) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
       m' = insertListOrDelete s (toVal e : vs) m
@@ -150,6 +155,12 @@ evalBinOp s m op =
   let (VLit (LU32 b) : VLit (LU32 a) : vs) = Map.findWithDefault [] s m
       c = op a b
       m' = insertListOrDelete s (VLit (LU32 c) : vs) m
+   in MultiStack m'
+
+evalBinCmpOp s m op =
+  let (VLit (LU32 b) : VLit (LU32 a) : vs) = Map.findWithDefault [] s m
+      c = op a b
+      m' = insertListOrDelete s (VLit (LBool c) : vs) m
    in MultiStack m'
 
 decr :: Word32 -> Word32

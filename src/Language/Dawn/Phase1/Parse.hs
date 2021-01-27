@@ -126,6 +126,11 @@ intrinsic cons =
     <|> try (keyword "bit_xor" >> return (cons IBitXor))
     <|> try (keyword "shl" >> return (cons IShl))
     <|> try (keyword "shr" >> return (cons IShr))
+    <|> try (keyword "eq" >> return (cons IEq))
+    <|> try (keyword "lt" >> return (cons ILt))
+    <|> try (keyword "gt" >> return (cons IGt))
+    <|> try (keyword "lteq" >> return (cons ILteq))
+    <|> try (keyword "gteq" >> return (cons IGteq))
 
 callExpr = ECall <$> fnId
 

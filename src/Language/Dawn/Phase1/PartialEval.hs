@@ -92,6 +92,21 @@ simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShl : es) =
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShr : es) =
   let c = a `shiftR` fromInteger (toInteger b)
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IEq : es) =
+  let c = a == b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic ILt : es) =
+  let c = a < b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IGt : es) =
+  let c = a > b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic ILteq : es) =
+  let c = a <= b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IGteq : es) =
+  let c = a >= b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
 -- otherwise, skip
 simplify fuel es' (e : es) = simplify fuel (es' ++ [e]) es
 
