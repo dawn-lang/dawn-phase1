@@ -366,3 +366,10 @@ spec = do
       let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       defineFn env f
         `shouldBe` Right (Map.insert "fib" (e, t) env)
+
+  describe "dependencySortFns examples" $ do
+    it "sorts drop2 drop3" $ do
+      let (Right drop2) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right drop3) = parseFnDef "{fn drop3 = drop2 drop}"
+      dependencySortFns [drop2, drop3]
+        `shouldBe` [drop3, drop2]

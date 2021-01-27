@@ -13,6 +13,8 @@ module Language.Dawn.Phase1.Core
     composeSubst,
     Context,
     defineFn,
+    defineFns,
+    dependencySortFns,
     Expr (..),
     FnDef (..),
     FnDefError (..),
