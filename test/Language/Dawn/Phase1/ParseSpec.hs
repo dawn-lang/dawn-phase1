@@ -56,6 +56,18 @@ spec = do
     it "parses `apply`" $ do
       parseExpr "apply" `shouldBe` Right apply
 
+    it "parses `and`" $ do
+      parseExpr "and" `shouldBe` Right (EIntrinsic IAnd)
+
+    it "parses `or`" $ do
+      parseExpr "or" `shouldBe` Right (EIntrinsic IOr)
+
+    it "parses `not`" $ do
+      parseExpr "not" `shouldBe` Right (EIntrinsic INot)
+
+    it "parses `xor`" $ do
+      parseExpr "xor" `shouldBe` Right (EIntrinsic IXor)
+
     it "parses `incr`" $ do
       parseExpr "incr" `shouldBe` Right (EIntrinsic IIncr)
 

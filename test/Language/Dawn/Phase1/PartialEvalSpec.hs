@@ -71,6 +71,26 @@ spec = do
       partialEval 5 e0 `shouldBe` (0, e2)
       partialEval 6 e0 `shouldBe` (0, e0)
 
+    it "evals `True True and`" $ do
+      let (Right e) = parseExpr "True True and"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `True False or`" $ do
+      let (Right e) = parseExpr "True False or"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `False not`" $ do
+      let (Right e) = parseExpr "False not"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `True False xor`" $ do
+      let (Right e) = parseExpr "True False xor"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
     it "evals `0 incr`" $ do
       let (Right e) = parseExpr "0 incr"
       let (Right e') = parseExpr "1"

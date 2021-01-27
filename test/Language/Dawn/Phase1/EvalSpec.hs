@@ -67,6 +67,30 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
+    it "evals `True True and`" $ do
+      let (Right e) = parseExpr "True True and"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `True False or`" $ do
+      let (Right e) = parseExpr "True False or"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `False not`" $ do
+      let (Right e) = parseExpr "False not"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `True False xor`" $ do
+      let (Right e) = parseExpr "True False xor"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
     it "evals `0 incr`" $ do
       let (Right e) = parseExpr "0 incr"
       let (Right vs) = parseVals "1"

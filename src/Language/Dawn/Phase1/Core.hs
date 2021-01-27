@@ -100,6 +100,10 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
+  | IAnd
+  | IOr
+  | INot
+  | IXor
   | IIncr
   | IDecr
   | IAdd
@@ -434,6 +438,14 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
+intrinsicType (s : _) IAnd =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
+intrinsicType (s : _) IOr =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
+intrinsicType (s : _) INot =
+  forall [v0] (s $: v0 * tBool --> v0 * tBool)
+intrinsicType (s : _) IXor =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
 intrinsicType (s : _) IIncr =
   forall [v0] (s $: v0 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IDecr =
@@ -639,6 +651,10 @@ intrinsicFnId IDrop = "drop"
 intrinsicFnId IQuote = "quote"
 intrinsicFnId ICompose = "compose"
 intrinsicFnId IApply = "apply"
+intrinsicFnId IAnd = "and"
+intrinsicFnId IOr = "or"
+intrinsicFnId INot = "not"
+intrinsicFnId IXor = "xor"
 intrinsicFnId IIncr = "incr"
 intrinsicFnId IDecr = "decr"
 intrinsicFnId IAdd = "add"
@@ -659,6 +675,10 @@ intrinsicFnIds =
       "quote",
       "compose",
       "apply",
+      "and",
+      "or",
+      "not",
+      "xor",
       "incr",
       "decr",
       "add",

@@ -78,6 +78,10 @@ eval env ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m
       m' = insertListOrDelete s vs m
    in eval env ctx e (MultiStack m')
+eval env (s : _) (EIntrinsic IAnd) (MultiStack m) = evalBoolBinOp s m (&&)
+eval env (s : _) (EIntrinsic IOr) (MultiStack m) = evalBoolBinOp s m (||)
+eval env (s : _) (EIntrinsic INot) (MultiStack m) = evalBoolUnOp s m not
+eval env (s : _) (EIntrinsic IXor) (MultiStack m) = evalBoolBinOp s m (/=)
 eval env (s : _) (EIntrinsic IIncr) (MultiStack m) = evalUnOp s m (+ 1)
 eval env (s : _) (EIntrinsic IDecr) (MultiStack m) = evalUnOp s m decr
 eval env (s : _) (EIntrinsic IAdd) (MultiStack m) = evalBinOp s m (+)
@@ -123,6 +127,18 @@ eval env ctx (ECall fid) ms = case Map.lookup fid env of
 
 eval' :: Expr -> MultiStack
 eval' e = eval Map.empty ["$"] e (MultiStack Map.empty)
+
+evalBoolUnOp s m op =
+  let (VLit (LBool a) : vs) = Map.findWithDefault [] s m
+      c = op a
+      m' = insertListOrDelete s (VLit (LBool c) : vs) m
+   in MultiStack m'
+
+evalBoolBinOp s m op =
+  let (VLit (LBool b) : VLit (LBool a) : vs) = Map.findWithDefault [] s m
+      c = op a b
+      m' = insertListOrDelete s (VLit (LBool c) : vs) m
+   in MultiStack m'
 
 evalUnOp s m op =
   let (VLit (LU32 a) : vs) = Map.findWithDefault [] s m
