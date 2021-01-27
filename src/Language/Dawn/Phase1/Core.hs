@@ -81,8 +81,9 @@ data Expr
   | ECall FnId
   deriving (Eq, Ord, Show)
 
-newtype Literal
-  = LU32 Word32
+data Literal
+  = LBool Bool
+  | LU32 Word32
   deriving (Eq, Ord, Show)
 
 data Pattern
@@ -99,14 +100,25 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
-  | IEqz
+  | IAnd
+  | IOr
+  | INot
+  | IXor
+  | IIncr
+  | IDecr
   | IAdd
   | ISub
   | IBitAnd
   | IBitOr
+  | IBitNot
   | IBitXor
   | IShl
   | IShr
+  | IEq
+  | ILt
+  | IGt
+  | ILteq
+  | IGteq
   deriving (Eq, Ord, Show)
 
 data Type
@@ -406,6 +418,8 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
+tBool = TCons (TypeCons "Bool")
+
 tU32 = TCons (TypeCons "U32")
 
 type Context = [StackId]
@@ -429,7 +443,17 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
-intrinsicType (s : _) IEqz =
+intrinsicType (s : _) IAnd =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
+intrinsicType (s : _) IOr =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
+intrinsicType (s : _) INot =
+  forall [v0] (s $: v0 * tBool --> v0 * tBool)
+intrinsicType (s : _) IXor =
+  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
+intrinsicType (s : _) IIncr =
+  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IDecr =
   forall [v0] (s $: v0 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IAdd =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
@@ -439,14 +463,27 @@ intrinsicType (s : _) IBitAnd =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IBitOr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IBitNot =
+  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IBitXor =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IShl =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IShr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IEq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ILt =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IGt =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) ILteq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+intrinsicType (s : _) IGteq =
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 
 literalType :: Context -> Literal -> Type
+literalType (s : _) (LBool _) = forall [v0] (s $: v0 --> v0 * tBool)
 literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 --------------------
@@ -515,6 +552,7 @@ patternType (s : _) p =
   where
     patternTypes :: Pattern -> [Type]
     patternTypes PEmpty = []
+    patternTypes (PLit (LBool _)) = [tBool]
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
@@ -628,14 +666,25 @@ intrinsicFnId IDrop = "drop"
 intrinsicFnId IQuote = "quote"
 intrinsicFnId ICompose = "compose"
 intrinsicFnId IApply = "apply"
-intrinsicFnId IEqz = "eqz"
+intrinsicFnId IAnd = "and"
+intrinsicFnId IOr = "or"
+intrinsicFnId INot = "not"
+intrinsicFnId IXor = "xor"
+intrinsicFnId IIncr = "incr"
+intrinsicFnId IDecr = "decr"
 intrinsicFnId IAdd = "add"
 intrinsicFnId ISub = "sub"
 intrinsicFnId IBitAnd = "bit_and"
 intrinsicFnId IBitOr = "bit_or"
+intrinsicFnId IBitNot = "bit_not"
 intrinsicFnId IBitXor = "bit_xor"
 intrinsicFnId IShl = "shl"
 intrinsicFnId IShr = "shr"
+intrinsicFnId IEq = "eq"
+intrinsicFnId ILt = "lt"
+intrinsicFnId IGt = "gt"
+intrinsicFnId ILteq = "lteq"
+intrinsicFnId IGteq = "gteq"
 
 intrinsicFnIds =
   Set.fromList
@@ -646,14 +695,25 @@ intrinsicFnIds =
       "quote",
       "compose",
       "apply",
-      "eqz",
+      "and",
+      "or",
+      "not",
+      "xor",
+      "incr",
+      "decr",
       "add",
       "sub",
       "bit_and",
       "bit_or",
+      "bit_not",
       "bit_xor",
       "shl",
-      "shr"
+      "shr",
+      "eq",
+      "lt",
+      "gt",
+      "lteq",
+      "gteq"
     ]
 
 data FnDefError

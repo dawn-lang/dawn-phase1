@@ -45,11 +45,20 @@ expr =
 vals :: Parser [Val]
 vals = reverse <$> many (literalVal <|> quotedVal)
 
-literalExpr = ELit <$> u32Lit
+literalExpr = ELit <$> literal
 
-literalPattern = PLit <$> u32Lit
+literalPattern = PLit <$> literal
 
-literalVal = VLit <$> u32Lit
+literalVal = VLit <$> literal
+
+literal = boolLit <|> u32Lit
+
+boolLit :: Parser Literal
+boolLit = LBool <$> (false <|> true)
+
+false = try (keyword "False") >> return False
+
+true = try (keyword "True") >> return True
 
 u32Lit :: Parser Literal
 u32Lit = do
@@ -103,14 +112,25 @@ intrinsic cons =
     <|> try (keyword "quote" >> return (cons IQuote))
     <|> try (keyword "compose" >> return (cons ICompose))
     <|> try (keyword "apply" >> return (cons IApply))
-    <|> try (keyword "eqz" >> return (cons IEqz))
+    <|> try (keyword "and" >> return (cons IAnd))
+    <|> try (keyword "or" >> return (cons IOr))
+    <|> try (keyword "not" >> return (cons INot))
+    <|> try (keyword "xor" >> return (cons IXor))
+    <|> try (keyword "incr" >> return (cons IIncr))
+    <|> try (keyword "decr" >> return (cons IDecr))
     <|> try (keyword "add" >> return (cons IAdd))
     <|> try (keyword "sub" >> return (cons ISub))
     <|> try (keyword "bit_and" >> return (cons IBitAnd))
     <|> try (keyword "bit_or" >> return (cons IBitOr))
+    <|> try (keyword "bit_not" >> return (cons IBitNot))
     <|> try (keyword "bit_xor" >> return (cons IBitXor))
     <|> try (keyword "shl" >> return (cons IShl))
     <|> try (keyword "shr" >> return (cons IShr))
+    <|> try (keyword "eq" >> return (cons IEq))
+    <|> try (keyword "lt" >> return (cons ILt))
+    <|> try (keyword "gt" >> return (cons IGt))
+    <|> try (keyword "lteq" >> return (cons ILteq))
+    <|> try (keyword "gteq" >> return (cons IGteq))
 
 callExpr = ECall <$> fnId
 

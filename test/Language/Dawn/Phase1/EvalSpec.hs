@@ -67,14 +67,38 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 eqz`" $ do
-      let (Right e) = parseExpr "0 eqz"
+    it "evals `True True and`" $ do
+      let (Right e) = parseExpr "True True and"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `True False or`" $ do
+      let (Right e) = parseExpr "True False or"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `False not`" $ do
+      let (Right e) = parseExpr "False not"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `True False xor`" $ do
+      let (Right e) = parseExpr "True False xor"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `0 incr`" $ do
+      let (Right e) = parseExpr "0 incr"
       let (Right vs) = parseVals "1"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `1 eqz`" $ do
-      let (Right e) = parseExpr "1 eqz"
+    it "evals `1 decr`" $ do
+      let (Right e) = parseExpr "1 decr"
       let (Right vs) = parseVals "0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
@@ -103,6 +127,12 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
+    it "evals `0 bit_not bit_not`" $ do
+      let (Right e) = parseExpr "0 bit_not bit_not"
+      let (Right vs) = parseVals "0"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
     it "evals `5 6 bit_xor`" $ do
       let (Right e) = parseExpr "5 6 bit_xor"
       let (Right vs) = parseVals "3"
@@ -121,15 +151,39 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
-      let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
-      let (Right vs) = parseVals "1 0"
+    it "evals `5 5 eq`" $ do
+      let (Right e) = parseExpr "5 5 eq"
+      let (Right vs) = parseVals "True"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 1 {$a push eqz pop} sub eqz`" $ do
-      let (Right e) = parseExpr "0 1 {$a push eqz pop} sub eqz"
-      let (Right vs) = parseVals "1"
+    it "evals `5 5 lt`" $ do
+      let (Right e) = parseExpr "5 5 lt"
+      let (Right vs) = parseVals "False"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 gt`" $ do
+      let (Right e) = parseExpr "5 5 gt"
+      let (Right vs) = parseVals "False"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 lteq`" $ do
+      let (Right e) = parseExpr "5 5 lteq"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `5 5 gteq`" $ do
+      let (Right e) = parseExpr "5 5 gteq"
+      let (Right vs) = parseVals "True"
+      let ms = MultiStack (Map.singleton "$" vs)
+      eval' e `shouldBe` ms
+
+    it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
+      let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
+      let (Right vs) = parseVals "1 0"
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 

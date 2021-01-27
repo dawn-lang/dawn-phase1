@@ -50,8 +50,23 @@ simplify fuel es' ((EQuote e) : es) =
 -- expand ECompose
 simplify fuel es' ((ECompose es'') : es) = simplify (fuel - 1) [] (es' ++ es'' ++ es)
 -- arithmetic
-simplify fuel es' (ELit (LU32 a) : EIntrinsic IEqz : es) =
-  let c = if a == 0 then 1 else 0
+simplify fuel es' (ELit (LBool a) : ELit (LBool b) : EIntrinsic IAnd : es) =
+  let c = a && b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LBool a) : ELit (LBool b) : EIntrinsic IOr : es) =
+  let c = a || b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LBool a) : EIntrinsic INot : es) =
+  let c = not a
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LBool a) : ELit (LBool b) : EIntrinsic IXor : es) =
+  let c = a /= b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IIncr : es) =
+  let c = a + 1
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IDecr : es) =
+  let c = a - 1
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IAdd : es) =
   let c = a + b
@@ -65,6 +80,9 @@ simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitAnd : es) =
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitOr : es) =
   let c = a .|. b
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : EIntrinsic IBitNot : es) =
+  let c = complement a
+   in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IBitXor : es) =
   let c = a `xor` b
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
@@ -74,6 +92,21 @@ simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShl : es) =
 simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IShr : es) =
   let c = a `shiftR` fromInteger (toInteger b)
    in simplify (fuel - 1) [] (es' ++ ELit (LU32 c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IEq : es) =
+  let c = a == b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic ILt : es) =
+  let c = a < b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IGt : es) =
+  let c = a > b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic ILteq : es) =
+  let c = a <= b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
+simplify fuel es' (ELit (LU32 a) : ELit (LU32 b) : EIntrinsic IGteq : es) =
+  let c = a >= b
+   in simplify (fuel - 1) [] (es' ++ ELit (LBool c) : es)
 -- otherwise, skip
 simplify fuel es' (e : es) = simplify fuel (es' ++ [e]) es
 

@@ -71,13 +71,33 @@ spec = do
       partialEval 5 e0 `shouldBe` (0, e2)
       partialEval 6 e0 `shouldBe` (0, e0)
 
-    it "evals `0 eqz`" $ do
-      let (Right e) = parseExpr "0 eqz"
+    it "evals `True True and`" $ do
+      let (Right e) = parseExpr "True True and"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `True False or`" $ do
+      let (Right e) = parseExpr "True False or"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `False not`" $ do
+      let (Right e) = parseExpr "False not"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `True False xor`" $ do
+      let (Right e) = parseExpr "True False xor"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `0 incr`" $ do
+      let (Right e) = parseExpr "0 incr"
       let (Right e') = parseExpr "1"
       partialEval' e `shouldBe` e'
 
-    it "evals `1 eqz`" $ do
-      let (Right e) = parseExpr "1 eqz"
+    it "evals `1 decr`" $ do
+      let (Right e) = parseExpr "1 decr"
       let (Right e') = parseExpr "0"
       partialEval' e `shouldBe` e'
 
@@ -101,6 +121,11 @@ spec = do
       let (Right e') = parseExpr "3"
       partialEval' e `shouldBe` e'
 
+    it "evals `0 bit_not bit_not`" $ do
+      let (Right e) = parseExpr "0 bit_not bit_not"
+      let (Right e') = parseExpr "0"
+      partialEval' e `shouldBe` e'
+
     it "evals `5 6 bit_xor`" $ do
       let (Right e) = parseExpr "5 6 bit_xor"
       let (Right e') = parseExpr "3"
@@ -114,4 +139,29 @@ spec = do
     it "evals `8 2 shr`" $ do
       let (Right e) = parseExpr "8 2 shr"
       let (Right e') = parseExpr "2"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 eq`" $ do
+      let (Right e) = parseExpr "5 5 eq"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 lt`" $ do
+      let (Right e) = parseExpr "5 5 lt"
+      let (Right e') = parseExpr "False"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 gt`" $ do
+      let (Right e) = parseExpr "5 5 gt"
+      let (Right e') = parseExpr "False"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 lteq`" $ do
+      let (Right e) = parseExpr "5 5 lteq"
+      let (Right e') = parseExpr "True"
+      partialEval' e `shouldBe` e'
+
+    it "evals `5 5 gteq`" $ do
+      let (Right e) = parseExpr "5 5 gteq"
+      let (Right e') = parseExpr "True"
       partialEval' e `shouldBe` e'
