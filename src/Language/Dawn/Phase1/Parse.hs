@@ -13,7 +13,7 @@ module Language.Dawn.Phase1.Parse
   )
 where
 
-import Control.Monad (void)
+import Control.Monad (fail, void, when)
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Utils
@@ -45,15 +45,22 @@ expr =
 vals :: Parser [Val]
 vals = reverse <$> many (literalVal <|> quotedVal)
 
-literalExpr = literal ELit
+literalExpr = ELit <$> u32Lit
 
-literalPattern = literal PLit
+literalPattern = PLit <$> u32Lit
 
-literalVal = literal VLit
+literalVal = VLit <$> u32Lit
 
-literal litCons = litCons . LU32 . fromInteger <$> integer_literal
+u32Lit :: Parser Literal
+u32Lit = do
+  integer <- integer
+  let i = fromInteger integer
+  let integer' = toInteger i
+  when (integer /= integer') (fail "literal overflow")
+  return (LU32 i)
 
-integer_literal = read <$> lexeme (many1 digit)
+integer :: Parser Integer
+integer = read <$> lexeme (many1 digit)
 
 betweenBraces = between (symbol "{") (symbol "}")
 
