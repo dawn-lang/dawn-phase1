@@ -284,6 +284,17 @@ spec = do
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
 
+    it "infers `{$a drop} test`" $ do
+      let (Right e) = parseExpr "{$a drop} test"
+      inferNormType Map.empty ["$"] e
+        `shouldBe` Right
+          ( forall
+              [v0, v1, v2, v3, v4]
+              ( "$" $: v0  --> v1
+                  $. "$a" $: v2 * v3 --> v4
+              )
+          )
+
   describe "fnDefType examples" $ do
     it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = test}"
