@@ -211,6 +211,14 @@ spec = do
       parseExpr "drop2"
         `shouldBe` Right (ECall "drop2")
 
+    it "parses `{spread $a $a $b}`" $ do
+      parseExpr "{spread $a $a $b}"
+        `shouldBe` parseExpr "($s1<- $s2<- $s3<-) ($s3-> $a<-) ($s2-> $a<-) ($s1-> $b<-)"
+
+    it "parses `{collect $a $a $b}`" $ do
+      parseExpr "{collect $a $a $b}"
+        `shouldBe` parseExpr "($b-> $s1<-) ($a-> $s2<-) ($a-> $s3<-) ($s3-> $s2-> $s1->)"
+
   describe "parseVal" $ do
     it "parses `[clone] [drop] 0`" $ do
       -- Note that the values are in reverse, so that `eval` can

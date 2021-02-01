@@ -49,6 +49,11 @@ simplify fuel es' ((EQuote e) : es) =
    in simplify fuel' (es' ++ [EQuote e']) es
 -- expand ECompose
 simplify fuel es' ((ECompose es'') : es) = simplify (fuel - 1) [] (es' ++ es'' ++ es)
+-- annihilate Push-Pop and Pop-Push
+simplify fuel es' ((EContext s (EIntrinsic IPush)) : (EContext s' (EIntrinsic IPop)) : es)
+  | s == s' = simplify (fuel - 1) [] (es' ++ es)
+simplify fuel es' ((EContext s (EIntrinsic IPop)) : (EContext s' (EIntrinsic IPush)) : es)
+  | s == s' = simplify (fuel - 1) [] (es' ++ es)
 -- arithmetic
 simplify fuel es' (ELit (LBool a) : ELit (LBool b) : EIntrinsic IAnd : es) =
   let c = a && b

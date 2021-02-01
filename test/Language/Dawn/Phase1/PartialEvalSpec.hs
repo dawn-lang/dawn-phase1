@@ -165,3 +165,8 @@ spec = do
       let (Right e) = parseExpr "5 5 gteq"
       let (Right e') = parseExpr "True"
       partialEval' e `shouldBe` e'
+
+    it "evals `{spread $a $a $b} {collect $a $a $b}`" $ do
+      let (Right e) = parseExpr "{spread $a $a $b} {collect $a $a $b}"
+      let (Right e') = parseExpr ""
+      partialEval' e `shouldBe` e'
