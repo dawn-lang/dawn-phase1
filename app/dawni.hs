@@ -78,30 +78,50 @@ readEvalPrint (env, ms) = do
         | not (null (undefinedFnIds env e)) -> do
           printUndefinedFnIdsError env e
           return (env, ms)
-        | otherwise -> case inferNormType env ["$"] e of
-          Left err -> do
-            printInferTypeError e err
-            return (env, ms)
-          Right t | exposedTempStackIds t -> do
-            printExposedTempStackIds t
-            return (env, ms)
-          Right t -> do
-            result <- tryEval env e ms
-            case result :: Either SomeException MultiStack of
-              Left err -> do
-                outputStrLn $ show err
-                return (env, ms)
-              Right ms' -> do
-                outputStrLn $ display ms'
-                return (env, ms')
+        | otherwise ->
+          let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
+           in case inferNormType env ["$"] e' of
+                Left err -> do
+                  printInferTypeError e' err
+                  return (env, ms)
+                Right t | exposedTempStackIds t -> do
+                  printExposedTempStackIds t
+                  return (env, ms)
+                Right t | expectsInputs t -> do
+                  printExpectsInputs t
+                  return (env, ms)
+                Right t -> do
+                  result <- tryEval env e ms
+                  case result :: Either SomeException MultiStack of
+                    Left err -> do
+                      outputStrLn $ show err
+                      return (env, ms)
+                    Right ms' -> do
+                      outputStrLn $ display ms'
+                      return (env, ms')
 
 printUndefinedFnIdsError env e =
   outputStrLn ("Error: undefined: " ++ head (Set.toList (undefinedFnIds env e)))
+
+multiStackToExpr :: MultiStack -> Expr
+multiStackToExpr (MultiStack ms) =
+  let mapper ("$", v) = ECompose (map fromVal v)
+      mapper (s, v) = EContext s (ECompose (map fromVal v))
+   in ECompose (map mapper (Map.toAscList ms))
 
 printInferTypeError e err =
   outputStrLn $ "Error: " ++ display e ++ " is not typeable. " ++ display err
 
 exposedTempStackIds t = not (null (tempStackIds t))
+
+expectsInputs (TFn _ mio) =
+  let isTProd (TProd _ _) = True
+      isTProd _ = False
+   in any (\(s, (i, o)) -> isTProd i) (Map.toAscList mio)
+expectsInputs _ = False
+
+printExpectsInputs t = do
+  outputStrLn ("Error: missing expected input: " ++ display t)
 
 printExposedTempStackIds t = do
   let s = intercalate ", " (Set.toList (tempStackIds t))
