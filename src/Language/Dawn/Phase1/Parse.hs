@@ -77,6 +77,8 @@ bracedExpr =
   betweenBraces
     ( EContext <$> stackId <*> expr
         <|> EMatch <$> (keyword "match" *> many1 matchExprCase)
+        <|> desugarSpread <$> (keyword "spread" *> many1 stackId)
+        <|> desugarCollect <$> (keyword "collect" *> many1 stackId)
     )
 
 matchExprCase :: Parser (Pattern, Expr)
@@ -87,6 +89,26 @@ pattern' =
   try (PProd <$> literalPattern <*> literalPattern)
     <|> try literalPattern
     <|> return PEmpty
+
+desugarSpread :: [StackId] -> Expr
+desugarSpread dstStackIds =
+  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length dstStackIds)]
+      e = ECompose (map ePushTo tmpStackIds)
+      folder (tmp, dst) es = ECompose [ePopFrom tmp, ePushTo dst] : es
+      es = foldr folder [] (zip (reverse tmpStackIds) dstStackIds)
+   in ECompose (e : es)
+
+desugarCollect :: [StackId] -> Expr
+desugarCollect srcStackIds =
+  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length srcStackIds)]
+      folder (src, tmp) es = ECompose [ePopFrom src, ePushTo tmp] : es
+      es = foldr folder [] (zip (reverse srcStackIds) tmpStackIds)
+      e = ECompose (map ePopFrom (reverse tmpStackIds))
+   in ECompose (es ++ [e])
+
+ePushTo s = EContext s (EIntrinsic IPush)
+
+ePopFrom s = EContext s (EIntrinsic IPop)
 
 groupedExpr = between (symbol "(") (symbol ")") expr
 
