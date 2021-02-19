@@ -40,7 +40,6 @@ module Language.Dawn.Phase1.Core
     removeTrivialStacks,
     replaceTypeVars,
     requantify,
-    Result,
     StackId,
     StackIds,
     Subs (..),
@@ -352,12 +351,10 @@ data UnificationError
   | OccursIn TypeVar Type
   deriving (Eq, Ord, Show)
 
-type Result a = Either UnificationError a
-
 -- | Find the most general unifier, s, of two Types,
 -- | t and t', such that subs s t == subs s' t',
 -- | where t and t' do not share any type variables.
-mgu :: Type -> Type -> TypeVars -> Result (Subst, TypeVars)
+mgu :: Type -> Type -> TypeVars -> Either UnificationError (Subst, TypeVars)
 mgu (TProd l r) (TProd l' r') reserved = mguList [(l, l'), (r, r')] reserved
 mgu f1@TFn {} f2@TFn {} reserved =
   let (TFn _ mio, TFn _ mio', reserved') = addMissingStacks (f1, f2, reserved)
@@ -370,13 +367,13 @@ mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
 
-bindTypeVar :: TypeVar -> Type -> TypeVars -> Result (Subst, TypeVars)
+bindTypeVar :: TypeVar -> Type -> TypeVars -> Either UnificationError (Subst, TypeVars)
 bindTypeVar u t reserved
   | TVar u == t = return (Subst Map.empty, reserved)
   | u `elem` ftv t = throwError $ OccursIn u t
   | otherwise = return (u +-> t, reserved)
 
-mguList :: [(Type, Type)] -> TypeVars -> Result (Subst, TypeVars)
+mguList :: [(Type, Type)] -> TypeVars -> Either UnificationError (Subst, TypeVars)
 mguList [] reserved = return (Subst Map.empty, reserved)
 mguList ((t1, t2) : ts) reserved = do
   (s1, reserved2) <- mgu t1 t2 reserved
@@ -492,7 +489,7 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 type FnEnv = Map.Map FnId (Expr, Type)
 
-quoteType :: Context -> Type -> Result Type
+quoteType :: Context -> Type -> Either UnificationError Type
 quoteType (s : _) f@TFn {} =
   let (tv, _) = freshTypeVar (Set.fromList (atv f))
       v = TVar tv
@@ -519,7 +516,7 @@ requantify t = recurse t
        in TFn qs' mio'
     recurse t@(TCons _) = t
 
-composeTypes :: [Type] -> Result Type
+composeTypes :: [Type] -> Either UnificationError Type
 composeTypes [] = return (forall' [v0] (v0 --> v0))
 composeTypes [t@TFn {}] = return t
 composeTypes (f1@TFn {} : f2@TFn {} : ts) = do
@@ -556,13 +553,13 @@ patternType (s : _) p =
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
-caseType :: FnEnv -> Context -> (Pattern, Expr) -> Result Type
+caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either UnificationError Type
 caseType env ctx (p, e) = do
   let pt = patternType ctx p
   et <- inferType env ctx e
   composeTypes [pt, et]
 
-unifyCaseTypes :: [Type] -> Result Type
+unifyCaseTypes :: [Type] -> Either UnificationError Type
 unifyCaseTypes [] = error "empty match"
 unifyCaseTypes [t@TFn {}] = return t
 unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
@@ -578,7 +575,7 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
 -- Infer an expression's type in the given FnEnv and Context. If there are any
 -- ECall's to functions not in FnEnv, then a type of (∀ v0 v1 . v0 -> v1)
 -- is assumed for those functions.
-inferType :: FnEnv -> Context -> Expr -> Result Type
+inferType :: FnEnv -> Context -> Expr -> Either UnificationError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
   t <- inferType env ctx e
@@ -642,7 +639,7 @@ normalizeTypeVars t =
 normalizeType :: Type -> Type
 normalizeType = normalizeTypeVars . removeTrivialStacks
 
-inferNormType :: FnEnv -> Context -> Expr -> Result Type
+inferNormType :: FnEnv -> Context -> Expr -> Either UnificationError Type
 inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
