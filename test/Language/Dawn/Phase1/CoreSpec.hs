@@ -292,33 +292,6 @@ spec = do
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tBool --> v0))
 
-  describe "fnDefType examples" $ do
-    it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
-      let (Right f) = parseFnDef "{fn test = test}"
-      fnDefType Map.empty f
-        `shouldBe` Left (FnTypeError "test" (UndefinedFn "test"))
-
-  describe "recFnDefType examples" $ do
-    it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
-      let (Right f) = parseFnDef "{fn test = test}"
-      recFnDefType Map.empty f
-        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
-
-    it "infers {fn test = 0 test} :: (∀ v0 v1 . v0 -> v1)" $ do
-      let (Right f) = parseFnDef "{fn test = 0 test}"
-      recFnDefType Map.empty f
-        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
-
-    it "fails {fn test = test 0} with FnTypeUnstable" $ do
-      let (Right f) = parseFnDef "{fn test = test 0}"
-      recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeUnstable "test")
-
-    it "fails {fn test = drop test 0} with FnTypeUnstable" $ do
-      let (Right f) = parseFnDef "{fn test = drop test 0}"
-      recFnDefType Map.empty f
-        `shouldBe` Left (FnTypeUnstable "test")
-
   describe "defineFn examples" $ do
     it "defines drop2" $ do
       let (Right f) = parseFnDef "{fn drop2 = drop drop}"
@@ -337,10 +310,10 @@ spec = do
       defineFn env f
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
-    it "fails with FnCallsUndefined" $ do
+    it "fails with FnTypeError UndefinedFn" $ do
       let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
       defineFn Map.empty f
-        `shouldBe` Left (FnCallsUndefined "test1" (Set.fromList ["test2", "test3"]))
+        `shouldBe` Left (FnTypeError "test1" (UndefinedFn "test2"))
 
     it "fails with FnTypeError" $ do
       let (Right f) = parseFnDef "{fn test = clone apply}"

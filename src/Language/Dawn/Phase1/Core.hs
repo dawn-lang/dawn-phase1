@@ -10,6 +10,7 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addMissingStacks,
+    checkType,
     composeSubst,
     Context,
     defineFn,
@@ -18,7 +19,6 @@ module Language.Dawn.Phase1.Core
     Expr (..),
     FnDef (..),
     FnDefError (..),
-    fnDefType,
     FnEnv,
     FnId,
     FnIds,
@@ -36,7 +36,6 @@ module Language.Dawn.Phase1.Core
     mgu,
     normalizeType,
     Pattern (..),
-    recFnDefType,
     removeTrivialStacks,
     replaceTypeVars,
     requantify,
@@ -542,6 +541,11 @@ composeTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   composeTypes (t3 : ts)
 
+-- ensure unique StackIds by prepending "$", creating a temporary StackId
+ensureUniqueStackId :: Context -> StackId -> StackId
+ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
+ensureUniqueStackId ctx s = s
+
 stackTypes :: [Type] -> Type
 stackTypes [t] = t
 stackTypes (t : t' : ts) = iter (TProd t t') ts
@@ -609,10 +613,37 @@ inferType env ctx (ECall fid) = case Map.lookup fid env of
   Nothing -> throwError (UndefinedFn fid)
   Just (e, t) -> return t
 
--- ensure unique StackIds by prepending "$", creating a temporary StackId
-ensureUniqueStackId :: Context -> StackId -> StackId
-ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
-ensureUniqueStackId ctx s = s
+-------------------
+-- Type Checking --
+-------------------
+
+strictCaseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+strictCaseType env ctx (p, e) = do
+  let pt = patternType ctx p
+  et <- strictInferType env ctx e
+  mapLeft UnificationError (composeTypes [pt, et])
+
+strictInferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+strictInferType env ctx (EQuote e) = do
+  t <- strictInferType env ctx e
+  return (quoteType ctx t)
+strictInferType env ctx (ECompose es) = do
+  ts <- mapM (strictInferType env ctx) es
+  mapLeft UnificationError (composeTypes ts)
+strictInferType env ctx (EContext s e) =
+  strictInferType env (ensureUniqueStackId ctx s : ctx) e
+strictInferType env ctx (EMatch cases) = do
+  ts <- mapM (caseType env ctx) cases
+  mapLeft UnificationError (unifyCaseTypes ts)
+strictInferType env ctx e = inferType env ctx e
+
+checkType :: FnEnv -> Context -> Expr -> Type -> Either TypeError ()
+checkType env ctx e f1 = do
+  f2 <- strictInferType env ctx e
+  let (f1', reserved1) = instantiate f1 Set.empty
+  let (f2', reserved2) = instantiate f2 reserved1
+  let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
+  void (mapLeft UnificationError (mgu f1'' f2'' reserved3))
 
 ------------------------
 -- Type Normalization --
@@ -731,10 +762,8 @@ intrinsicFnIds =
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnCallsUndefined FnId FnIds
   | FnTypeError FnId TypeError
   | FnStackError FnId StackIds
-  | FnTypeUnstable FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -760,41 +789,6 @@ undefinedFnIds env (EMatch cs) =
   foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
 undefinedFnIds env (ECall fid) =
   if Map.member fid env then Set.empty else Set.singleton fid
-
-fnDefType :: FnEnv -> FnDef -> Either FnDefError Type
-fnDefType env (FnDef fid e) =
-  case inferNormType env ["$"] e of
-    Left err -> throwError $ FnTypeError fid err
-    Right t
-      | not (null (tempStackIds t)) ->
-        throwError $ FnStackError fid (tempStackIds t)
-    Right t -> return t
-
-recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
-recFnDefType env (FnDef fid e) =
-  case fnDefType env (FnDef fid e) of
-    Left err -> Left err
-    Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
-      Left err -> Left err
-      Right t' | t /= t' -> throwError (FnTypeUnstable fid)
-      Right t' -> return t'
-
-defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
-defineFn env (FnDef fid e)
-  | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
-  | fid `Map.member` env = throwError $ FnAlreadyDefined fid
-  | otherwise = case undefinedFnIds env e of
-    fids
-      | not (null (Set.filter (/= fid) fids)) ->
-        throwError $ FnCallsUndefined fid (Set.filter (/= fid) fids)
-    fids | not (null fids) ->
-      case recFnDefType env (FnDef fid e) of
-        Left err -> Left err
-        Right t -> return (Map.insert fid (e, t) env)
-    _ ->
-      case fnDefType env (FnDef fid e) of
-        Left err -> Left err
-        Right t -> return (Map.insert fid (e, t) env)
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
@@ -822,20 +816,13 @@ dependencySortFns defs =
 
 defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
 defineFns env defs =
-  let -- check for and remove FnAlreadyDefined
-      existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
-      (errs1, defs1) = removeAlreadyDefined existingFnIds defs
-      -- check for and remove FnCallsUndefined
-      newFnIds = Set.fromList (map fnDefFnId defs)
-      allFnIds = existingFnIds `Set.union` newFnIds
-      (errs2, defs2) = removeFnCallsUndefined allFnIds defs1
-      -- topologically sort the FnDef's
-      defs3 = dependencySortFns defs2
-      -- call `fnDefType env` on each FnDef to produce env2
-      (errs3, env2) = foldr folder1 ([], env) defs3
-      -- call `fnDefType env2` on each FnDef to check for unstable types
-      (errs4, env3) = foldr folder2 (errs2, env2) defs3
-   in (errs1 ++ errs2 ++ errs3 ++ errs4, env3)
+  let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
+      (errs1, defs') = removeAlreadyDefined existingFnIds defs
+      newFnIds = Set.fromList (map fnDefFnId defs')
+      sortedDefs = dependencySortFns defs'
+      (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
+      (errs3, env3) = foldr (checkTypes newFnIds) ([], env2) sortedDefs'
+   in (errs1 ++ errs2 ++ errs3, env3)
   where
     removeAlreadyDefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
     removeAlreadyDefined fids [] = ([], [])
@@ -845,21 +832,23 @@ defineFns env defs =
             then (FnAlreadyDefined fid : errs, defs')
             else (errs, FnDef fid e : defs)
 
-    removeFnCallsUndefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
-    removeFnCallsUndefined fids [] = ([], [])
-    removeFnCallsUndefined fids (FnDef fid e : defs) =
-      let (errs, defs') = removeFnCallsUndefined fids defs
-          undefinedFnCalls = Set.filter (`Set.notMember` fids) (fnIds e)
-       in if null undefinedFnCalls
-            then (errs, FnDef fid e : defs)
-            else (FnCallsUndefined fid undefinedFnCalls : errs, defs')
+    inferTypes newFnIds def@(FnDef fid e) (errs, env, defs) =
+      case inferNormType env ["$"] e of
+        Left (UndefinedFn fid') | fid' `Set.member` newFnIds -> (errs, env, defs)
+        Left err -> (FnTypeError fid err : errs, env, defs)
+        Right t
+          | not (null (tempStackIds t)) ->
+            (FnStackError fid (tempStackIds t) : errs, env, defs)
+        Right t -> (errs, Map.insert fid (e, t) env, def : defs)
 
-    folder1 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
-      Left err -> (err : errs, env)
-      Right t -> (errs, Map.insert fid (e, t) env)
+    checkTypes newFnIds (FnDef fid e) (errs, env) =
+      case checkType env ["$"] e (snd (env Map.! fid)) of
+        Left (UndefinedFn fid')
+          | fid' `Set.member` newFnIds -> (errs, Map.delete fid env)
+        Left err -> (FnTypeError fid err : errs, Map.delete fid env)
+        Right () -> (errs, env)
 
-    folder2 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
-      Left err -> (err : errs, Map.delete fid env)
-      Right t -> case Map.lookup fid env of
-        Just (_, t') | t == t' -> (errs, Map.insert fid (e, t) env)
-        _ -> (FnTypeUnstable fid : errs, Map.delete fid env)
+defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
+defineFn env def = case defineFns env [def] of
+  ([], env') -> return env'
+  ([err], _) -> throwError err

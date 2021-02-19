@@ -56,19 +56,12 @@ readEvalPrint (env, ms) = do
         Left (FnAlreadyDefined fid) -> do
           outputStrLn ("Error: already defined: " ++ fid)
           return (env, ms)
-        Left (FnCallsUndefined fid fids) -> do
-          let s = intercalate ", " (Set.toList fids)
-          outputStrLn ("Error: undefined: " ++ s)
-          return (env, ms)
         Left (FnTypeError fid err) -> do
           printInferTypeError e err
           return (env, ms)
         Left (FnStackError fid sids) -> do
           let s = intercalate ", " (Set.toList sids)
           outputStrLn ("Error: exposed temporary stacks: " ++ s)
-          return (env, ms)
-        Left (FnTypeUnstable _) -> do
-          outputStrLn ("Error: function type diverges: " ++ fid)
           return (env, ms)
         Right env' -> do
           let (Just (_, t)) = Map.lookup fid env'
