@@ -86,6 +86,10 @@ instance Display UnificationError where
     display t ++ " does not unify with " ++ display t'
   display (OccursIn tv t) = display tv ++ " occurs in " ++ display t
 
+instance Display TypeError where
+  display (UnificationError err) = "unification error: " ++ display err
+  display (UndefinedFn fid) = "undefined function: " ++ fid
+
 instance Display a => Display [a] where
   display l = "[" ++ intercalate ", " (map display l) ++ "]"
 

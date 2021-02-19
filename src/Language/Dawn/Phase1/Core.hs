@@ -44,9 +44,12 @@ module Language.Dawn.Phase1.Core
     StackIds,
     Subs (..),
     Subst (..),
+    tBool,
     tempStackIds,
+    tU32,
     Type (..),
     TypeCons (..),
+    TypeError (..),
     TypeVar (..),
     TypeVars,
     undefinedFnIds,
@@ -58,9 +61,11 @@ where
 
 import Control.Monad
 import Control.Monad.Except
+import Data.Either.Combinators
 import Data.Graph
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
 import Prelude hiding ((*))
@@ -487,13 +492,18 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 -- Type Inference --
 --------------------
 
+data TypeError
+  = UnificationError UnificationError
+  | UndefinedFn FnId
+  deriving (Eq, Ord, Show)
+
 type FnEnv = Map.Map FnId (Expr, Type)
 
-quoteType :: Context -> Type -> Either UnificationError Type
+quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
   let (tv, _) = freshTypeVar (Set.fromList (atv f))
       v = TVar tv
-   in return (forall [v] (s $: v --> v * f))
+   in forall [v] (s $: v --> v * f)
 
 requantify :: Type -> Type
 requantify t = recurse t
@@ -553,11 +563,11 @@ patternType (s : _) p =
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
-caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either UnificationError Type
+caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
   let pt = patternType ctx p
   et <- inferType env ctx e
-  composeTypes [pt, et]
+  mapLeft UnificationError (composeTypes [pt, et])
 
 unifyCaseTypes :: [Type] -> Either UnificationError Type
 unifyCaseTypes [] = error "empty match"
@@ -572,25 +582,31 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
--- Infer an expression's type in the given FnEnv and Context. If there are any
--- ECall's to functions not in FnEnv, then a type of (∀ v0 v1 . v0 -> v1)
--- is assumed for those functions.
-inferType :: FnEnv -> Context -> Expr -> Either UnificationError Type
+inferType :: FnEnv -> Context -> Expr -> Either TypeError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
   t <- inferType env ctx e
-  quoteType ctx t
+  return (quoteType ctx t)
 inferType env ctx (ECompose es) = do
   ts <- mapM (inferType env ctx) es
-  composeTypes ts
+  mapLeft UnificationError (composeTypes ts)
 inferType env ctx (EContext s e) =
   inferType env (ensureUniqueStackId ctx s : ctx) e
 inferType env ctx (ELit l) = return $ literalType ctx l
-inferType env ctx (EMatch cases) = do
-  ts <- mapM (caseType env ctx) cases
-  unifyCaseTypes ts
+inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
+  rs | all isUndefinedFnError rs -> head (filter isUndefinedFnError rs)
+  rs | any isOtherError rs -> head (filter isOtherError rs)
+  rs -> do
+    ts <- sequence (filter isRight rs)
+    mapLeft UnificationError (unifyCaseTypes ts)
+  where
+    isUndefinedFnError (Left (UndefinedFn _)) = True
+    isUndefinedFnError _ = False
+    isOtherError (Left (UndefinedFn _)) = False
+    isOtherError (Left _) = True
+    isOtherError _ = False
 inferType env ctx (ECall fid) = case Map.lookup fid env of
-  Nothing -> return (forall' [v0, v1] (v0 --> v1))
+  Nothing -> throwError (UndefinedFn fid)
   Just (e, t) -> return t
 
 -- ensure unique StackIds by prepending "$", creating a temporary StackId
@@ -639,7 +655,7 @@ normalizeTypeVars t =
 normalizeType :: Type -> Type
 normalizeType = normalizeTypeVars . removeTrivialStacks
 
-inferNormType :: FnEnv -> Context -> Expr -> Either UnificationError Type
+inferNormType :: FnEnv -> Context -> Expr -> Either TypeError Type
 inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
@@ -716,7 +732,7 @@ intrinsicFnIds =
 data FnDefError
   = FnAlreadyDefined FnId
   | FnCallsUndefined FnId FnIds
-  | FnTypeError FnId UnificationError
+  | FnTypeError FnId TypeError
   | FnStackError FnId StackIds
   | FnTypeUnstable FnId
   deriving (Eq, Show)

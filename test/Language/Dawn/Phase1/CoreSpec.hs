@@ -22,8 +22,6 @@ import Prelude hiding (drop, (*))
 
 [v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = map (TVar . TypeVar) [0 .. 10]
 
-tU32 = TCons (TypeCons "U32")
-
 spec :: Spec
 spec = do
   describe "renameTypeVar" $ do
@@ -284,27 +282,21 @@ spec = do
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
 
-    it "infers `{$a drop} test`" $ do
-      let (Right e) = parseExpr "{$a drop} test"
+    it "throws UndefinedFn on `test`" $ do
+      let (Right e) = parseExpr "test"
       inferNormType Map.empty ["$"] e
-        `shouldBe` Right
-          ( forall
-              [v0, v1, v2, v3, v4]
-              ( "$" $: v0  --> v1
-                  $. "$a" $: v2 * v3 --> v4
-              )
-          )
+        `shouldBe` Left (UndefinedFn "test")
+
+    it "throws UndefinedFn on `{match {case True => test} {case False =>}}`" $ do
+      let (Right e) = parseExpr "{match {case True => test} {case False =>}}"
+      inferNormType Map.empty ["$"] e
+        `shouldBe` Right (forall' [v0] (v0 * tBool --> v0))
 
   describe "fnDefType examples" $ do
     it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do
       let (Right f) = parseFnDef "{fn test = test}"
       fnDefType Map.empty f
-        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
-
-    it "infers {fn test = 0 test} :: (∀ v0 v1 . v0 -> v1)" $ do
-      let (Right f) = parseFnDef "{fn test = 0 test}"
-      fnDefType Map.empty f
-        `shouldBe` Right (forall' [v0, v1] (v0 --> v1))
+        `shouldBe` Left (FnTypeError "test" (UndefinedFn "test"))
 
   describe "recFnDefType examples" $ do
     it "infers {fn test = test} :: (∀ v0 v1 . v0 -> v1)" $ do

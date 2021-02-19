@@ -27,10 +27,10 @@ fromExprSeq [] = ECompose []
 fromExprSeq [e] = e
 fromExprSeq es = ECompose es
 
-inferType' :: Expr -> Either UnificationError Type
+inferType' :: Expr -> Either TypeError Type
 inferType' = inferType Map.empty ["$"]
 
-inferNormType' :: Expr -> Either UnificationError Type
+inferNormType' :: Expr -> Either TypeError Type
 inferNormType' = inferNormType Map.empty ["$"]
 
 ---------------------
