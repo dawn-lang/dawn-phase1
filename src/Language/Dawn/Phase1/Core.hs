@@ -51,7 +51,6 @@ module Language.Dawn.Phase1.Core
     TypeError (..),
     TypeVar (..),
     TypeVars,
-    undefinedFnIds,
     UnificationError (..),
     UnivQuants,
     VarId,
@@ -586,6 +585,9 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
+-- | Infer an expression's type in the given FnEnv and Context.
+-- | UndefinedFn is only thrown if the call occurs outside of
+-- | a match or if all match cases call an undefined function.
 inferType :: FnEnv -> Context -> Expr -> Either TypeError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
@@ -623,6 +625,8 @@ strictCaseType env ctx (p, e) = do
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
+-- | Infer an expression's type in the given FnEnv and Context.
+-- | UndefinedFn is thrown for any undefined function call.
 strictInferType :: FnEnv -> Context -> Expr -> Either TypeError Type
 strictInferType env ctx (EQuote e) = do
   t <- strictInferType env ctx e
@@ -637,6 +641,7 @@ strictInferType env ctx (EMatch cases) = do
   mapLeft UnificationError (unifyCaseTypes ts)
 strictInferType env ctx e = inferType env ctx e
 
+-- | Check an expression's type in the given FnEnv and Context.
 checkType :: FnEnv -> Context -> Expr -> Type -> Either TypeError ()
 checkType env ctx e f1 = do
   f2 <- strictInferType env ctx e
@@ -777,18 +782,6 @@ tempStackIds (TFn _ mio) =
       sids' = foldr folder Set.empty (Map.elems mio)
    in sids `Set.union` sids'
 tempStackIds (TCons _) = Set.empty
-
-undefinedFnIds :: FnEnv -> Expr -> FnIds
-undefinedFnIds env (EIntrinsic _) = Set.empty
-undefinedFnIds env (EQuote e) = undefinedFnIds env e
-undefinedFnIds env (ECompose es) =
-  foldr (Set.union . undefinedFnIds env) Set.empty es
-undefinedFnIds env (EContext s e) = undefinedFnIds env e
-undefinedFnIds env (ELit _) = Set.empty
-undefinedFnIds env (EMatch cs) =
-  foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
-undefinedFnIds env (ECall fid) =
-  if Map.member fid env then Set.empty else Set.singleton fid
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid

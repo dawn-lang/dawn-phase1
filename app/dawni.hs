@@ -67,34 +67,27 @@ readEvalPrint (env, ms) = do
           let (Just (_, t)) = Map.lookup fid env'
           outputStrLn $ fid ++ " :: " ++ display t
           return (env', ms)
-      Right (CmdEval e)
-        | not (null (undefinedFnIds env e)) -> do
-          printUndefinedFnIdsError env e
-          return (env, ms)
-        | otherwise ->
-          let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
-           in case inferNormType env ["$"] e' of
-                Left err -> do
-                  printInferTypeError e' err
-                  return (env, ms)
-                Right t | exposedTempStackIds t -> do
-                  printExposedTempStackIds t
-                  return (env, ms)
-                Right t | expectsInputs t -> do
-                  printExpectsInputs t
-                  return (env, ms)
-                Right t -> do
-                  result <- tryEval env e ms
-                  case result :: Either SomeException MultiStack of
-                    Left err -> do
-                      outputStrLn $ show err
-                      return (env, ms)
-                    Right ms' -> do
-                      outputStrLn $ display ms'
-                      return (env, ms')
-
-printUndefinedFnIdsError env e =
-  outputStrLn ("Error: undefined: " ++ head (Set.toList (undefinedFnIds env e)))
+      Right (CmdEval e) ->
+        let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
+         in case inferNormType env ["$"] e' of
+              Left err -> do
+                printInferTypeError e' err
+                return (env, ms)
+              Right t | exposedTempStackIds t -> do
+                printExposedTempStackIds t
+                return (env, ms)
+              Right t | expectsInputs t -> do
+                printExpectsInputs t
+                return (env, ms)
+              Right t -> do
+                result <- tryEval env e ms
+                case result :: Either SomeException MultiStack of
+                  Left err -> do
+                    outputStrLn $ show err
+                    return (env, ms)
+                  Right ms' -> do
+                    outputStrLn $ display ms'
+                    return (env, ms')
 
 multiStackToExpr :: MultiStack -> Expr
 multiStackToExpr (MultiStack ms) =
