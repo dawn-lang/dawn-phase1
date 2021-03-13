@@ -342,6 +342,27 @@ spec = do
       let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       defineFn env f
         `shouldBe` Right (Map.insert "fib" (e, t) env)
+  
+  describe "checkType" $ do
+    it "succeeds on exact match" $ do
+      let (Right e) = parseExpr "and"
+      let t = forall' [v0] (v0 * tBool * tBool --> v0 * tBool)
+      checkType' e t `shouldBe` Right ()
+
+    it "succeeds on variable rename" $ do
+      let (Right e) = parseExpr "and"
+      let t = forall' [v3] (v3 * tBool * tBool --> v3 * tBool)
+      checkType' e t `shouldBe` Right ()
+
+    it "fails on type constant mismatch" $ do
+      let (Right e) = parseExpr "and"
+      let t = forall' [v0] (v0 * tU32 * tU32 --> v0 * tU32)
+      checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool tU32))
+
+    it "fails if the specified type is too general" $ do
+      let (Right e) = parseExpr "and"
+      let t = forall' [v0, v1] (v0 * v1 * v1 --> v0 * v1)
+      checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool v1))
 
   describe "dependencySortFns examples" $ do
     it "sorts drop2 drop3" $ do

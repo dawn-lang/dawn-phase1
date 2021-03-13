@@ -4,7 +4,8 @@
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
 module Language.Dawn.Phase1.Utils
-  ( fromExprSeq,
+  ( checkType',
+    fromExprSeq,
     inferNormType',
     inferType',
     polymorphicRank,
@@ -32,6 +33,13 @@ inferType' = inferType Map.empty ["$"]
 
 inferNormType' :: Expr -> Either TypeError Type
 inferNormType' = inferNormType Map.empty ["$"]
+
+-------------------
+-- Type Checking --
+-------------------
+
+checkType' :: Expr -> Type -> Either TypeError ()
+checkType' = checkType Map.empty ["$"]
 
 ---------------------
 -- Type Validation --

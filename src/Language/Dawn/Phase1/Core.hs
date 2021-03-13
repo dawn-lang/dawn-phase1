@@ -33,6 +33,7 @@ module Language.Dawn.Phase1.Core
     intrinsicFnId,
     intrinsicType,
     Literal (..),
+    MatchError (..),
     mgu,
     normalizeType,
     Pattern (..),
@@ -345,6 +346,12 @@ composeSubst s2@(Subst m2) (Subst m1) reserved =
       let (t', reserved') = subs s2 t reserved
        in ((tv, t') : sl, reserved')
 
+mergeSubst :: Subst -> Subst -> Subst
+mergeSubst (Subst m1) (Subst m2) =
+  if and (Map.elems (Map.intersectionWith (==) m1 m2))
+    then Subst (Map.union m1 m2)
+    else error "substitutions cannot be merged"
+
 -----------------
 -- Unification --
 -----------------
@@ -384,6 +391,37 @@ mguList ((t1, t2) : ts) reserved = do
   (s2, reserved4) <- mguList ts' reserved3
   let (s3, reserved5) = composeSubst s2 s1 reserved4
   return (s3, reserved5)
+
+--------------
+-- Matching --
+--------------
+
+data MatchError
+  = DoesNotMatch Type Type
+  deriving (Eq, Ord, Show)
+
+-- | Given two Types, t and t', that do not share any type variables,
+-- | find the substitution, s, such that subs s t == t'.
+match :: Type -> Type -> TypeVars -> Either MatchError (Subst, TypeVars)
+match (TProd l r) (TProd l' r') reserved = matchList [(l, l'), (r, r')] reserved
+match f1@TFn {} f2@TFn {} reserved =
+  let (TFn _ mio, TFn _ mio', reserved') = addMissingStacks (f1, f2, reserved)
+      is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
+      os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
+   in matchList (is ++ os) reserved'
+match (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
+  | s == s' = return (Subst Map.empty, reserved)
+match (TVar u) t reserved = return (u +-> t, reserved)
+match t t' _ = throwError $ DoesNotMatch t t'
+
+matchList :: [(Type, Type)] -> TypeVars -> Either MatchError (Subst, TypeVars)
+matchList [] reserved = return (Subst Map.empty, reserved)
+matchList ((t1, t2) : ts) reserved = do
+  (s1, reserved2) <- match t1 t2 reserved
+  let (ts', reserved3) = subs s1 ts reserved2
+  (s2, reserved4) <- matchList ts' reserved3
+  let s3 = mergeSubst s2 s1
+  return (s3, reserved4)
 
 ---------------------------------
 -- Intrinsic and Literal Types --
@@ -492,6 +530,7 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 data TypeError
   = UnificationError UnificationError
+  | MatchError MatchError
   | UndefinedFn FnId
   deriving (Eq, Ord, Show)
 
@@ -648,7 +687,7 @@ checkType env ctx e f1 = do
   let (f1', reserved1) = instantiate f1 Set.empty
   let (f2', reserved2) = instantiate f2 reserved1
   let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
-  void (mapLeft UnificationError (mgu f1'' f2'' reserved3))
+  void (mapLeft MatchError (match f2'' f1'' reserved3))
 
 ------------------------
 -- Type Normalization --
