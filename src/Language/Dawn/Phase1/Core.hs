@@ -866,7 +866,6 @@ defineFns env defs =
 
     inferTypes newFnIds def@(FnDef fid e) (errs, env, defs) =
       case inferNormType env ["$"] e of
-        Left (UndefinedFn fid') | fid' `Set.member` newFnIds -> (errs, env, defs)
         Left err -> (FnTypeError fid err : errs, env, defs)
         Right t
           | not (null (tempStackIds t)) ->
@@ -875,8 +874,6 @@ defineFns env defs =
 
     checkTypes newFnIds (FnDef fid e) (errs, env) =
       case checkType env ["$"] e (snd (env Map.! fid)) of
-        Left (UndefinedFn fid')
-          | fid' `Set.member` newFnIds -> (errs, Map.delete fid env)
         Left err -> (FnTypeError fid err : errs, Map.delete fid env)
         Right () -> (errs, env)
 
