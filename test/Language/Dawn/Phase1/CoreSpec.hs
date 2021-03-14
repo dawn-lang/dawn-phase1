@@ -8,6 +8,7 @@ module Language.Dawn.Phase1.CoreSpec (spec) where
 import Control.Exception
 import Control.Monad
 import Data.Either
+import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
@@ -363,18 +364,18 @@ spec = do
       let (Right e) = parseExpr "and"
       let t = forall' [v0, v1] (v0 * v1 * v1 --> v0 * v1)
       checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool v1))
-  
+
   describe "directFnDeps" $ do
     it "separates conditional and unconditional dependencies" $ do
       let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
       directFnDeps e `shouldBe` (Set.fromList ["f3", "f4"], Set.fromList ["f1", "f2"])
-  
+
   describe "fnDepsSort" $ do
     -- f ~> g := f directly depends on g
     -- f ~!> g := f directly and unconditionally depends on g
     -- f ~?> g := f directly and conditionally depends on g
     -- f ~~> g := f transitively depends on g
-    
+
     it "f < g if f ~!> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => g}"
       let (Right g) = parseFnDef "{fn g => }"
@@ -391,21 +392,43 @@ spec = do
       fnDepsSort [f, g] `shouldBe` [f, g]
       fnDepsSort [g, f] `shouldBe` [f, g]
 
-    -- it "f < g if f ~!> g and not g ~~!> f" $ do
-    -- it "f < g if f ~~!> g and not g ~~> f" $ do
-    -- it "f < g if f ~~?> g and not g ~~> f" $ do
-    -- it "f < g if f ~~!> g and not g ~~!> f" $ do
+    it "f < g if f ~!> g and g ~?> f" $ do
+      let (Right f) = parseFnDef "{fn f => g}"
+      let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
+      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["g"])
+      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList ["f"], Set.fromList [])
+      fnDepsSort [f, g] `shouldBe` [f, g]
+      fnDepsSort [g, f] `shouldBe` [f, g]
 
-    -- it "f < g if f ~~> g and not g ~~> f" $ do
-    --   let (Right f) = parseFnDef "{fn f => {match {case False => h} {case True => }}}"
-    --   let (Right h) = parseFnDef "{fn h => g}"
-    --   let (Right g) = parseFnDef "{fn g => }"
-    --   fnDepsSort [f, h, g] `shouldBe` [f, h, g]
-    --   fnDepsSort [f, g, h] `shouldBe` [f, h, g]
-    --   fnDepsSort [h, f, g] `shouldBe` [f, h, g]
-    --   fnDepsSort [h, g, f] `shouldBe` [f, h, g]
-    --   fnDepsSort [g, f, h] `shouldBe` [f, h, g]
-    --   fnDepsSort [g, h, f] `shouldBe` [f, h, g]
+    it "f < g if f ~~!> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => h}"
+      let (Right h) = parseFnDef "{fn h => g}"
+      let (Right g) = parseFnDef "{fn g => }"
+      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["h"])
+      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList [], Set.fromList ["g"])
+      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
+
+    it "f < g if f ~~?> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => {match {case False => h} {case True => }}}"
+      let (Right h) = parseFnDef "{fn h => {match {case False => g} {case True => }}}"
+      let (Right g) = parseFnDef "{fn g => }"
+      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList ["h"], Set.fromList [])
+      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList ["g"], Set.fromList [])
+      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
+
+    it "f < g if f ~~!> g and g ~?> f" $ do
+      let (Right f) = parseFnDef "{fn f => h}"
+      let (Right h) = parseFnDef "{fn h => g}"
+      let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
+      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["h"])
+      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList [], Set.fromList ["g"])
+      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList ["f"], Set.fromList [])
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
   describe "dependencySortFns examples" $ do
     it "sorts drop2 drop3" $ do
