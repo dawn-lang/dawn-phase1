@@ -533,3 +533,51 @@ spec = do
             ]
       let env = Map.empty
       defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
+
+    it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
+      let is_even_es =
+            "{match"
+              ++ "  {case 0 => True}"
+              ++ "  {case 1 => False}"
+              ++ "  {case => decr is_odd}"
+              ++ "}"
+      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even_e) = parseExpr is_even_es
+      let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
+
+      let is_odd_es = "decr is_even"
+      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd_e) = parseExpr is_odd_es
+      let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
+
+      let errs = []
+      let env =
+            Map.fromList
+              [ ("is_even", (is_even_e, is_even_t)),
+                ("is_odd", (is_odd_e, is_odd_t))
+              ]
+      defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
+
+    it "succeeds on mutual recursion in all but some match cases in one function (2)" $ do
+      let is_odd_es =
+            "{match"
+              ++ "  {case 0 => False}"
+              ++ "  {case 1 => True}"
+              ++ "  {case => decr is_even}"
+              ++ "}"
+      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd_e) = parseExpr is_odd_es
+      let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
+
+      let is_even_es = "decr is_odd"
+      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even_e) = parseExpr is_even_es
+      let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
+
+      let errs = []
+      let env =
+            Map.fromList
+              [ ("is_odd", (is_odd_e, is_odd_t)),
+                ("is_even", (is_even_e, is_even_t))
+              ]
+      defineFns Map.empty [is_odd, is_even] `shouldBe` (errs, env)
