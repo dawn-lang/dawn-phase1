@@ -694,27 +694,19 @@ checkType env ctx e f1 = do
 ------------------------
 
 removeTrivialStacks :: Type -> Type
-removeTrivialStacks t@(TVar _) = t
-removeTrivialStacks (TProd l r) = TProd (removeTrivialStacks l) (removeTrivialStacks r)
-removeTrivialStacks (TFn qs mio) =
-  let trivialMIO = Map.filter (isTrivial qs) mio
-      mio' = mio `Map.difference` trivialMIO
-   in if null mio'
-        then
-          let v = TVar (Set.findMin qs)
-           in forall' [v] (v --> v)
-        else
-          let ftvs = ftv trivialMIO
-              qs' =
-                if any (`elem` atv mio') (Set.elems ftvs)
-                  then error "invalid reuse of trivial stack variable"
-                  else qs `Set.difference` ftvs
-              iter (i, o) = (removeTrivialStacks i, removeTrivialStacks o)
-           in TFn qs' (Map.map iter mio')
+removeTrivialStacks t = recurse t
   where
-    isTrivial qs (TVar i, TVar o) | i == o && i `elem` qs = True
+    recurse t@(TVar _) = t
+    recurse (TProd l r) = TProd (recurse l) (recurse r)
+    recurse t@(TFn qs mio) =
+      let mio' = Map.filter (not . isTrivial qs) mio
+          mio'' = if null mio' then Map.fromAscList [head (Map.toAscList mio)] else mio'
+          mio''' = Map.map (\(i, o) -> (recurse i, recurse o)) mio''
+       in requantify (TFn Set.empty mio''')
+    recurse t@(TCons _) = t
+
+    isTrivial qs (TVar i, TVar o) | i `elem` qs && o `elem` qs = True
     isTrivial _ _ = False
-removeTrivialStacks t@(TCons _) = t
 
 normalizeTypeVars :: Type -> Type
 normalizeTypeVars t =
