@@ -19,6 +19,7 @@ module Language.Dawn.Phase1.Core
     Expr (..),
     FnDef (..),
     FnDefError (..),
+    fnDeps,
     FnEnv,
     FnId,
     FnIds,
@@ -827,6 +828,30 @@ fnIds (ELit _) = Set.empty
 fnIds (EMatch cs) =
   foldr (Set.union . fnIds . snd) Set.empty cs
 fnIds (ECall fid) = Set.singleton fid
+
+-- | Returns the conditional and unconditional direct function dependencies,
+-- | (cds, uds), for the given expression. Conditional dependencies differ from
+-- | unconditional dependencies in that there is at least one match case that
+-- | does not contain the dependency.
+fnDeps :: Expr -> (FnIds, FnIds)
+fnDeps (EIntrinsic _) = (Set.empty, Set.empty)
+fnDeps (EQuote e) = fnDeps e
+fnDeps (ECompose es) = foldr folder (Set.empty, Set.empty) es
+  where
+    folder e (cd, ud) =
+      let (cd', ud') = fnDeps e
+       in (Set.union cd cd', Set.union ud ud')
+fnDeps (EContext s e) = fnDeps e
+fnDeps (ELit _) = (Set.empty, Set.empty)
+fnDeps (EMatch cs) =
+  let caseDeps = map (fnDeps . snd) cs
+   in foldr1 folder caseDeps
+  where
+    folder (cds, uds) (cds', uds') =
+      let uds'' = Set.intersection uds uds'
+          cds'' = Set.unions [cds, cds', uds Set.\\ uds'', uds' Set.\\ uds'']
+       in (cds'', uds'')
+fnDeps (ECall fid) = (Set.empty, Set.singleton fid)
 
 -- | Sort FnDef's such that f precedes g if f calls g (directly or
 -- | transitively) and g does not call f.

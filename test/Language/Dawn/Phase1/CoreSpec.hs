@@ -363,6 +363,11 @@ spec = do
       let (Right e) = parseExpr "and"
       let t = forall' [v0, v1] (v0 * v1 * v1 --> v0 * v1)
       checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool v1))
+  
+  describe "fnDefs" $ do
+    it "separates conditional and unconditional dependencies" $ do
+      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
+      fnDeps e `shouldBe` (Set.fromList ["f3", "f4"], Set.fromList ["f1", "f2"])
 
   describe "dependencySortFns examples" $ do
     it "sorts drop2 drop3" $ do
