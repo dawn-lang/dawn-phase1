@@ -294,41 +294,41 @@ spec = do
 
   describe "defineFn examples" $ do
     it "defines drop2" $ do
-      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right f) = parseFnDef "{fn drop2 => drop drop}"
       let (Right e) = parseExpr "drop drop"
       let (Right t) = inferNormType Map.empty ["$"] e
       defineFn Map.empty f
         `shouldBe` Right (Map.singleton "drop2" (e, t))
 
     it "fails with FnAlreadyDefined" $ do
-      let (Right f) = parseFnDef "{fn clone = clone}"
+      let (Right f) = parseFnDef "{fn clone => clone}"
       defineFn Map.empty f
         `shouldBe` Left (FnAlreadyDefined "clone")
 
-      let (Right f) = parseFnDef "{fn drop2 = drop drop}"
+      let (Right f) = parseFnDef "{fn drop2 => drop drop}"
       let (Right env) = defineFn Map.empty f
       defineFn env f
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
     it "fails with FnTypeError UndefinedFn" $ do
-      let (Right f) = parseFnDef "{fn test1 = clone test2 clone test3}"
+      let (Right f) = parseFnDef "{fn test1 => clone test2 clone test3}"
       defineFn Map.empty f
         `shouldBe` Left (FnTypeError "test1" (UndefinedFn "test2"))
 
     it "fails with FnTypeError" $ do
-      let (Right f) = parseFnDef "{fn test = clone apply}"
+      let (Right f) = parseFnDef "{fn test => clone apply}"
       let (Right e) = parseExpr "clone apply"
       let (Left err) = inferNormType Map.empty ["$"] e
       defineFn Map.empty f
         `shouldBe` Left (FnTypeError "test" err)
 
     it "fails with FnStackError" $ do
-      let (Right f) = parseFnDef "{fn test = {$a $a<-} {$b $b<-}}"
+      let (Right f) = parseFnDef "{fn test => {$a $a<-} {$b $b<-}}"
       defineFn Map.empty f
         `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
-      let (Right f) = parseFnDef "{fn swap = $a<- $b<- $a-> $b->}"
+      let (Right f) = parseFnDef "{fn swap => $a<- $b<- $a-> $b->}"
       let (Right env) = defineFn Map.empty f
       let eSrc =
             "{match "
@@ -336,7 +336,7 @@ spec = do
               ++ "  {case 1 => 1} "
               ++ "  {case => clone 1 sub fib swap 2 sub fib add} "
               ++ "}"
-      let fSrc = "{fn fib = " ++ eSrc ++ "}"
+      let fSrc = "{fn fib => " ++ eSrc ++ "}"
       let (Right f) = parseFnDef fSrc
       let (Right e) = parseExpr eSrc
       let t = forall' [v0] (v0 * tU32 --> v0 * tU32)
@@ -366,15 +366,15 @@ spec = do
 
   describe "dependencySortFns examples" $ do
     it "sorts drop2 drop3" $ do
-      let (Right drop2) = parseFnDef "{fn drop2 = drop drop}"
-      let (Right drop3) = parseFnDef "{fn drop3 = drop2 drop}"
+      let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
+      let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
       dependencySortFns [drop2, drop3]
         `shouldBe` [drop3, drop2]
 
   describe "defineFns examples" $ do
     it "defines drop2 and drop3" $ do
-      let (Right drop2) = parseFnDef "{fn drop2 = drop drop}"
-      let (Right drop3) = parseFnDef "{fn drop3 = drop2 drop}"
+      let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
+      let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
       let (Right drop2e) = parseExpr "drop drop"
       let (Right drop2t) = inferNormType Map.empty ["$"] drop2e
       let (Right drop3e) = parseExpr "drop2 drop"
@@ -388,7 +388,7 @@ spec = do
 
     it "defines mutually recursive fns" $ do
       let is_odd_es = "1 bit_and"
-      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd) = parseFnDef ("{fn is_odd => " ++ is_odd_es ++ "}")
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tU32)
 
@@ -398,7 +398,7 @@ spec = do
               ++ "{case 0 0 => }"
               ++ "{case 0 => 1 sub decr_odd}"
               ++ "{case => drop decr_odd}}"
-      let (Right decr_even) = parseFnDef ("{fn decr_even = " ++ decr_even_es ++ "}")
+      let (Right decr_even) = parseFnDef ("{fn decr_even => " ++ decr_even_es ++ "}")
       let (Right decr_even_e) = parseExpr decr_even_es
       let decr_even_t = forall' [v0] (v0 * tU32 --> v0)
 
@@ -407,12 +407,12 @@ spec = do
               ++ "{match {case 0 1 => }"
               ++ "{case 1 => 1 sub decr_even}"
               ++ "{case => drop decr_even}}"
-      let (Right decr_odd) = parseFnDef ("{fn decr_odd = " ++ decr_odd_es ++ "}")
+      let (Right decr_odd) = parseFnDef ("{fn decr_odd => " ++ decr_odd_es ++ "}")
       let (Right decr_odd_e) = parseExpr decr_odd_es
       let decr_odd_t = forall' [v0] (v0 * tU32 --> v0)
 
       let count_down_es = "decr_odd"
-      let (Right count_down) = parseFnDef ("{fn count_down = " ++ count_down_es ++ "}")
+      let (Right count_down) = parseFnDef ("{fn count_down => " ++ count_down_es ++ "}")
       let (Right count_down_e) = parseExpr count_down_es
       let count_down_t = forall' [v0] (v0 * tU32 --> v0)
 
@@ -435,7 +435,7 @@ spec = do
               ++ "  {case 1 => 1}"
               ++ "  {case => clone 1 sub fib $a<- $b<- $a-> $b-> 2 sub fib add}"
               ++ "}"
-      let (Right fib) = parseFnDef ("{fn fib = " ++ fib_es ++ "}")
+      let (Right fib) = parseFnDef ("{fn fib => " ++ fib_es ++ "}")
       let (Right fib_e) = parseExpr fib_es
       let fib_t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       let errs = []
@@ -444,7 +444,7 @@ spec = do
 
     it "fails on direct recursion outside of match expr" $ do
       let diverge_es = "drop diverge 1"
-      let (Right diverge) = parseFnDef ("{fn diverge = " ++ diverge_es ++ "}")
+      let (Right diverge) = parseFnDef ("{fn diverge => " ++ diverge_es ++ "}")
       let (Right diverge_e) = parseExpr diverge_es
       let errs = [FnTypeError "diverge" (UndefinedFn "diverge")]
       let env = Map.empty
@@ -456,7 +456,7 @@ spec = do
               ++ "  {case False => True foo}"
               ++ "  {case True => False foo}"
               ++ "}"
-      let (Right foo) = parseFnDef ("{fn foo = " ++ foo_es ++ "}")
+      let (Right foo) = parseFnDef ("{fn foo => " ++ foo_es ++ "}")
       let (Right foo_e) = parseExpr foo_es
       let foo_t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       let errs = [FnTypeError "foo" (UndefinedFn "foo")]
@@ -469,7 +469,7 @@ spec = do
               ++ "  {case 0 => True}"
               ++ "  {case => decr is_odd}"
               ++ "}"
-      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even) = parseFnDef ("{fn is_even => " ++ is_even_es ++ "}")
       let (Right is_even_e) = parseExpr is_even_es
       let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -478,7 +478,7 @@ spec = do
               ++ "  {case 0 => False}"
               ++ "  {case => decr is_even}"
               ++ "}"
-      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd) = parseFnDef ("{fn is_odd => " ++ is_odd_es ++ "}")
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -492,12 +492,12 @@ spec = do
 
     it "fails on mutual recursion outside of match expr" $ do
       let f1_es = "decr f2"
-      let (Right f1) = parseFnDef ("{fn f1 = " ++ f1_es ++ "}")
+      let (Right f1) = parseFnDef ("{fn f1 => " ++ f1_es ++ "}")
       let (Right f1_e) = parseExpr f1_es
       let f1_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
       let f2_es = "decr f1"
-      let (Right f2) = parseFnDef ("{fn f2 = " ++ f2_es ++ "}")
+      let (Right f2) = parseFnDef ("{fn f2 => " ++ f2_es ++ "}")
       let (Right f2_e) = parseExpr f2_es
       let f2_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -514,7 +514,7 @@ spec = do
               ++ "  {case 0 => incr is_odd}"
               ++ "  {case => decr is_odd}"
               ++ "}"
-      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even) = parseFnDef ("{fn is_even => " ++ is_even_es ++ "}")
       let (Right is_even_e) = parseExpr is_even_es
       let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -523,7 +523,7 @@ spec = do
               ++ "  {case 0 => incr is_even}"
               ++ "  {case => decr is_even}"
               ++ "}"
-      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd) = parseFnDef ("{fn is_odd => " ++ is_odd_es ++ "}")
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -545,12 +545,12 @@ spec = do
               ++ "  {case 1 => False}"
               ++ "  {case => decr is_odd}"
               ++ "}"
-      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even) = parseFnDef ("{fn is_even => " ++ is_even_es ++ "}")
       let (Right is_even_e) = parseExpr is_even_es
       let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
       let is_odd_es = "decr is_even"
-      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd) = parseFnDef ("{fn is_odd => " ++ is_odd_es ++ "}")
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
@@ -568,12 +568,12 @@ spec = do
               ++ "  {case 1 => True}"
               ++ "  {case => decr is_even}"
               ++ "}"
-      let (Right is_odd) = parseFnDef ("{fn is_odd = " ++ is_odd_es ++ "}")
+      let (Right is_odd) = parseFnDef ("{fn is_odd => " ++ is_odd_es ++ "}")
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
       let is_even_es = "decr is_odd"
-      let (Right is_even) = parseFnDef ("{fn is_even = " ++ is_even_es ++ "}")
+      let (Right is_even) = parseFnDef ("{fn is_even => " ++ is_even_es ++ "}")
       let (Right is_even_e) = parseExpr is_even_es
       let is_even_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
