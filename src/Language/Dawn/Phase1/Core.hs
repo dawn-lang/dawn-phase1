@@ -19,7 +19,10 @@ module Language.Dawn.Phase1.Core
     Expr (..),
     FnDef (..),
     FnDefError (..),
-    fnDeps,
+    fnDefExpr,
+    fnDefFnId,
+    directFnDeps,
+    fnDepsSort,
     FnEnv,
     FnId,
     FnIds,
@@ -818,6 +821,9 @@ tempStackIds (TCons _) = Set.empty
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
 
+fnDefExpr :: FnDef -> Expr
+fnDefExpr (FnDef _ e) = e
+
 fnIds :: Expr -> FnIds
 fnIds (EIntrinsic _) = Set.empty
 fnIds (EQuote e) = fnIds e
@@ -829,30 +835,6 @@ fnIds (EMatch cs) =
   foldr (Set.union . fnIds . snd) Set.empty cs
 fnIds (ECall fid) = Set.singleton fid
 
--- | Returns the conditional and unconditional direct function dependencies,
--- | (cds, uds), for the given expression. Conditional dependencies differ from
--- | unconditional dependencies in that there is at least one match case that
--- | does not contain the dependency.
-fnDeps :: Expr -> (FnIds, FnIds)
-fnDeps (EIntrinsic _) = (Set.empty, Set.empty)
-fnDeps (EQuote e) = fnDeps e
-fnDeps (ECompose es) = foldr folder (Set.empty, Set.empty) es
-  where
-    folder e (cd, ud) =
-      let (cd', ud') = fnDeps e
-       in (Set.union cd cd', Set.union ud ud')
-fnDeps (EContext s e) = fnDeps e
-fnDeps (ELit _) = (Set.empty, Set.empty)
-fnDeps (EMatch cs) =
-  let caseDeps = map (fnDeps . snd) cs
-   in foldr1 folder caseDeps
-  where
-    folder (cds, uds) (cds', uds') =
-      let uds'' = Set.intersection uds uds'
-          cds'' = Set.unions [cds, cds', uds Set.\\ uds'', uds' Set.\\ uds'']
-       in (cds'', uds'')
-fnDeps (ECall fid) = (Set.empty, Set.singleton fid)
-
 -- | Sort FnDef's such that f precedes g if f calls g (directly or
 -- | transitively) and g does not call f.
 dependencySortFns :: [FnDef] -> [FnDef]
@@ -863,12 +845,78 @@ dependencySortFns defs =
       vertToFnDef v = tupleToFnDef (vertToTuple v)
    in map vertToFnDef (topSort graph)
 
+-- | Returns the conditional and unconditional direct function dependencies,
+-- | (cdds, udds), for the given expression. Conditional dependencies differ from
+-- | unconditional dependencies in that there is at least one match case that
+-- | does not contain the dependency.
+directFnDeps :: Expr -> (FnIds, FnIds)
+directFnDeps (EIntrinsic _) = (Set.empty, Set.empty)
+directFnDeps (EQuote e) = directFnDeps e
+directFnDeps (ECompose es) = foldr folder (Set.empty, Set.empty) es
+  where
+    folder e (cd, ud) =
+      let (cd', ud') = directFnDeps e
+       in (Set.union cd cd', Set.union ud ud')
+directFnDeps (EContext s e) = directFnDeps e
+directFnDeps (ELit _) = (Set.empty, Set.empty)
+directFnDeps (EMatch cs) =
+  let caseDeps = map (directFnDeps . snd) cs
+   in foldr1 folder caseDeps
+  where
+    folder (cds, uds) (cds', uds') =
+      let uds'' = Set.intersection uds uds'
+          cds'' = Set.unions [cds, cds', uds Set.\\ uds'', uds' Set.\\ uds'']
+       in (cds'', uds'')
+directFnDeps (ECall fid) = (Set.empty, Set.singleton fid)
+
+-- | Sort FnDef's such that f precedes g if f depends on g
+-- | (directly or transitively) and g does not depend on f,
+-- | or if f unconditionally depends on g and g does not
+-- | unconditionally depend on f.
+fnDepsSort :: [FnDef] -> [FnDef]
+fnDepsSort defs =
+  let (uncondDepsGraph, _, uncondDepsFidToVert) = graphFromEdges (map (fnDefToEdgeList (snd . directFnDeps)) defs)
+      (depsGraph, _, depsFidToVert) = graphFromEdges (map (fnDefToEdgeList (Set.unions . directFnDeps)) defs)
+      fnDepsOrdering f g =
+        let (fid, gid) = (fnDefFnId f, fnDefFnId g)
+            (Just fuv, Just guv) = (uncondDepsFidToVert fid, uncondDepsFidToVert gid)
+            (Just fav, Just gav) = (depsFidToVert fid, depsFidToVert gid)
+            fUncondDepsG = path uncondDepsGraph fuv guv
+            gUncondDepsF = path uncondDepsGraph guv fuv
+            fDepsG = path depsGraph fav gav
+            gDepsF = path depsGraph gav fav
+         in case (fUncondDepsG, gUncondDepsF, fDepsG, gDepsF) of
+              (False, False, False, False) -> EQ
+              (False, False, False, True) -> GT
+              (False, False, True, False) -> LT
+              (False, False, True, True) -> EQ
+              (False, True, False, False) -> error "impossible"
+              (False, True, False, True) -> GT
+              (False, True, True, False) -> error "impossible"
+              (False, True, True, True) -> GT
+              (True, False, False, False) -> error "impossible"
+              (True, False, False, True) -> error "impossible"
+              (True, False, True, False) -> LT
+              (True, False, True, True) -> LT
+              (True, True, False, False) -> error "impossible"
+              (True, True, False, True) -> error "impossible"
+              (True, True, True, False) -> error "impossible"
+              (True, True, True, True) -> EQ
+              -- (True, False, _, _) -> LT
+              -- (_, _, True, False) -> LT
+              -- (True, True, _, _) -> EQ
+              -- (False, False, True, True) -> EQ
+              -- _ -> GT
+   in sortBy fnDepsOrdering (dependencySortFns defs)
+  where
+    fnDefToEdgeList exprToDeps (FnDef fid e) = ((), fid, Set.toList (exprToDeps e))
+
 defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
 defineFns env defs =
   let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
       newFnIds = Set.fromList (map fnDefFnId defs')
-      sortedDefs = dependencySortFns defs'
+      sortedDefs = fnDepsSort defs'
       (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
       (errs3, env3) = foldr (checkTypes newFnIds) ([], env2) sortedDefs'
    in (errs1 ++ errs2 ++ errs3, env3)
