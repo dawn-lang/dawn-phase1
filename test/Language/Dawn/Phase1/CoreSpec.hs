@@ -534,7 +534,11 @@ spec = do
       let env = Map.empty
       defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
 
-    it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
+    -- NOTE: the following two tests restrict the implementation of dependencySortFns
+    -- so that this test fails and the next succeeds.
+    -- TODO: once we add function type declarations, decide how to alter the
+    -- specification and implementation so that both of these tests fail.
+    it "fails on mutual recursion in all but some match cases in one function (1)" $ do
       let is_even_es =
             "{match"
               ++ "  {case 0 => True}"
@@ -550,12 +554,11 @@ spec = do
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
-      let errs = []
-      let env =
-            Map.fromList
-              [ ("is_even", (is_even_e, is_even_t)),
-                ("is_odd", (is_odd_e, is_odd_t))
-              ]
+      let errs =
+            [ FnTypeError "is_odd" (UndefinedFn "is_even"),
+              FnTypeError "is_even" (UndefinedFn "is_odd")
+            ]
+      let env = Map.empty
       defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
 
     it "succeeds on mutual recursion in all but some match cases in one function (2)" $ do
