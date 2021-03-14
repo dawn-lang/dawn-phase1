@@ -234,13 +234,13 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval env' ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
-swapSrc = "{fn swap = $a<- $b<- $a-> $b->}"
+swapSrc = "{fn swap => $a<- $b<- $a-> $b->}"
 
 (Right swap) = parseFnDef swapSrc
 
 fibSrc =
   unlines
-    [ "{fn fib = {match",
+    [ "{fn fib => {match",
       "  {case 0 => 0}",
       "  {case 1 => 1}",
       "  {case => clone 1 sub fib swap 2 sub fib add}",

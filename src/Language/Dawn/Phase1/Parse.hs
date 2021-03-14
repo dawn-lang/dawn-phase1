@@ -31,7 +31,7 @@ parseVals :: String -> Either ParseError [Val]
 parseVals = parse (skipMany space *> vals <* eof) ""
 
 fnDef :: Parser FnDef
-fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=" *> expr))
+fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
 
 expr :: Parser Expr
 expr =
