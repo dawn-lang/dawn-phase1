@@ -185,6 +185,12 @@ spec = do
       parseExpr "{$a 123}"
         `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
 
+    it "fails on `{match }`" $ do
+      let (Left err) = parseExpr "{match }"
+      let pos = errorPos err
+      sourceLine pos `shouldBe` 1
+      sourceColumn pos `shouldBe` 8
+
     it "parses `{match {case =>}}`" $ do
       parseExpr "{match {case =>}}"
         `shouldBe` Right (EMatch [(PEmpty, ECompose [])])

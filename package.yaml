@@ -16,6 +16,7 @@ description: Please see the README on GitHub at <https://github.com/scottjmaddox
 
 dependencies:
   - base >= 4.7 && < 5
+  - either
   - containers
   - mtl
   - parsec

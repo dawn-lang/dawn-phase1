@@ -10,6 +10,7 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addMissingStacks,
+    checkType,
     composeSubst,
     Context,
     defineFn,
@@ -18,7 +19,6 @@ module Language.Dawn.Phase1.Core
     Expr (..),
     FnDef (..),
     FnDefError (..),
-    fnDefType,
     FnEnv,
     FnId,
     FnIds,
@@ -33,24 +33,25 @@ module Language.Dawn.Phase1.Core
     intrinsicFnId,
     intrinsicType,
     Literal (..),
+    MatchError (..),
     mgu,
     normalizeType,
     Pattern (..),
-    recFnDefType,
     removeTrivialStacks,
     replaceTypeVars,
     requantify,
-    Result,
     StackId,
     StackIds,
     Subs (..),
     Subst (..),
+    tBool,
     tempStackIds,
+    tU32,
     Type (..),
     TypeCons (..),
+    TypeError (..),
     TypeVar (..),
     TypeVars,
-    undefinedFnIds,
     UnificationError (..),
     UnivQuants,
     VarId,
@@ -59,9 +60,11 @@ where
 
 import Control.Monad
 import Control.Monad.Except
+import Data.Either.Combinators
 import Data.Graph
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
 import Prelude hiding ((*))
@@ -343,6 +346,12 @@ composeSubst s2@(Subst m2) (Subst m1) reserved =
       let (t', reserved') = subs s2 t reserved
        in ((tv, t') : sl, reserved')
 
+mergeSubst :: Subst -> Subst -> Subst
+mergeSubst (Subst m1) (Subst m2) =
+  if and (Map.elems (Map.intersectionWith (==) m1 m2))
+    then Subst (Map.union m1 m2)
+    else error "substitutions cannot be merged"
+
 -----------------
 -- Unification --
 -----------------
@@ -352,12 +361,10 @@ data UnificationError
   | OccursIn TypeVar Type
   deriving (Eq, Ord, Show)
 
-type Result a = Either UnificationError a
-
 -- | Find the most general unifier, s, of two Types,
 -- | t and t', such that subs s t == subs s' t',
 -- | where t and t' do not share any type variables.
-mgu :: Type -> Type -> TypeVars -> Result (Subst, TypeVars)
+mgu :: Type -> Type -> TypeVars -> Either UnificationError (Subst, TypeVars)
 mgu (TProd l r) (TProd l' r') reserved = mguList [(l, l'), (r, r')] reserved
 mgu f1@TFn {} f2@TFn {} reserved =
   let (TFn _ mio, TFn _ mio', reserved') = addMissingStacks (f1, f2, reserved)
@@ -370,13 +377,13 @@ mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
 
-bindTypeVar :: TypeVar -> Type -> TypeVars -> Result (Subst, TypeVars)
+bindTypeVar :: TypeVar -> Type -> TypeVars -> Either UnificationError (Subst, TypeVars)
 bindTypeVar u t reserved
   | TVar u == t = return (Subst Map.empty, reserved)
   | u `elem` ftv t = throwError $ OccursIn u t
   | otherwise = return (u +-> t, reserved)
 
-mguList :: [(Type, Type)] -> TypeVars -> Result (Subst, TypeVars)
+mguList :: [(Type, Type)] -> TypeVars -> Either UnificationError (Subst, TypeVars)
 mguList [] reserved = return (Subst Map.empty, reserved)
 mguList ((t1, t2) : ts) reserved = do
   (s1, reserved2) <- mgu t1 t2 reserved
@@ -384,6 +391,37 @@ mguList ((t1, t2) : ts) reserved = do
   (s2, reserved4) <- mguList ts' reserved3
   let (s3, reserved5) = composeSubst s2 s1 reserved4
   return (s3, reserved5)
+
+--------------
+-- Matching --
+--------------
+
+data MatchError
+  = DoesNotMatch Type Type
+  deriving (Eq, Ord, Show)
+
+-- | Given two Types, t and t', that do not share any type variables,
+-- | find the substitution, s, such that subs s t == t'.
+match :: Type -> Type -> TypeVars -> Either MatchError (Subst, TypeVars)
+match (TProd l r) (TProd l' r') reserved = matchList [(l, l'), (r, r')] reserved
+match f1@TFn {} f2@TFn {} reserved =
+  let (TFn _ mio, TFn _ mio', reserved') = addMissingStacks (f1, f2, reserved)
+      is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
+      os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
+   in matchList (is ++ os) reserved'
+match (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
+  | s == s' = return (Subst Map.empty, reserved)
+match (TVar u) t reserved = return (u +-> t, reserved)
+match t t' _ = throwError $ DoesNotMatch t t'
+
+matchList :: [(Type, Type)] -> TypeVars -> Either MatchError (Subst, TypeVars)
+matchList [] reserved = return (Subst Map.empty, reserved)
+matchList ((t1, t2) : ts) reserved = do
+  (s1, reserved2) <- match t1 t2 reserved
+  let (ts', reserved3) = subs s1 ts reserved2
+  (s2, reserved4) <- matchList ts' reserved3
+  let s3 = mergeSubst s2 s1
+  return (s3, reserved4)
 
 ---------------------------------
 -- Intrinsic and Literal Types --
@@ -490,13 +528,19 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 -- Type Inference --
 --------------------
 
+data TypeError
+  = UnificationError UnificationError
+  | MatchError MatchError
+  | UndefinedFn FnId
+  deriving (Eq, Ord, Show)
+
 type FnEnv = Map.Map FnId (Expr, Type)
 
-quoteType :: Context -> Type -> Result Type
+quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
   let (tv, _) = freshTypeVar (Set.fromList (atv f))
       v = TVar tv
-   in return (forall [v] (s $: v --> v * f))
+   in forall [v] (s $: v --> v * f)
 
 requantify :: Type -> Type
 requantify t = recurse t
@@ -519,7 +563,7 @@ requantify t = recurse t
        in TFn qs' mio'
     recurse t@(TCons _) = t
 
-composeTypes :: [Type] -> Result Type
+composeTypes :: [Type] -> Either UnificationError Type
 composeTypes [] = return (forall' [v0] (v0 --> v0))
 composeTypes [t@TFn {}] = return t
 composeTypes (f1@TFn {} : f2@TFn {} : ts) = do
@@ -534,6 +578,11 @@ composeTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let mio3 = Map.fromDistinctAscList (zip (Map.keys mio1) io3s)
   let t3 = requantify (TFn Set.empty mio3)
   composeTypes (t3 : ts)
+
+-- ensure unique StackIds by prepending "$", creating a temporary StackId
+ensureUniqueStackId :: Context -> StackId -> StackId
+ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
+ensureUniqueStackId ctx s = s
 
 stackTypes :: [Type] -> Type
 stackTypes [t] = t
@@ -556,13 +605,13 @@ patternType (s : _) p =
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
-caseType :: FnEnv -> Context -> (Pattern, Expr) -> Result Type
+caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
   let pt = patternType ctx p
   et <- inferType env ctx e
-  composeTypes [pt, et]
+  mapLeft UnificationError (composeTypes [pt, et])
 
-unifyCaseTypes :: [Type] -> Result Type
+unifyCaseTypes :: [Type] -> Either UnificationError Type
 unifyCaseTypes [] = error "empty match"
 unifyCaseTypes [t@TFn {}] = return t
 unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
@@ -575,31 +624,70 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
--- Infer an expression's type in the given FnEnv and Context. If there are any
--- ECall's to functions not in FnEnv, then a type of (∀ v0 v1 . v0 -> v1)
--- is assumed for those functions.
-inferType :: FnEnv -> Context -> Expr -> Result Type
+-- | Infer an expression's type in the given FnEnv and Context.
+-- | UndefinedFn is only thrown if the call occurs outside of
+-- | a match or if all match cases call an undefined function.
+inferType :: FnEnv -> Context -> Expr -> Either TypeError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
   t <- inferType env ctx e
-  quoteType ctx t
+  return (quoteType ctx t)
 inferType env ctx (ECompose es) = do
   ts <- mapM (inferType env ctx) es
-  composeTypes ts
+  mapLeft UnificationError (composeTypes ts)
 inferType env ctx (EContext s e) =
   inferType env (ensureUniqueStackId ctx s : ctx) e
 inferType env ctx (ELit l) = return $ literalType ctx l
-inferType env ctx (EMatch cases) = do
-  ts <- mapM (caseType env ctx) cases
-  unifyCaseTypes ts
+inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
+  rs | all isUndefinedFnError rs -> head (filter isUndefinedFnError rs)
+  rs | any isOtherError rs -> head (filter isOtherError rs)
+  rs -> do
+    ts <- sequence (filter isRight rs)
+    mapLeft UnificationError (unifyCaseTypes ts)
+  where
+    isUndefinedFnError (Left (UndefinedFn _)) = True
+    isUndefinedFnError _ = False
+    isOtherError (Left (UndefinedFn _)) = False
+    isOtherError (Left _) = True
+    isOtherError _ = False
 inferType env ctx (ECall fid) = case Map.lookup fid env of
-  Nothing -> return (forall' [v0, v1] (v0 --> v1))
+  Nothing -> throwError (UndefinedFn fid)
   Just (e, t) -> return t
 
--- ensure unique StackIds by prepending "$", creating a temporary StackId
-ensureUniqueStackId :: Context -> StackId -> StackId
-ensureUniqueStackId ctx s | s `elem` ctx = ensureUniqueStackId ctx ('$' : s)
-ensureUniqueStackId ctx s = s
+-------------------
+-- Type Checking --
+-------------------
+
+strictCaseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+strictCaseType env ctx (p, e) = do
+  let pt = patternType ctx p
+  et <- strictInferType env ctx e
+  mapLeft UnificationError (composeTypes [pt, et])
+
+-- | Infer an expression's type in the given FnEnv and Context.
+-- | UndefinedFn is thrown for any undefined function call.
+strictInferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+strictInferType env ctx (EQuote e) = do
+  t <- strictInferType env ctx e
+  return (quoteType ctx t)
+strictInferType env ctx (ECompose es) = do
+  ts <- mapM (strictInferType env ctx) es
+  mapLeft UnificationError (composeTypes ts)
+strictInferType env ctx (EContext s e) =
+  strictInferType env (ensureUniqueStackId ctx s : ctx) e
+strictInferType env ctx (EMatch cases) = do
+  ts <- mapM (caseType env ctx) cases
+  mapLeft UnificationError (unifyCaseTypes ts)
+strictInferType env ctx e = inferType env ctx e
+
+-- | Check an expression's type in the given FnEnv and Context.
+checkType :: FnEnv -> Context -> Expr -> Type -> Either TypeError ()
+checkType env ctx e f1 = do
+  f2 <- strictInferType env ctx e
+  let (f1', reserved1) = instantiate f1 Set.empty
+  let (f2', reserved2) = instantiate f2 reserved1
+  let (f1'', f2'', reserved3) = addMissingStacks (f1', f2', reserved2)
+  void (mapLeft MatchError (match f2'' f1'' reserved3))
 
 ------------------------
 -- Type Normalization --
@@ -642,7 +730,7 @@ normalizeTypeVars t =
 normalizeType :: Type -> Type
 normalizeType = normalizeTypeVars . removeTrivialStacks
 
-inferNormType :: FnEnv -> Context -> Expr -> Result Type
+inferNormType :: FnEnv -> Context -> Expr -> Either TypeError Type
 inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
@@ -718,10 +806,8 @@ intrinsicFnIds =
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnCallsUndefined FnId FnIds
-  | FnTypeError FnId UnificationError
+  | FnTypeError FnId TypeError
   | FnStackError FnId StackIds
-  | FnTypeUnstable FnId
   deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
@@ -735,53 +821,6 @@ tempStackIds (TFn _ mio) =
       sids' = foldr folder Set.empty (Map.elems mio)
    in sids `Set.union` sids'
 tempStackIds (TCons _) = Set.empty
-
-undefinedFnIds :: FnEnv -> Expr -> FnIds
-undefinedFnIds env (EIntrinsic _) = Set.empty
-undefinedFnIds env (EQuote e) = undefinedFnIds env e
-undefinedFnIds env (ECompose es) =
-  foldr (Set.union . undefinedFnIds env) Set.empty es
-undefinedFnIds env (EContext s e) = undefinedFnIds env e
-undefinedFnIds env (ELit _) = Set.empty
-undefinedFnIds env (EMatch cs) =
-  foldr (Set.union . undefinedFnIds env . snd) Set.empty cs
-undefinedFnIds env (ECall fid) =
-  if Map.member fid env then Set.empty else Set.singleton fid
-
-fnDefType :: FnEnv -> FnDef -> Either FnDefError Type
-fnDefType env (FnDef fid e) =
-  case inferNormType env ["$"] e of
-    Left err -> throwError $ FnTypeError fid err
-    Right t
-      | not (null (tempStackIds t)) ->
-        throwError $ FnStackError fid (tempStackIds t)
-    Right t -> return t
-
-recFnDefType :: FnEnv -> FnDef -> Either FnDefError Type
-recFnDefType env (FnDef fid e) =
-  case fnDefType env (FnDef fid e) of
-    Left err -> Left err
-    Right t -> case fnDefType (Map.insert fid (e, t) env) (FnDef fid e) of
-      Left err -> Left err
-      Right t' | t /= t' -> throwError (FnTypeUnstable fid)
-      Right t' -> return t'
-
-defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
-defineFn env (FnDef fid e)
-  | fid `Set.member` intrinsicFnIds = throwError $ FnAlreadyDefined fid
-  | fid `Map.member` env = throwError $ FnAlreadyDefined fid
-  | otherwise = case undefinedFnIds env e of
-    fids
-      | not (null (Set.filter (/= fid) fids)) ->
-        throwError $ FnCallsUndefined fid (Set.filter (/= fid) fids)
-    fids | not (null fids) ->
-      case recFnDefType env (FnDef fid e) of
-        Left err -> Left err
-        Right t -> return (Map.insert fid (e, t) env)
-    _ ->
-      case fnDefType env (FnDef fid e) of
-        Left err -> Left err
-        Right t -> return (Map.insert fid (e, t) env)
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
@@ -809,20 +848,13 @@ dependencySortFns defs =
 
 defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
 defineFns env defs =
-  let -- check for and remove FnAlreadyDefined
-      existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
-      (errs1, defs1) = removeAlreadyDefined existingFnIds defs
-      -- check for and remove FnCallsUndefined
-      newFnIds = Set.fromList (map fnDefFnId defs)
-      allFnIds = existingFnIds `Set.union` newFnIds
-      (errs2, defs2) = removeFnCallsUndefined allFnIds defs1
-      -- topologically sort the FnDef's
-      defs3 = dependencySortFns defs2
-      -- call `fnDefType env` on each FnDef to produce env2
-      (errs3, env2) = foldr folder1 ([], env) defs3
-      -- call `fnDefType env2` on each FnDef to check for unstable types
-      (errs4, env3) = foldr folder2 (errs2, env2) defs3
-   in (errs1 ++ errs2 ++ errs3 ++ errs4, env3)
+  let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
+      (errs1, defs') = removeAlreadyDefined existingFnIds defs
+      newFnIds = Set.fromList (map fnDefFnId defs')
+      sortedDefs = dependencySortFns defs'
+      (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
+      (errs3, env3) = foldr (checkTypes newFnIds) ([], env2) sortedDefs'
+   in (errs1 ++ errs2 ++ errs3, env3)
   where
     removeAlreadyDefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
     removeAlreadyDefined fids [] = ([], [])
@@ -832,21 +864,20 @@ defineFns env defs =
             then (FnAlreadyDefined fid : errs, defs')
             else (errs, FnDef fid e : defs)
 
-    removeFnCallsUndefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
-    removeFnCallsUndefined fids [] = ([], [])
-    removeFnCallsUndefined fids (FnDef fid e : defs) =
-      let (errs, defs') = removeFnCallsUndefined fids defs
-          undefinedFnCalls = Set.filter (`Set.notMember` fids) (fnIds e)
-       in if null undefinedFnCalls
-            then (errs, FnDef fid e : defs)
-            else (FnCallsUndefined fid undefinedFnCalls : errs, defs')
+    inferTypes newFnIds def@(FnDef fid e) (errs, env, defs) =
+      case inferNormType env ["$"] e of
+        Left err -> (FnTypeError fid err : errs, env, defs)
+        Right t
+          | not (null (tempStackIds t)) ->
+            (FnStackError fid (tempStackIds t) : errs, env, defs)
+        Right t -> (errs, Map.insert fid (e, t) env, def : defs)
 
-    folder1 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
-      Left err -> (err : errs, env)
-      Right t -> (errs, Map.insert fid (e, t) env)
+    checkTypes newFnIds (FnDef fid e) (errs, env) =
+      case checkType env ["$"] e (snd (env Map.! fid)) of
+        Left err -> (FnTypeError fid err : errs, Map.delete fid env)
+        Right () -> (errs, env)
 
-    folder2 (FnDef fid e) (errs, env) = case fnDefType env (FnDef fid e) of
-      Left err -> (err : errs, Map.delete fid env)
-      Right t -> case Map.lookup fid env of
-        Just (_, t') | t == t' -> (errs, Map.insert fid (e, t) env)
-        _ -> (FnTypeUnstable fid : errs, Map.delete fid env)
+defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
+defineFn env def = case defineFns env [def] of
+  ([], env') -> return env'
+  ([err], _) -> throwError err
