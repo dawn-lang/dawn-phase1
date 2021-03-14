@@ -233,9 +233,9 @@ spec = do
         `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
 
   describe "parseFnDef `and`" $ do
-    it "parses `{fn drop2 = drop drop}`" $ do
+    it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
-      parseFnDef "{fn drop2 = drop drop}"
+      parseFnDef "{fn drop2 => drop drop}"
         `shouldBe` Right (FnDef "drop2" e)
 
     it "parses fib" $ do
@@ -247,7 +247,7 @@ spec = do
                 "  {case => clone 1 sub fib swap 2 sub fib add}",
                 "}"
               ]
-      let fibSrc = "{fn fib = " ++ fibExprSrc ++ "}"
+      let fibSrc = "{fn fib => " ++ fibExprSrc ++ "}"
       let (Right e) = parseExpr fibExprSrc
       parseFnDef fibSrc
         `shouldBe` Right (FnDef "fib" e)
