@@ -888,8 +888,9 @@ defineFns env defs =
       newFnIds = Set.fromList (map fnDefFnId defs')
       sortedDefs = fnDepsSort defs'
       (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
-      (errs3, env3) = foldr (checkTypes newFnIds) ([], env2) sortedDefs'
-   in (errs1 ++ errs2 ++ errs3, env3)
+      (errs3, env3, sortedDefs'') = foldr (inferTypes newFnIds) ([], env2, []) sortedDefs'
+      (errs4, env4) = foldr (checkTypes newFnIds) ([], env3) sortedDefs''
+   in (errs1 ++ errs2 ++ errs3 ++ errs4, env4)
   where
     removeAlreadyDefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
     removeAlreadyDefined fids [] = ([], [])
