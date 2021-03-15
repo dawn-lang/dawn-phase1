@@ -319,6 +319,28 @@ spec = do
       evalFib 8 `shouldBe` 21 `inSteps` 619
       evalFib 9 `shouldBe` 34 `inSteps` 1010
 
+    it "evals tail recursive fib" $ do
+      let ([], env) = defineFns Map.empty [fastFib, _fastFib]
+          evalFastFib n =
+            let (Right e) = parseExpr (show n ++ " fib")
+                ms = MultiStack Map.empty
+                e' = ECompose []
+             in evalWithFuel env ["$"] (-1, e, ms)
+          n `inSteps` steps =
+            let (Right vs) = parseVals (show n)
+             in (-1 - steps, ECompose [], MultiStack (Map.singleton "$" vs))
+
+      evalFastFib 0 `shouldBe` 0 `inSteps` 14
+      evalFastFib 1 `shouldBe` 1 `inSteps` 28
+      evalFastFib 2 `shouldBe` 1 `inSteps` 42
+      evalFastFib 3 `shouldBe` 2 `inSteps` 56
+      evalFastFib 4 `shouldBe` 3 `inSteps` 70
+      evalFastFib 5 `shouldBe` 5 `inSteps` 84
+      evalFastFib 6 `shouldBe` 8 `inSteps` 98
+      evalFastFib 7 `shouldBe` 13 `inSteps` 112
+      evalFastFib 8 `shouldBe` 21 `inSteps` 126
+      evalFastFib 9 `shouldBe` 34 `inSteps` 140
+
 swapSrc = "{fn swap => $a<- $b<- $a-> $b->}"
 
 (Right swap) = parseFnDef swapSrc
@@ -333,3 +355,20 @@ fibSrc =
     ]
 
 (Right fib) = parseFnDef fibSrc
+
+fastFibSrc = "{fn fib => 0 1 _fib}"
+
+_fastFibSrc =
+  unlines
+    [ "{fn _fib => ",
+      "  {spread $a $b}",
+      "  {match",
+      "    {case 0 => {$b drop} $a->}",
+      "    {case => decr $b-> clone $a-> add _fib}",
+      "  }",
+      "}"
+    ]
+
+(Right fastFib) = parseFnDef fastFibSrc
+
+(Right _fastFib) = parseFnDef _fastFibSrc
