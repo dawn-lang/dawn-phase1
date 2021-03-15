@@ -6,6 +6,7 @@
 module Language.Dawn.Phase1.Eval
   ( eval,
     eval',
+    evalWithFuel,
     fromVal,
     MultiStack (..),
     toVal,
@@ -113,19 +114,9 @@ eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
     iter :: Context -> [(Pattern, Expr)] -> MultiStack -> MultiStack
     iter _ [] _ = error "Non-exhaustive patterns"
-    iter ctx ((p, e) : cs) ms = case popMatches ctx p ms of
+    iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
       Just ms' -> eval env ctx e ms'
-
-    popMatches :: Context -> Pattern -> MultiStack -> Maybe MultiStack
-    popMatches ctx PEmpty ms = Just ms
-    popMatches (s : _) (PProd l r) ms = case popMatches ctx r ms of
-      Nothing -> Nothing
-      Just ms' -> popMatches ctx l ms'
-    popMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] s m of
-      (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
-      (VLit l' : vs) -> Nothing
-      _ -> error "EMatch arity/type mismatch"
 eval env ctx (ECall fid) ms = case Map.lookup fid env of
   Nothing -> error ("undefined function: " ++ fid)
   Just (e, t) -> eval env ctx e ms
@@ -169,3 +160,38 @@ decr a = a - 1
 shl a b = a `shiftL` fromInteger (toInteger b)
 
 shr a b = a `shiftR` fromInteger (toInteger b)
+
+popPatternMatches :: Context -> Pattern -> MultiStack -> Maybe MultiStack
+popPatternMatches ctx PEmpty ms = Just ms
+popPatternMatches ctx@(s : _) (PProd l r) ms = case popPatternMatches ctx r ms of
+  Nothing -> Nothing
+  Just ms' -> popPatternMatches ctx l ms'
+popPatternMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] s m of
+  (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
+  (VLit l' : vs) -> Nothing
+  _ -> error "EMatch arity/type mismatch"
+
+evalWithFuel :: FnEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
+evalWithFuel env ctx (0, e, ms) = (0, e, ms)
+evalWithFuel env ctx@(s : _) (fuel, EIntrinsic IApply, MultiStack m) =
+  let (VQuote e : vs) = Map.findWithDefault [] s m
+      m' = insertListOrDelete s vs m
+  in evalWithFuel env ctx (fuel - 1, e, MultiStack m')
+evalWithFuel env ctx (fuel, ECompose [], ms) = (fuel, ECompose [], ms)
+evalWithFuel env ctx (fuel, ECompose (e : es), ms) =
+  case evalWithFuel env ctx (fuel, e, ms) of
+    (fuel', ECompose [], ms') -> evalWithFuel env ctx (fuel', ECompose es, ms')
+    (fuel', e', ms') -> evalWithFuel env ctx (fuel', ECompose (e' : es), ms')
+evalWithFuel env ctx (fuel, EContext s e, ms) =
+  case evalWithFuel env (s : ctx) (fuel, e, ms) of
+    (fuel', ECompose [], ms') -> (fuel', ECompose [], ms')
+    (fuel', e', ms') -> evalWithFuel env ctx (fuel', EContext s e', ms')
+evalWithFuel env ctx (fuel, EMatch [], ms) = error "Non-exhaustive patterns"
+evalWithFuel env ctx (fuel, EMatch ((p, e) : cs), ms) =
+  case popPatternMatches ctx p ms of
+    Nothing -> evalWithFuel env ctx (fuel - 1, EMatch cs, ms)
+    Just ms' -> evalWithFuel env ctx (fuel - 1, e, ms')
+evalWithFuel env ctx (fuel, ECall fid, ms) = case Map.lookup fid env of
+  Nothing -> error ("undefined function: " ++ fid)
+  Just (e, t) -> evalWithFuel env ctx (fuel - 1, e, ms)
+evalWithFuel env ctx (fuel, e, ms) = (fuel - 1, ECompose [], eval env ctx e ms)
