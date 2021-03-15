@@ -15,13 +15,12 @@ module Language.Dawn.Phase1.Core
     Context,
     defineFn,
     defineFns,
-    dependencySortFns,
+    directFnDeps,
     Expr (..),
     FnDef (..),
     FnDefError (..),
     fnDefExpr,
     fnDefFnId,
-    directFnDeps,
     fnDepsSort,
     FnEnv,
     FnId,
@@ -824,27 +823,6 @@ fnDefFnId (FnDef fid _) = fid
 fnDefExpr :: FnDef -> Expr
 fnDefExpr (FnDef _ e) = e
 
-fnIds :: Expr -> FnIds
-fnIds (EIntrinsic _) = Set.empty
-fnIds (EQuote e) = fnIds e
-fnIds (ECompose es) =
-  foldr (Set.union . fnIds) Set.empty es
-fnIds (EContext s e) = fnIds e
-fnIds (ELit _) = Set.empty
-fnIds (EMatch cs) =
-  foldr (Set.union . fnIds . snd) Set.empty cs
-fnIds (ECall fid) = Set.singleton fid
-
--- | Sort FnDef's such that f precedes g if f calls g (directly or
--- | transitively) and g does not call f.
-dependencySortFns :: [FnDef] -> [FnDef]
-dependencySortFns defs =
-  let fnDefToTuple def@(FnDef fid e) = (def, fid, Set.toList (fnIds e))
-      (graph, vertToTuple, fidToVert) = graphFromEdges (map fnDefToTuple defs)
-      tupleToFnDef (def, _, _) = def
-      vertToFnDef v = tupleToFnDef (vertToTuple v)
-   in map vertToFnDef (topSort graph)
-
 -- | Returns the conditional and unconditional direct function dependencies,
 -- | (cdds, udds), for the given expression. Conditional dependencies differ from
 -- | unconditional dependencies in that there is at least one match case that
@@ -875,8 +853,14 @@ directFnDeps (ECall fid) = (Set.empty, Set.singleton fid)
 -- | unconditionally depend on f.
 fnDepsSort :: [FnDef] -> [FnDef]
 fnDepsSort defs =
-  let (uncondDepsGraph, _, uncondDepsFidToVert) = graphFromEdges (map (fnDefToEdgeList (snd . directFnDeps)) defs)
-      (depsGraph, _, depsFidToVert) = graphFromEdges (map (fnDefToEdgeList (Set.unions . directFnDeps)) defs)
+  let (uncondDepsGraph, _, uncondDepsFidToVert) =
+        graphFromEdges (map (fnDefToEdgeList (snd . directFnDeps)) defs)
+      (depsGraph, depsVertToTuple, depsFidToVert) =
+        graphFromEdges (map (fnDefToEdgeList (Set.unions . directFnDeps)) defs)
+      dependencySortFns defs =
+        let tupleToFnDef (def, _, _) = def
+            vertToFnDef v = tupleToFnDef (depsVertToTuple v)
+         in map vertToFnDef (topSort depsGraph)
       fnDepsOrdering f g =
         let (fid, gid) = (fnDefFnId f, fnDefFnId g)
             (Just fuv, Just guv) = (uncondDepsFidToVert fid, uncondDepsFidToVert gid)
@@ -902,14 +886,9 @@ fnDepsSort defs =
               (True, True, False, True) -> error "impossible"
               (True, True, True, False) -> error "impossible"
               (True, True, True, True) -> EQ
-              -- (True, False, _, _) -> LT
-              -- (_, _, True, False) -> LT
-              -- (True, True, _, _) -> EQ
-              -- (False, False, True, True) -> EQ
-              -- _ -> GT
    in sortBy fnDepsOrdering (dependencySortFns defs)
   where
-    fnDefToEdgeList exprToDeps (FnDef fid e) = ((), fid, Set.toList (exprToDeps e))
+    fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
 defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
 defineFns env defs =

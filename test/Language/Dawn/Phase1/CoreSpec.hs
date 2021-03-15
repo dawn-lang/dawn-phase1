@@ -430,13 +430,6 @@ spec = do
       let fnDefs = [f, h, g]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
-  describe "dependencySortFns examples" $ do
-    it "sorts drop2 drop3" $ do
-      let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
-      let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
-      dependencySortFns [drop2, drop3]
-        `shouldBe` [drop3, drop2]
-
   describe "defineFns examples" $ do
     it "defines drop2 and drop3" $ do
       let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
