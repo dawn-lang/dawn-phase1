@@ -21,6 +21,7 @@ module Language.Dawn.Phase1.Core
     FnDefError (..),
     fnDefExpr,
     fnDefFnId,
+    fnDeps,
     fnDepsSort,
     FnEnv,
     FnId,
@@ -55,6 +56,7 @@ module Language.Dawn.Phase1.Core
     TypeError (..),
     TypeVar (..),
     TypeVars,
+    uncondFnDeps,
     UnificationError (..),
     UnivQuants,
     VarId,
@@ -822,6 +824,26 @@ fnDefFnId (FnDef fid _) = fid
 
 fnDefExpr :: FnDef -> Expr
 fnDefExpr (FnDef _ e) = e
+
+fnDepsF :: (FnIds -> FnIds -> FnIds) -> Expr -> FnIds
+fnDepsF mergeCases = helper
+  where
+    helper (EIntrinsic _) = Set.empty
+    helper (EQuote e) = helper e
+    helper (ECompose es) =
+      foldr (Set.union . helper) Set.empty es
+    helper (EContext s e) = helper e
+    helper (ELit _) = Set.empty
+    helper (EMatch cs) =
+      let caseDeps = map (uncondFnDeps . snd) cs
+       in foldr1 mergeCases caseDeps
+    helper (ECall fid) = Set.singleton fid
+
+fnDeps :: Expr -> FnIds
+fnDeps = fnDepsF Set.union
+
+uncondFnDeps :: Expr -> FnIds
+uncondFnDeps = fnDepsF Set.intersection
 
 -- | Returns the conditional and unconditional direct function dependencies,
 -- | (cdds, udds), for the given expression. Conditional dependencies differ from

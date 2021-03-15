@@ -365,6 +365,16 @@ spec = do
       let t = forall' [v0, v1] (v0 * v1 * v1 --> v0 * v1)
       checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool v1))
 
+  describe "fnDeps" $ do
+    it "returns all dependencies" $ do
+      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
+      fnDeps e `shouldBe` (Set.fromList ["f1", "f2", "f3", "f4"])
+
+  describe "uncondFnDeps" $ do
+    it "returns unconditional dependencies" $ do
+      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
+      uncondFnDeps e `shouldBe` (Set.fromList ["f1", "f2"])
+
   describe "directFnDeps" $ do
     it "separates conditional and unconditional dependencies" $ do
       let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
