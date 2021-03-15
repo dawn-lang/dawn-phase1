@@ -871,18 +871,12 @@ fnDepsSort defs =
               (False, False, False, True) -> GT
               (False, False, True, False) -> LT
               (False, False, True, True) -> EQ
-              (False, True, False, False) -> error "impossible"
               (False, True, False, True) -> GT
-              (False, True, True, False) -> error "impossible"
               (False, True, True, True) -> GT
-              (True, False, False, False) -> error "impossible"
-              (True, False, False, True) -> error "impossible"
               (True, False, True, False) -> LT
               (True, False, True, True) -> LT
-              (True, True, False, False) -> error "impossible"
-              (True, True, False, True) -> error "impossible"
-              (True, True, True, False) -> error "impossible"
               (True, True, True, True) -> EQ
+              _ -> error "unreachable"
    in sortBy fnDepsOrdering (dependencySortFns defs)
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
