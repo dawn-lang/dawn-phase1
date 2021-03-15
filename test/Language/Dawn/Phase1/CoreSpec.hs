@@ -8,6 +8,7 @@ module Language.Dawn.Phase1.CoreSpec (spec) where
 import Control.Exception
 import Control.Monad
 import Data.Either
+import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
@@ -364,12 +365,90 @@ spec = do
       let t = forall' [v0, v1] (v0 * v1 * v1 --> v0 * v1)
       checkType' e t `shouldBe` Left (MatchError (DoesNotMatch tBool v1))
 
-  describe "dependencySortFns examples" $ do
-    it "sorts drop2 drop3" $ do
-      let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
-      let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
-      dependencySortFns [drop2, drop3]
-        `shouldBe` [drop3, drop2]
+  describe "fnDeps" $ do
+    it "returns all dependencies" $ do
+      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
+      fnDeps e `shouldBe` Set.fromList ["f1", "f2", "f3", "f4"]
+
+  describe "uncondFnDeps" $ do
+    it "returns unconditional dependencies" $ do
+      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
+      uncondFnDeps e `shouldBe` Set.fromList ["f1", "f2"]
+
+  describe "fnDepsSort" $ do
+    -- f ~> g := f directly depends on g
+    -- f ~!> g := f directly and unconditionally depends on g
+    -- f ~?> g := f directly and conditionally depends on g
+    -- f ~~> g := f transitively depends on g
+
+    it "f < g if f ~!> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => g}"
+      let (Right g) = parseFnDef "{fn g => }"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      fnDepsSort [f, g] `shouldBe` [f, g]
+      fnDepsSort [g, f] `shouldBe` [f, g]
+
+    it "f < g if f ~?> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => {match {case False => g} {case True => }}}"
+      let (Right g) = parseFnDef "{fn g => }"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      fnDepsSort [f, g] `shouldBe` [f, g]
+      fnDepsSort [g, f] `shouldBe` [f, g]
+
+    it "f < g if f ~!> g and g ~?> f" $ do
+      let (Right f) = parseFnDef "{fn f => g}"
+      let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      fnDepsSort [f, g] `shouldBe` [f, g]
+      fnDepsSort [g, f] `shouldBe` [f, g]
+
+    it "f < g if f ~~!> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => h}"
+      let (Right h) = parseFnDef "{fn h => g}"
+      let (Right g) = parseFnDef "{fn g => }"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
+
+    it "f < g if f ~~?> g and not g ~~> f" $ do
+      let (Right f) = parseFnDef "{fn f => {match {case False => h} {case True => }}}"
+      let (Right h) = parseFnDef "{fn h => {match {case False => g} {case True => }}}"
+      let (Right g) = parseFnDef "{fn g => }"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
+
+    it "f < g if f ~~!> g and g ~?> f" $ do
+      let (Right f) = parseFnDef "{fn f => h}"
+      let (Right h) = parseFnDef "{fn h => g}"
+      let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      let fnDefs = [f, h, g]
+      mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
   describe "defineFns examples" $ do
     it "defines drop2 and drop3" $ do
@@ -534,11 +613,7 @@ spec = do
       let env = Map.empty
       defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
 
-    -- NOTE: the following two tests restrict the implementation of dependencySortFns
-    -- so that this test fails and the next succeeds.
-    -- TODO: once we add function type declarations, decide how to alter the
-    -- specification and implementation so that both of these tests fail.
-    it "fails on mutual recursion in all but some match cases in one function (1)" $ do
+    it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
       let is_even_es =
             "{match"
               ++ "  {case 0 => True}"
@@ -554,12 +629,13 @@ spec = do
       let (Right is_odd_e) = parseExpr is_odd_es
       let is_odd_t = forall' [v0] (v0 * tU32 --> v0 * tBool)
 
-      let errs =
-            [ FnTypeError "is_odd" (UndefinedFn "is_even"),
-              FnTypeError "is_even" (UndefinedFn "is_odd")
-            ]
-      let env = Map.empty
-      defineFns Map.empty [is_even, is_odd] `shouldBe` (errs, env)
+      let errs = []
+      let env =
+            Map.fromList
+              [ ("is_odd", (is_odd_e, is_odd_t)),
+                ("is_even", (is_even_e, is_even_t))
+              ]
+      defineFns Map.empty [is_odd, is_even] `shouldBe` (errs, env)
 
     it "succeeds on mutual recursion in all but some match cases in one function (2)" $ do
       let is_odd_es =

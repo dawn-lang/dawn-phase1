@@ -15,10 +15,13 @@ module Language.Dawn.Phase1.Core
     Context,
     defineFn,
     defineFns,
-    dependencySortFns,
     Expr (..),
     FnDef (..),
     FnDefError (..),
+    fnDefExpr,
+    fnDefFnId,
+    fnDeps,
+    fnDepsSort,
     FnEnv,
     FnId,
     FnIds,
@@ -52,6 +55,7 @@ module Language.Dawn.Phase1.Core
     TypeError (..),
     TypeVar (..),
     TypeVars,
+    uncondFnDeps,
     UnificationError (..),
     UnivQuants,
     VarId,
@@ -817,33 +821,72 @@ tempStackIds (TCons _) = Set.empty
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
 
-fnIds :: Expr -> FnIds
-fnIds (EIntrinsic _) = Set.empty
-fnIds (EQuote e) = fnIds e
-fnIds (ECompose es) =
-  foldr (Set.union . fnIds) Set.empty es
-fnIds (EContext s e) = fnIds e
-fnIds (ELit _) = Set.empty
-fnIds (EMatch cs) =
-  foldr (Set.union . fnIds . snd) Set.empty cs
-fnIds (ECall fid) = Set.singleton fid
+fnDefExpr :: FnDef -> Expr
+fnDefExpr (FnDef _ e) = e
 
--- | Sort FnDef's such that f precedes g if f calls g (directly or
--- | transitively) and g does not call f.
-dependencySortFns :: [FnDef] -> [FnDef]
-dependencySortFns defs =
-  let fnDefToTuple def@(FnDef fid e) = (def, fid, Set.toList (fnIds e))
-      (graph, vertToTuple, fidToVert) = graphFromEdges (map fnDefToTuple defs)
-      tupleToFnDef (def, _, _) = def
-      vertToFnDef v = tupleToFnDef (vertToTuple v)
-   in map vertToFnDef (topSort graph)
+fnDepsF :: (FnIds -> FnIds -> FnIds) -> Expr -> FnIds
+fnDepsF mergeCases = helper
+  where
+    helper (EIntrinsic _) = Set.empty
+    helper (EQuote e) = helper e
+    helper (ECompose es) =
+      foldr (Set.union . helper) Set.empty es
+    helper (EContext s e) = helper e
+    helper (ELit _) = Set.empty
+    helper (EMatch cs) =
+      let caseDeps = map (uncondFnDeps . snd) cs
+       in foldr1 mergeCases caseDeps
+    helper (ECall fid) = Set.singleton fid
+
+fnDeps :: Expr -> FnIds
+fnDeps = fnDepsF Set.union
+
+uncondFnDeps :: Expr -> FnIds
+uncondFnDeps = fnDepsF Set.intersection
+
+-- | Sort FnDef's such that f precedes g if f depends on g
+-- | (directly or transitively) and g does not depend on f,
+-- | or if f unconditionally depends on g and g does not
+-- | unconditionally depend on f.
+fnDepsSort :: [FnDef] -> [FnDef]
+fnDepsSort defs =
+  let (uncondDepsGraph, _, uncondDepsFidToVert) =
+        graphFromEdges (map (fnDefToEdgeList uncondFnDeps) defs)
+      (depsGraph, depsVertToTuple, depsFidToVert) =
+        graphFromEdges (map (fnDefToEdgeList fnDeps) defs)
+      dependencySortFns defs =
+        let tupleToFnDef (def, _, _) = def
+            vertToFnDef v = tupleToFnDef (depsVertToTuple v)
+         in map vertToFnDef (topSort depsGraph)
+      fnDepsOrdering f g =
+        let (fid, gid) = (fnDefFnId f, fnDefFnId g)
+            (Just fuv, Just guv) = (uncondDepsFidToVert fid, uncondDepsFidToVert gid)
+            (Just fav, Just gav) = (depsFidToVert fid, depsFidToVert gid)
+            fUncondDepsG = path uncondDepsGraph fuv guv
+            gUncondDepsF = path uncondDepsGraph guv fuv
+            fDepsG = path depsGraph fav gav
+            gDepsF = path depsGraph gav fav
+         in case (fUncondDepsG, gUncondDepsF, fDepsG, gDepsF) of
+              (False, False, False, False) -> EQ
+              (False, False, False, True) -> GT
+              (False, False, True, False) -> LT
+              (False, False, True, True) -> EQ
+              (False, True, False, True) -> GT
+              (False, True, True, True) -> GT
+              (True, False, True, False) -> LT
+              (True, False, True, True) -> LT
+              (True, True, True, True) -> EQ
+              _ -> error "unreachable"
+   in sortBy fnDepsOrdering (dependencySortFns defs)
+  where
+    fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
 defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
 defineFns env defs =
   let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
       newFnIds = Set.fromList (map fnDefFnId defs')
-      sortedDefs = dependencySortFns defs'
+      sortedDefs = fnDepsSort defs'
       (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
       (errs3, env3) = foldr (checkTypes newFnIds) ([], env2) sortedDefs'
    in (errs1 ++ errs2 ++ errs3, env3)
