@@ -51,9 +51,9 @@ unusedQuantifiers (TProd l r) =
   unusedQuantifiers l `Set.union` unusedQuantifiers r
 unusedQuantifiers (TFn qs mio) =
   let unused = qs `Set.difference` ftv mio
-      folder s (i, o) =
+      folder (i, o) s =
         s `Set.union` unusedQuantifiers i `Set.union` unusedQuantifiers o
-   in unused `Set.union` foldl folder Set.empty mio
+   in unused `Set.union` foldr folder Set.empty mio
 unusedQuantifiers (TCons _) = Set.empty
 
 ----------------------
