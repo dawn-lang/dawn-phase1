@@ -55,12 +55,6 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval' e `shouldBe` ms
 
-    it "evals `0 [clone] apply`" $ do
-      let (Right e) = parseExpr "0 [clone] apply"
-      let (Right vs) = parseVals "0 0"
-      let ms = MultiStack (Map.singleton "$" vs)
-      eval' e `shouldBe` ms
-
     it "evals `[drop] (clone compose)`" $ do
       let (Right e) = parseExpr "[drop] (clone compose)"
       let (Right vs) = parseVals "[drop drop]"
@@ -233,6 +227,97 @@ spec = do
       let (Right vs) = parseVals "8"
       let ms = MultiStack (Map.singleton "$" vs)
       eval env' ["$"] e (MultiStack Map.empty) `shouldBe` ms
+
+  describe "evalWithFuel" $ do
+    it "stops at 0 fuel" $ do
+      let (Right e) = parseExpr "0"
+      let ms = MultiStack Map.empty
+      evalWithFuel Map.empty ["$"] (0, e, ms) `shouldBe` (0, e, ms)
+
+    it "allows negative fuel" $ do
+      let (Right e) = parseExpr "0"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (-1, e, ms) `shouldBe` (-2, e', ms')
+
+    it "evals `0 [clone] apply`" $ do
+      let (Right e) = parseExpr "0 [clone] apply"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "0 0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (4, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `0 1 $a<- $b<- $a-> $b->`" $ do
+      let (Right e) = parseExpr "0 1 $a<- $b<- $a-> $b->"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "1 0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (6, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `{match {case =>}}`" $ do
+      let (Right e) = parseExpr "{match {case =>}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let ms' = MultiStack Map.empty
+      evalWithFuel Map.empty ["$"] (1, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `0 {match {case 0 => 1} {case => drop 0}}`" $ do
+      let (Right e) = parseExpr "0 {match {case 0 => 1} {case => drop 0}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (3, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `1 {match {case 0 => 1} {case => drop 0}}`" $ do
+      let (Right e) = parseExpr "1 {match {case 0 => 1} {case => drop 0}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (5, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `0 0 {match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      let (Right e) = parseExpr "0 0 {match {case 0 0 => 1} {case => drop drop 0}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (4, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `0 1 {match {case 0 0 => 1} {case => drop drop 0}}`" $ do
+      let (Right e) = parseExpr "0 1 {match {case 0 0 => 1} {case => drop drop 0}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel Map.empty ["$"] (7, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `fib`" $ do
+      let ([], env) = defineFns Map.empty [swap, fib]
+          evalFib n =
+            let (Right e) = parseExpr (show n ++ " fib")
+                ms = MultiStack Map.empty
+                e' = ECompose []
+             in evalWithFuel env ["$"] (-1, e, ms)
+          n `inSteps` steps =
+            let (Right vs) = parseVals (show n)
+             in (-1 - steps, ECompose [], MultiStack (Map.singleton "$" vs))
+
+      evalFib 0 `shouldBe` 0 `inSteps` 4
+      evalFib 1 `shouldBe` 1 `inSteps` 5
+      evalFib 2 `shouldBe` 1 `inSteps` 23
+      evalFib 3 `shouldBe` 2 `inSteps` 42
+      evalFib 4 `shouldBe` 3 `inSteps` 79
+      evalFib 5 `shouldBe` 5 `inSteps` 135
+      evalFib 6 `shouldBe` 8 `inSteps` 228
+      evalFib 7 `shouldBe` 13 `inSteps` 377
+      evalFib 8 `shouldBe` 21 `inSteps` 619
+      evalFib 9 `shouldBe` 34 `inSteps` 1010
 
 swapSrc = "{fn swap => $a<- $b<- $a-> $b->}"
 
