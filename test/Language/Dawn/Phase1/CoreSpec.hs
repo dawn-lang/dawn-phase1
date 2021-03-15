@@ -368,17 +368,12 @@ spec = do
   describe "fnDeps" $ do
     it "returns all dependencies" $ do
       let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
-      fnDeps e `shouldBe` (Set.fromList ["f1", "f2", "f3", "f4"])
+      fnDeps e `shouldBe` Set.fromList ["f1", "f2", "f3", "f4"]
 
   describe "uncondFnDeps" $ do
     it "returns unconditional dependencies" $ do
       let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
-      uncondFnDeps e `shouldBe` (Set.fromList ["f1", "f2"])
-
-  describe "directFnDeps" $ do
-    it "separates conditional and unconditional dependencies" $ do
-      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
-      directFnDeps e `shouldBe` (Set.fromList ["f3", "f4"], Set.fromList ["f1", "f2"])
+      uncondFnDeps e `shouldBe` Set.fromList ["f1", "f2"]
 
   describe "fnDepsSort" $ do
     -- f ~> g := f directly depends on g
@@ -389,24 +384,30 @@ spec = do
     it "f < g if f ~!> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => g}"
       let (Right g) = parseFnDef "{fn g => }"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["g"])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       fnDepsSort [f, g] `shouldBe` [f, g]
       fnDepsSort [g, f] `shouldBe` [f, g]
 
     it "f < g if f ~?> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => {match {case False => g} {case True => }}}"
       let (Right g) = parseFnDef "{fn g => }"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList ["g"], Set.fromList [])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       fnDepsSort [f, g] `shouldBe` [f, g]
       fnDepsSort [g, f] `shouldBe` [f, g]
 
     it "f < g if f ~!> g and g ~?> f" $ do
       let (Right f) = parseFnDef "{fn f => g}"
       let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["g"])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList ["f"], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       fnDepsSort [f, g] `shouldBe` [f, g]
       fnDepsSort [g, f] `shouldBe` [f, g]
 
@@ -414,9 +415,12 @@ spec = do
       let (Right f) = parseFnDef "{fn f => h}"
       let (Right h) = parseFnDef "{fn h => g}"
       let (Right g) = parseFnDef "{fn g => }"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["h"])
-      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList [], Set.fromList ["g"])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       let fnDefs = [f, h, g]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
@@ -424,9 +428,12 @@ spec = do
       let (Right f) = parseFnDef "{fn f => {match {case False => h} {case True => }}}"
       let (Right h) = parseFnDef "{fn h => {match {case False => g} {case True => }}}"
       let (Right g) = parseFnDef "{fn g => }"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList ["h"], Set.fromList [])
-      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList ["g"], Set.fromList [])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList [], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList []
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       let fnDefs = [f, h, g]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
@@ -434,9 +441,12 @@ spec = do
       let (Right f) = parseFnDef "{fn f => h}"
       let (Right h) = parseFnDef "{fn h => g}"
       let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
-      directFnDeps (fnDefExpr f) `shouldBe` (Set.fromList [], Set.fromList ["h"])
-      directFnDeps (fnDefExpr h) `shouldBe` (Set.fromList [], Set.fromList ["g"])
-      directFnDeps (fnDefExpr g) `shouldBe` (Set.fromList ["f"], Set.fromList [])
+      fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["h"]
+      fnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
+      fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
+      uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       let fnDefs = [f, h, g]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 

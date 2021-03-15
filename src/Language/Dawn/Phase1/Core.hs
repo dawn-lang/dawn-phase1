@@ -15,7 +15,6 @@ module Language.Dawn.Phase1.Core
     Context,
     defineFn,
     defineFns,
-    directFnDeps,
     Expr (..),
     FnDef (..),
     FnDefError (..),
@@ -845,30 +844,6 @@ fnDeps = fnDepsF Set.union
 uncondFnDeps :: Expr -> FnIds
 uncondFnDeps = fnDepsF Set.intersection
 
--- | Returns the conditional and unconditional direct function dependencies,
--- | (cdds, udds), for the given expression. Conditional dependencies differ from
--- | unconditional dependencies in that there is at least one match case that
--- | does not contain the dependency.
-directFnDeps :: Expr -> (FnIds, FnIds)
-directFnDeps (EIntrinsic _) = (Set.empty, Set.empty)
-directFnDeps (EQuote e) = directFnDeps e
-directFnDeps (ECompose es) = foldr folder (Set.empty, Set.empty) es
-  where
-    folder e (cd, ud) =
-      let (cd', ud') = directFnDeps e
-       in (Set.union cd cd', Set.union ud ud')
-directFnDeps (EContext s e) = directFnDeps e
-directFnDeps (ELit _) = (Set.empty, Set.empty)
-directFnDeps (EMatch cs) =
-  let caseDeps = map (directFnDeps . snd) cs
-   in foldr1 folder caseDeps
-  where
-    folder (cds, uds) (cds', uds') =
-      let uds'' = Set.intersection uds uds'
-          cds'' = Set.unions [cds, cds', uds Set.\\ uds'', uds' Set.\\ uds'']
-       in (cds'', uds'')
-directFnDeps (ECall fid) = (Set.empty, Set.singleton fid)
-
 -- | Sort FnDef's such that f precedes g if f depends on g
 -- | (directly or transitively) and g does not depend on f,
 -- | or if f unconditionally depends on g and g does not
@@ -876,9 +851,9 @@ directFnDeps (ECall fid) = (Set.empty, Set.singleton fid)
 fnDepsSort :: [FnDef] -> [FnDef]
 fnDepsSort defs =
   let (uncondDepsGraph, _, uncondDepsFidToVert) =
-        graphFromEdges (map (fnDefToEdgeList (snd . directFnDeps)) defs)
+        graphFromEdges (map (fnDefToEdgeList uncondFnDeps) defs)
       (depsGraph, depsVertToTuple, depsFidToVert) =
-        graphFromEdges (map (fnDefToEdgeList (Set.unions . directFnDeps)) defs)
+        graphFromEdges (map (fnDefToEdgeList fnDeps) defs)
       dependencySortFns defs =
         let tupleToFnDef (def, _, _) = def
             vertToFnDef v = tupleToFnDef (depsVertToTuple v)
