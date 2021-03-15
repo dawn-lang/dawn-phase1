@@ -660,3 +660,37 @@ spec = do
                 ("is_even", (is_even_e, is_even_t))
               ]
       defineFns Map.empty [is_odd, is_even] `shouldBe` (errs, env)
+
+    it "defines tail recursive fib" $ do
+      let errs = []
+      let env =
+            Map.fromList
+              [ ( "fib",
+                  ( fnDefExpr fastFib,
+                    forall' [v0] (v0 * tU32 --> v0 * tU32)
+                  )
+                ),
+                ( "_fib",
+                  ( fnDefExpr _fastFib,
+                    forall' [v0] (v0 * tU32 * tU32 * tU32 --> v0 * tU32)
+                  )
+                )
+              ]
+      defineFns Map.empty [fastFib, _fastFib] `shouldBe` (errs, env)
+
+fastFibSrc = "{fn fib => 0 1 _fib}"
+
+_fastFibSrc =
+  unlines
+    [ "{fn _fib => ",
+      "  {spread $a $b}",
+      "  {match",
+      "    {case 0 => {$b drop} $a->}",
+      "    {case => decr $b-> clone $a-> add _fib}",
+      "  }",
+      "}"
+    ]
+
+(Right fastFib) = parseFnDef fastFibSrc
+
+(Right _fastFib) = parseFnDef _fastFibSrc
