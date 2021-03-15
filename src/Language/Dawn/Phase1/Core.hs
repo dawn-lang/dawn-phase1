@@ -265,12 +265,12 @@ addMissingStacks (TProd l1 r1, TProd l2 r2, reserved) =
    in (TProd l1' r1', TProd l2' r2', reserved3)
 addMissingStacks (TFn qs1 mio1, TFn qs2 mio2, reserved) =
   let mio12 = Map.intersectionWith (,) mio1 mio2
-      (mio12', reserved') = Map.foldlWithKey folder (Map.empty, reserved) mio12
+      (mio12', reserved') = Map.foldrWithKey folder (Map.empty, reserved) mio12
       mio1' = Map.map fst mio12' `Map.union` mio1
       mio2' = Map.map snd mio12' `Map.union` mio2
    in doAdd (TFn qs1 mio1', TFn qs2 mio2', reserved')
   where
-    folder (m, reserved) s ((i1, o1), (i2, o2)) =
+    folder s ((i1, o1), (i2, o2)) (m, reserved) =
       let (i1', i2', reserved2) = addMissingStacks (i1, i2, reserved)
           (o1', o2', reserved3) = addMissingStacks (o1, o2, reserved2)
        in (Map.insert s ((i1', o1'), (i2', o2')) m, reserved3)
@@ -331,9 +331,9 @@ instance (Subs a, Subs b) => Subs (a, b) where
      in ((a', b'), reserved'')
 
 instance (Ord k, Subs v) => Subs (Map.Map k v) where
-  subs s m reserved = Map.foldlWithKey folder (Map.empty, reserved) m
+  subs s m reserved = Map.foldrWithKey folder (Map.empty, reserved) m
     where
-      folder (m', reserved) k v =
+      folder k v (m', reserved) =
         let (v', reserved') = subs s v reserved
          in (Map.insert k v' m', reserved')
 
@@ -553,7 +553,7 @@ requantify t = recurse t
     count (TProd l r) = Map.unionWith (+) (count l) (count r)
     count (TFn _ mio) =
       let iter (i, o) = Map.unionWith (+) (count i) (count o)
-       in foldl1 (Map.unionWith (+)) (map iter (Map.elems mio))
+       in foldr1 (Map.unionWith (+)) (map iter (Map.elems mio))
     count (TCons _) = Map.empty
     counts = count t
     recurse t@(TVar _) = t

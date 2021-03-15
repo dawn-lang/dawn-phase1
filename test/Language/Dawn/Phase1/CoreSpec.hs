@@ -187,8 +187,8 @@ spec = do
           count (TProd l r) = Map.unionWith (+) (count l) (count r)
           count (TFn qs mio) =
             let iter' (i, o) = Map.unionWith (+) (count i) (count o)
-                counts = foldl1 (Map.unionWith (+)) (map iter' (Map.elems mio))
-                counts' = foldl (\m v -> Map.insert v 1 m) Map.empty (Set.toList qs)
+                counts = foldr1 (Map.unionWith (+)) (map iter' (Map.elems mio))
+                counts' = foldr (`Map.insert` 1) Map.empty (Set.toList qs)
              in Map.unionWith (+) counts counts'
           count (TCons _) = Map.empty
       let iter e = case inferType' e of
