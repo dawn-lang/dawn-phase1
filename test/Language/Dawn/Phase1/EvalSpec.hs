@@ -330,16 +330,16 @@ spec = do
             let (Right vs) = parseVals (show n)
              in (-1 - steps, ECompose [], MultiStack (Map.singleton "$" vs))
 
-      evalFastFib 0 `shouldBe` 0 `inSteps` 14
-      evalFastFib 1 `shouldBe` 1 `inSteps` 28
-      evalFastFib 2 `shouldBe` 1 `inSteps` 42
-      evalFastFib 3 `shouldBe` 2 `inSteps` 56
-      evalFastFib 4 `shouldBe` 3 `inSteps` 70
-      evalFastFib 5 `shouldBe` 5 `inSteps` 84
-      evalFastFib 6 `shouldBe` 8 `inSteps` 98
-      evalFastFib 7 `shouldBe` 13 `inSteps` 112
-      evalFastFib 8 `shouldBe` 21 `inSteps` 126
-      evalFastFib 9 `shouldBe` 34 `inSteps` 140
+      evalFastFib 0 `shouldBe` 0 `inSteps` 8
+      evalFastFib 1 `shouldBe` 1 `inSteps` 17
+      evalFastFib 2 `shouldBe` 1 `inSteps` 26
+      evalFastFib 3 `shouldBe` 2 `inSteps` 35
+      evalFastFib 4 `shouldBe` 3 `inSteps` 44
+      evalFastFib 5 `shouldBe` 5 `inSteps` 53
+      evalFastFib 6 `shouldBe` 8 `inSteps` 62
+      evalFastFib 7 `shouldBe` 13 `inSteps` 71
+      evalFastFib 8 `shouldBe` 21 `inSteps` 80
+      evalFastFib 9 `shouldBe` 34 `inSteps` 89
 
 swapSrc = "{fn swap => $a<- $b<- $a-> $b->}"
 
@@ -356,17 +356,14 @@ fibSrc =
 
 (Right fib) = parseFnDef fibSrc
 
-fastFibSrc = "{fn fib => 0 1 _fib}"
+fastFibSrc = "{fn fib => {$a 0} {$b 1} _fib}"
 
 _fastFibSrc =
   unlines
-    [ "{fn _fib => ",
-      "  {spread $a $b}",
-      "  {match",
-      "    {case 0 => {$b drop} $a->}",
-      "    {case => decr $b-> clone $a-> add _fib}",
-      "  }",
-      "}"
+    [ "{fn _fib => {match",
+      "  {case 0 => {$b drop} $a->}",
+      "  {case => decr {$b clone pop $a-> add} $a<- _fib}",
+      "}}"
     ]
 
 (Right fastFib) = parseFnDef fastFibSrc
