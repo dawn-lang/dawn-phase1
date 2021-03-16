@@ -97,7 +97,7 @@ instance (Display a, Display b) => Display (a, b) where
   display (a, b) = "(" ++ display a ++ ", " ++ display b ++ ")"
 
 instance Display MultiStack where
-  display (MultiStack m) = intercalate "\n" (map iter (Map.toAscList m))
+  display (MultiStack m) = "{" ++ unwords (map iter (Map.toAscList m)) ++ "}"
     where
       iter (sid, vs) = sid ++ ": " ++ unwords (map display (reverse vs))
 

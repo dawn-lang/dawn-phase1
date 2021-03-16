@@ -67,6 +67,26 @@ readEvalPrint (env, ms) = do
           let (Just (_, t)) = Map.lookup fid env'
           outputStrLn $ fid ++ " :: " ++ display t
           return (env', ms)
+      Right (CmdTrace e) ->
+        let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
+         in case inferNormType env ["$"] e' of
+              Left err -> do
+                printInferTypeError e' err
+                return (env, ms)
+              Right t | exposedTempStackIds t -> do
+                printExposedTempStackIds t
+                return (env, ms)
+              Right t | expectsInputs t -> do
+                printExpectsInputs t
+                return (env, ms)
+              Right t -> do
+                result <- tryTraceEval env e ms
+                case result :: Either SomeException (Expr, MultiStack) of
+                  Left err -> do
+                    outputStrLn $ show err
+                    return (env, ms)
+                  Right (e', ms') -> do
+                    return (env, ms')
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -119,6 +139,17 @@ printExprType env e =
     Right t | exposedTempStackIds t -> printExposedTempStackIds t
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
+tryTraceEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
+tryTraceEval env e@(ECompose []) ms = do
+  outputStrLn $ display ms
+  return (Right (e, ms))
+tryTraceEval env e ms = do
+  outputStrLn $ display ms ++ " " ++ display e
+  result <- liftIO (Control.Exception.try (Control.Exception.evaluate (evalWithFuel env ["$"] (1, e, ms))))
+  case result of
+    Left err -> return (Left err)
+    Right (_, e', ms') -> tryTraceEval env e' ms'
+
 tryEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
@@ -133,6 +164,7 @@ command =
     <|> try (CmdPrint <$> (keyword ":print" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
     <|> try (CmdFnDef <$> fnDef)
+    <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> CmdEval <$> expr
 
 data Command
@@ -141,4 +173,5 @@ data Command
   | CmdPrint Expr
   | CmdPartialEval Expr
   | CmdFnDef FnDef
+  | CmdTrace Expr
   | CmdEval Expr
