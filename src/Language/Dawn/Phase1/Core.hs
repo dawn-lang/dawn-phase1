@@ -514,15 +514,15 @@ intrinsicType (s : _) IShl =
 intrinsicType (s : _) IShr =
   forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
 intrinsicType (s : _) IEq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
 intrinsicType (s : _) ILt =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
 intrinsicType (s : _) IGt =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
 intrinsicType (s : _) ILteq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
 intrinsicType (s : _) IGteq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
+  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
 
 literalType :: Context -> Literal -> Type
 literalType (s : _) (LBool _) = forall [v0] (s $: v0 --> v0 * tBool)
