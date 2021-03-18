@@ -251,3 +251,23 @@ spec = do
       let (Right e) = parseExpr fibExprSrc
       parseFnDef fibSrc
         `shouldBe` Right (FnDef "fib" e)
+
+    it "parses tail recursive fib" $ do
+      let fibExprSrc = "0 1 _fib"
+      let fibSrc = "{fn fib => " ++ fibExprSrc ++ "}"
+      let (Right e) = parseExpr fibExprSrc
+      parseFnDef fibSrc
+        `shouldBe` Right (FnDef "fib" e)
+
+      let _fibExprSrc =
+            unlines
+              [ "  {spread $a $b}",
+                "  {match",
+                "    {case 0 => {$b drop} $a->}",
+                "    {case => decr $b-> clone $a-> add _fib}",
+                "  }"
+              ]
+      let _fibSrc = "{fn _fib => " ++ _fibExprSrc ++ "}"
+      let (Right e) = parseExpr _fibExprSrc
+      parseFnDef _fibSrc
+        `shouldBe` Right (FnDef "_fib" e)
