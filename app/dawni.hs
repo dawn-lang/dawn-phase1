@@ -49,24 +49,6 @@ readEvalPrint (env, ms) = do
       Right (CmdType e) -> do
         printExprType env e
         return (env, ms)
-      Right (CmdPartialEval e) -> do
-        printExprType env (partialEval' e)
-        return (env, ms)
-      Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
-        Left (FnAlreadyDefined fid) -> do
-          outputStrLn ("Error: already defined: " ++ fid)
-          return (env, ms)
-        Left (FnTypeError fid err) -> do
-          printInferTypeError e err
-          return (env, ms)
-        Left (FnStackError fid sids) -> do
-          let s = intercalate ", " (Set.toList sids)
-          outputStrLn ("Error: exposed temporary stacks: " ++ s)
-          return (env, ms)
-        Right env' -> do
-          let (Just (_, t)) = Map.lookup fid env'
-          outputStrLn $ fid ++ " :: " ++ display t
-          return (env', ms)
       Right (CmdTrace e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -87,6 +69,24 @@ readEvalPrint (env, ms) = do
                     return (env, ms)
                   Right (e', ms') -> do
                     return (env, ms')
+      Right (CmdPartialEval e) -> do
+        printExprType env (partialEval' e)
+        return (env, ms)
+      Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
+        Left (FnAlreadyDefined fid) -> do
+          outputStrLn ("Error: already defined: " ++ fid)
+          return (env, ms)
+        Left (FnTypeError fid err) -> do
+          printInferTypeError e err
+          return (env, ms)
+        Left (FnStackError fid sids) -> do
+          let s = intercalate ", " (Set.toList sids)
+          outputStrLn ("Error: exposed temporary stacks: " ++ s)
+          return (env, ms)
+        Right env' -> do
+          let (Just (_, t)) = Map.lookup fid env'
+          outputStrLn $ fid ++ " :: " ++ display t
+          return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -162,16 +162,16 @@ command =
   try (keyword ":exit" >> return CmdExit)
     <|> try (keyword ":clear" >> return CmdClear)
     <|> try (CmdType <$> (keyword ":type" *> expr))
+    <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
     <|> try (CmdFnDef <$> fnDef)
-    <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> CmdEval <$> expr
 
 data Command
   = CmdExit
   | CmdClear
   | CmdType Expr
+  | CmdTrace Expr
   | CmdPartialEval Expr
   | CmdFnDef FnDef
-  | CmdTrace Expr
   | CmdEval Expr
