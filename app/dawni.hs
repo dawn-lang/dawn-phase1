@@ -44,7 +44,7 @@ readEvalPrint (env, ms) = do
         outputStrLn (show err)
         return (env, ms)
       Right CmdExit -> liftIO exitSuccess
-      Right CmdClear -> do
+      Right CmdReset -> do
         return (Map.empty, MultiStack Map.empty)
       Right (CmdType e) -> do
         printExprType env e
@@ -160,7 +160,7 @@ parseCommand = parse (skipMany space *> command <* eof) ""
 command :: Parser Command
 command =
   try (keyword ":exit" >> return CmdExit)
-    <|> try (keyword ":clear" >> return CmdClear)
+    <|> try (keyword ":reset" >> return CmdReset)
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
@@ -169,7 +169,7 @@ command =
 
 data Command
   = CmdExit
-  | CmdClear
+  | CmdReset
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
