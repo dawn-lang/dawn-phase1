@@ -672,23 +672,25 @@ spec = do
                 ),
                 ( "_fib",
                   ( fnDefExpr _fastFib,
-                    forall' [v0] (v0 * tU32 * tU32 * tU32 --> v0 * tU32)
+                    forall
+                      [v0, v1, v2]
+                      ( "$" $: v0 * tU32 --> v0 * tU32
+                          $. "$a" $: v1 * tU32 --> v1
+                          $. "$b" $: v2 * tU32 --> v2
+                      )
                   )
                 )
               ]
       defineFns Map.empty [fastFib, _fastFib] `shouldBe` (errs, env)
 
-fastFibSrc = "{fn fib => 0 1 _fib}"
+fastFibSrc = "{fn fib => {$a 0} {$b 1} _fib}"
 
 _fastFibSrc =
   unlines
-    [ "{fn _fib => ",
-      "  {spread $a $b}",
-      "  {match",
-      "    {case 0 => {$b drop} $a->}",
-      "    {case => decr $b-> clone $a-> add _fib}",
-      "  }",
-      "}"
+    [ "{fn _fib => {match",
+      "  {case 0 => {$b drop} $a->}",
+      "  {case => decr {$b clone pop $a-> add} $a<- _fib}",
+      "}}"
     ]
 
 (Right fastFib) = parseFnDef fastFibSrc
