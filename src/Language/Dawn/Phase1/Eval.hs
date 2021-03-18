@@ -178,6 +178,8 @@ evalWithFuel env ctx@(s : _) (fuel, EIntrinsic IApply, MultiStack m) =
       m' = insertListOrDelete s vs m
   in evalWithFuel env ctx (fuel - 1, e, MultiStack m')
 evalWithFuel env ctx (fuel, ECompose [], ms) = (fuel, ECompose [], ms)
+evalWithFuel env ctx (fuel, ECompose [ECompose es], ms) =
+  evalWithFuel env ctx (fuel, ECompose es, ms)
 evalWithFuel env ctx (fuel, ECompose (e : es), ms) =
   case evalWithFuel env ctx (fuel, e, ms) of
     (fuel', ECompose [], ms') -> evalWithFuel env ctx (fuel', ECompose es, ms')
