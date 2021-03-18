@@ -18,7 +18,6 @@ jobs:
         stack:
           - "2.3"
         ghc:
-          - "8.8"
           - "8.10"
 
     steps:
