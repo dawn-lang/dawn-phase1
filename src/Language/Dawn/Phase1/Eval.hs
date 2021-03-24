@@ -45,7 +45,7 @@ fromVal (VLit l) = ELit l
 insertListOrDelete s [] m = Map.delete s m
 insertListOrDelete s vs m = Map.insert s vs m
 
-eval :: FnEnv -> Context -> Expr -> MultiStack -> MultiStack
+eval :: Env -> Context -> Expr -> MultiStack -> MultiStack
 eval env (s : s' : _) (EIntrinsic IPush) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
       (v' : vs') = Map.findWithDefault [] s' m
@@ -172,7 +172,7 @@ popPatternMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] 
   (VLit l' : vs) -> Nothing
   _ -> error "EMatch arity/type mismatch"
 
-evalWithFuel :: FnEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
+evalWithFuel :: Env -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
 evalWithFuel env ctx (0, e, ms) = (0, e, ms)
 evalWithFuel env ctx@(s : _) (fuel, EIntrinsic IApply, MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m

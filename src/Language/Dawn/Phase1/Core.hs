@@ -16,6 +16,7 @@ module Language.Dawn.Phase1.Core
     defineFn,
     defineFns,
     ensureUniqueStackId,
+    Env,
     Expr (..),
     FnDef (..),
     FnDefError (..),
@@ -23,7 +24,6 @@ module Language.Dawn.Phase1.Core
     fnDefFnId,
     fnDeps,
     fnDepsSort,
-    FnEnv,
     FnId,
     FnIds,
     forall,
@@ -542,7 +542,7 @@ data TypeError
   | UndefinedFn FnId
   deriving (Eq, Ord, Show)
 
-type FnEnv = Map.Map FnId (Expr, Type)
+type Env = Map.Map FnId (Expr, Type)
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -614,7 +614,7 @@ patternType (s : _) p =
     patternTypes (PLit (LU32 _)) = [tU32]
     patternTypes (PProd l r) = patternTypes l ++ patternTypes r
 
-caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+caseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
   let pt = patternType ctx p
   et <- inferType env ctx e
@@ -633,10 +633,10 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
--- | Infer an expression's type in the given FnEnv and Context.
+-- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is only thrown if the call occurs outside of
 -- | a match or if all match cases call an undefined function.
-inferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+inferType :: Env -> Context -> Expr -> Either TypeError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
   t <- inferType env ctx e
@@ -667,15 +667,15 @@ inferType env ctx (ECall fid) = case Map.lookup fid env of
 -- Type Checking --
 -------------------
 
-strictCaseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+strictCaseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 strictCaseType env ctx (p, e) = do
   let pt = patternType ctx p
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
--- | Infer an expression's type in the given FnEnv and Context.
+-- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is thrown for any undefined function call.
-strictInferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+strictInferType :: Env -> Context -> Expr -> Either TypeError Type
 strictInferType env ctx (EQuote e) = do
   t <- strictInferType env ctx e
   return (quoteType ctx t)
@@ -689,8 +689,8 @@ strictInferType env ctx (EMatch cases) = do
   mapLeft UnificationError (unifyCaseTypes ts)
 strictInferType env ctx e = inferType env ctx e
 
--- | Check an expression's type in the given FnEnv and Context.
-checkType :: FnEnv -> Context -> Expr -> Type -> Either TypeError ()
+-- | Check an expression's type in the given Env and Context.
+checkType :: Env -> Context -> Expr -> Type -> Either TypeError ()
 checkType env ctx e f1 = do
   f2 <- strictInferType env ctx e
   let (f1', reserved1) = instantiate f1 Set.empty
@@ -730,7 +730,7 @@ normalizeTypeVars t =
 normalizeType :: Type -> Type
 normalizeType = normalizeTypeVars . removeTrivialStacks
 
-inferNormType :: FnEnv -> Context -> Expr -> Either TypeError Type
+inferNormType :: Env -> Context -> Expr -> Either TypeError Type
 inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
@@ -885,7 +885,7 @@ fnDepsSort defs =
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
-defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
+defineFns :: Env -> [FnDef] -> ([FnDefError], Env)
 defineFns env defs =
   let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
@@ -917,7 +917,7 @@ defineFns env defs =
         Left err -> (FnTypeError fid err : errs, Map.delete fid env)
         Right () -> (errs, env)
 
-defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
+defineFn :: Env -> FnDef -> Either FnDefError Env
 defineFn env def = case defineFns env [def] of
   ([], env') -> return env'
   ([err], _) -> throwError err

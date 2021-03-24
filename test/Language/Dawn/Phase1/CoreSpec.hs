@@ -478,7 +478,7 @@ spec = do
       let (Right drop3te) = parseExpr "drop drop drop"
       let (Right drop3t) = inferNormType Map.empty ["$"] drop3te
       let errs = []
-      let env :: FnEnv
+      let env :: Env
           env = Map.fromList [("drop2", (drop2e, drop2t)), ("drop3", (drop3e, drop3t))]
       defineFns Map.empty [drop2, drop3]
         `shouldBe` (errs, env)
@@ -514,7 +514,7 @@ spec = do
       let count_down_t = forall' [v0] (v0 * tU32 --> v0)
 
       let errs = []
-      let env :: FnEnv
+      let env :: Env
           env =
             Map.fromList
               [ ("is_odd", (is_odd_e, is_odd_t)),
