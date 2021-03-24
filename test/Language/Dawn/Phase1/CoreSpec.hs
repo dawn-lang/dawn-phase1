@@ -190,7 +190,7 @@ spec = do
                 counts = foldr1 (Map.unionWith (+)) (map iter' (Map.elems mio))
                 counts' = foldr (`Map.insert` 1) Map.empty (Set.toList qs)
              in Map.unionWith (+) counts counts'
-          count (TCons _) = Map.empty
+          count (TCons _ _) = Map.empty -- Tfn is not allowed in TCons args
       let iter e = case inferType' e of
             Left _ -> return ()
             Right t ->
@@ -270,13 +270,13 @@ spec = do
 
     it "infers `123`" $ do
       let (Right e) = parseExpr "123"
-      let t = TCons (TypeCons "U32")
+      let t = TCons [] (TypeCons "U32")
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$" $: v0 --> v0 * t))
 
     it "infers `{$a 123}`" $ do
       let (Right e) = parseExpr "{$a 123}"
-      let t = TCons (TypeCons "U32")
+      let t = TCons [] (TypeCons "U32")
       inferNormType Map.empty ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 --> v0 * t))
 

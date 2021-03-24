@@ -58,7 +58,7 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
-  display (TCons tc) = display tc
+  display (TCons args tc) = unwords (map display args ++ [display tc])
 
 displayMultiIO mio
   | Map.keys mio == ["$"] =

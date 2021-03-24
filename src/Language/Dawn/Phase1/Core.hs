@@ -133,7 +133,7 @@ data Type
   = TVar TypeVar
   | TProd Type Type
   | TFn UnivQuants MultiIO
-  | TCons TypeCons
+  | TCons [Type] TypeCons
   deriving (Eq, Ord, Show)
 
 newtype TypeCons = TypeCons String
@@ -191,22 +191,23 @@ instance HasTypeVars Type where
     TFn
       (Set.map (\tv -> if tv == from then to else tv) uqs)
       (renameTypeVar from to mio)
-  renameTypeVar from to t@(TCons _) = t
+  renameTypeVar from to (TCons args tc) =
+    TCons (renameTypeVar from to args) tc
 
   ftv (TVar tv) = Set.singleton tv
   ftv (TProd l r) = ftv l `Set.union` ftv r
   ftv (TFn qs io) = ftv io `Set.difference` qs
-  ftv (TCons _) = Set.empty
+  ftv (TCons args _) = ftv args
 
   btv (TVar _) = Set.empty
   btv (TProd l r) = btv l `Set.union` btv r
   btv (TFn qs io) = qs `Set.union` btv io
-  btv (TCons _) = Set.empty
+  btv (TCons args _) = btv args
 
   atv (TVar tv) = [tv]
   atv (TProd l r) = atv l `union` atv r
   atv (TFn _ io) = atv io
-  atv (TCons _) = []
+  atv (TCons args _) = atv args
 
 instance HasTypeVars a => HasTypeVars [a] where
   renameTypeVar from to ts = map (renameTypeVar from to) ts
@@ -316,7 +317,9 @@ instance Subs Type where
       else
         let (io', reserved') = subs s io reserved
          in (TFn qs io', reserved')
-  subs s t@(TCons _) reserved = (t, reserved)
+  subs s (TCons args tc) reserved =
+    let (args', reserved') = subs s args reserved
+     in (TCons args' tc, reserved')
 
 instance Subs a => Subs [a] where
   subs s ts reserved = foldr helper ([], reserved) ts
@@ -376,8 +379,8 @@ mgu f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in mguList (is ++ os) reserved'
-mgu (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
-  | s == s' = return (Subst Map.empty, reserved)
+mgu (TCons args tc) (TCons args' tc') reserved
+  | tc == tc' = mguList (zip args args') reserved
 mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
@@ -414,8 +417,8 @@ match f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in matchList (is ++ os) reserved'
-match (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
-  | s == s' = return (Subst Map.empty, reserved)
+match (TCons args tc) (TCons args' tc') reserved
+  | tc == tc' = matchList (zip args args') reserved
 match (TVar u) t reserved = return (u +-> t, reserved)
 match t t' _ = throwError $ DoesNotMatch t t'
 
@@ -461,9 +464,9 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
-tBool = TCons (TypeCons "Bool")
+tBool = TCons [] (TypeCons "Bool")
 
-tU32 = TCons (TypeCons "U32")
+tU32 = TCons [] (TypeCons "U32")
 
 type Context = [StackId]
 
@@ -555,7 +558,8 @@ requantify t = recurse t
     count (TFn _ mio) =
       let iter (i, o) = Map.unionWith (+) (count i) (count o)
        in foldr1 (Map.unionWith (+)) (map iter (Map.elems mio))
-    count (TCons _) = Map.empty
+    count (TCons args _) =
+      foldr (Map.unionWith (+) . count) Map.empty args
     counts = count t
     recurse t@(TVar _) = t
     recurse (TProd l r) = TProd (recurse l) (recurse r)
@@ -566,7 +570,7 @@ requantify t = recurse t
           mio' = Map.map (\(i, o) -> (recurse i, recurse o)) mio
           qs' = qs `Set.difference` btv mio'
        in TFn qs' mio'
-    recurse t@(TCons _) = t
+    recurse t@(TCons _ _) = t -- Tfn is not allowed in TCons args
 
 composeTypes :: [Type] -> Either UnificationError Type
 composeTypes [] = return (forall' [v0] (v0 --> v0))
@@ -708,8 +712,7 @@ removeTrivialStacks t = recurse t
           mio'' = if null mio' then Map.fromAscList [head (Map.toAscList mio)] else mio'
           mio''' = Map.map (\(i, o) -> (recurse i, recurse o)) mio''
        in requantify (TFn Set.empty mio''')
-    recurse t@(TCons _) = t
-
+    recurse t@(TCons _ _) = t -- Tfn is not allowed in TCons args
     isTrivial qs (TVar i, TVar o) | i `elem` qs && o `elem` qs = True
     isTrivial _ _ = False
 
@@ -817,7 +820,7 @@ tempStackIds (TFn _ mio) =
         tempStackIds i `Set.union` tempStackIds o `Set.union` acc
       sids' = foldr folder Set.empty (Map.elems mio)
    in sids `Set.union` sids'
-tempStackIds (TCons _) = Set.empty
+tempStackIds (TCons _ _) = Set.empty -- Tfn is not allowed in TCons args
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid

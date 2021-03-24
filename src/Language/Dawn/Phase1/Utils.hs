@@ -54,7 +54,7 @@ unusedQuantifiers (TFn qs mio) =
       folder (i, o) s =
         s `Set.union` unusedQuantifiers i `Set.union` unusedQuantifiers o
    in unused `Set.union` foldr folder Set.empty mio
-unusedQuantifiers (TCons _) = Set.empty
+unusedQuantifiers (TCons _ _) = Set.empty -- Tfn is not allowed in TCons args
 
 ----------------------
 -- Polymorphic Rank --
@@ -71,4 +71,4 @@ polymorphicRank (TFn qs mio) =
     else
       let iter (i, o) = max (polymorphicRank i) (polymorphicRank o - 1)
        in 1 + maximum (map iter (Map.elems mio))
-polymorphicRank (TCons _) = 0
+polymorphicRank (TCons _ _) = 0 -- Tfn is not allowed in TCons args
