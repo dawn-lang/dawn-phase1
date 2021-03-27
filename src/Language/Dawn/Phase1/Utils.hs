@@ -29,17 +29,17 @@ fromExprSeq [e] = e
 fromExprSeq es = ECompose es
 
 inferType' :: Expr -> Either TypeError Type
-inferType' = inferType Map.empty ["$"]
+inferType' = inferType emptyEnv ["$"]
 
 inferNormType' :: Expr -> Either TypeError Type
-inferNormType' = inferNormType Map.empty ["$"]
+inferNormType' = inferNormType emptyEnv ["$"]
 
 -------------------
 -- Type Checking --
 -------------------
 
 checkType' :: Expr -> Type -> Either TypeError ()
-checkType' = checkType Map.empty ["$"]
+checkType' = checkType emptyEnv ["$"]
 
 ---------------------
 -- Type Validation --

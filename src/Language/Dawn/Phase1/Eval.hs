@@ -2,13 +2,17 @@
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Dawn.Phase1.Eval
-  ( eval,
+  ( emptyEvalEnv,
+    eval,
     eval',
+    EvalEnv (..),
     evalWithFuel,
     fromVal,
     MultiStack (..),
+    toEvalEnv,
     toVal,
     Val (..),
   )
@@ -23,8 +27,21 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
-import Language.Dawn.Phase1.Core hiding ((*))
+import Language.Dawn.Phase1.Core hiding (consArity, fnExprs, (*))
+import qualified Language.Dawn.Phase1.Core as Core
 import Language.Dawn.Phase1.Utils
+
+data EvalEnv = EvalEnv
+  { consArity :: Map.Map ConsId Int,
+    fnExprs :: Map.Map FnId Expr
+  }
+  deriving (Eq, Show)
+
+emptyEvalEnv :: EvalEnv
+emptyEvalEnv = EvalEnv Map.empty Map.empty
+
+toEvalEnv :: Env -> EvalEnv
+toEvalEnv Env {Core.consArity, Core.fnExprs} = EvalEnv {consArity, fnExprs}
 
 newtype MultiStack = MultiStack (Map.Map StackId [Val])
   deriving (Eq, Show)
@@ -32,6 +49,7 @@ newtype MultiStack = MultiStack (Map.Map StackId [Val])
 data Val
   = VQuote Expr
   | VLit Literal
+  | VCons [Val] ConsId
   deriving (Eq, Ord, Show)
 
 toVal :: Expr -> Val
@@ -45,22 +63,22 @@ fromVal (VLit l) = ELit l
 insertListOrDelete s [] m = Map.delete s m
 insertListOrDelete s vs m = Map.insert s vs m
 
-eval :: Env -> Context -> Expr -> MultiStack -> MultiStack
+eval :: EvalEnv -> Context -> Expr -> MultiStack -> MultiStack
 eval env (s : s' : _) (EIntrinsic IPush) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
       (v' : vs') = Map.findWithDefault [] s' m
-      m' = insertListOrDelete s (v' : vs) m
+      m' = Map.insert s (v' : vs) m
       m'' = insertListOrDelete s' vs' m'
    in MultiStack m''
 eval env (s : s' : _) (EIntrinsic IPop) (MultiStack m) =
   let (v : vs) = Map.findWithDefault [] s m
       vs' = Map.findWithDefault [] s' m
       m' = insertListOrDelete s vs m
-      m'' = insertListOrDelete s' (v : vs') m'
+      m'' = Map.insert s' (v : vs') m'
    in MultiStack m''
 eval env (s : _) (EIntrinsic IClone) (MultiStack m) =
   let (v : vs) = Map.findWithDefault [] s m
-      m' = insertListOrDelete s (v : v : vs) m
+      m' = Map.insert s (v : v : vs) m
    in MultiStack m'
 eval env (s : _) (EIntrinsic IDrop) (MultiStack m) =
   let (v : vs) = Map.findWithDefault [] s m
@@ -68,12 +86,12 @@ eval env (s : _) (EIntrinsic IDrop) (MultiStack m) =
    in MultiStack m'
 eval env (s : _) (EIntrinsic IQuote) (MultiStack m) =
   let (v : vs) = Map.findWithDefault [] s m
-      m' = insertListOrDelete s (VQuote (fromVal v) : vs) m
+      m' = Map.insert s (VQuote (fromVal v) : vs) m
    in MultiStack m'
 eval env (s : _) (EIntrinsic ICompose) (MultiStack m) =
   let (VQuote b : VQuote a : vs) = Map.findWithDefault [] s m
       e = fromExprSeq (toExprSeq a ++ toExprSeq b)
-      m' = insertListOrDelete s (VQuote e : vs) m
+      m' = Map.insert s (VQuote e : vs) m
    in MultiStack m'
 eval env ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m
@@ -100,7 +118,7 @@ eval env (s : _) (EIntrinsic ILteq) (MultiStack m) = evalBinCmpOp s m (<=)
 eval env (s : _) (EIntrinsic IGteq) (MultiStack m) = evalBinCmpOp s m (>=)
 eval env (s : _) e@(EQuote _) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
-      m' = insertListOrDelete s (toVal e : vs) m
+      m' = Map.insert s (toVal e : vs) m
    in MultiStack m'
 eval env ctx (ECompose es) ms =
   let folder ms e = eval env ctx e ms
@@ -109,7 +127,7 @@ eval env ctx (EContext s e) ms =
   eval env (ensureUniqueStackId ctx s : ctx) e ms
 eval env (s : _) e@(ELit _) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
-      m' = insertListOrDelete s (toVal e : vs) m
+      m' = Map.insert s (toVal e : vs) m
    in MultiStack m'
 eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
@@ -118,41 +136,46 @@ eval env ctx (EMatch cs) ms = iter ctx cs ms
     iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
       Just ms' -> eval env ctx e ms'
-eval env ctx (ECall fid) ms = case Map.lookup fid env of
+eval env@EvalEnv {consArity} (s : _) (ECons cid) (MultiStack m) =
+  let (vs, vs') = splitAt (consArity Map.! cid) (m Map.! s)
+      vs'' = VCons vs cid : vs'
+      m' = Map.insert s vs'' m
+   in MultiStack m'
+eval env@EvalEnv {fnExprs} ctx (ECall fid) ms = case Map.lookup fid fnExprs of
   Nothing -> error ("undefined function: " ++ fid)
-  Just (e, t) -> eval env ctx e ms
+  Just e -> eval env ctx e ms
 
 eval' :: Expr -> MultiStack
-eval' e = eval Map.empty ["$"] e (MultiStack Map.empty)
+eval' e = eval emptyEvalEnv ["$"] e (MultiStack Map.empty)
 
 evalBoolUnOp s m op =
   let (VLit (LBool a) : vs) = Map.findWithDefault [] s m
       c = op a
-      m' = insertListOrDelete s (VLit (LBool c) : vs) m
+      m' = Map.insert s (VLit (LBool c) : vs) m
    in MultiStack m'
 
 evalBoolBinOp s m op =
   let (VLit (LBool b) : VLit (LBool a) : vs) = Map.findWithDefault [] s m
       c = op a b
-      m' = insertListOrDelete s (VLit (LBool c) : vs) m
+      m' = Map.insert s (VLit (LBool c) : vs) m
    in MultiStack m'
 
 evalUnOp s m op =
   let (VLit (LU32 a) : vs) = Map.findWithDefault [] s m
       c = op a
-      m' = insertListOrDelete s (VLit (LU32 c) : vs) m
+      m' = Map.insert s (VLit (LU32 c) : vs) m
    in MultiStack m'
 
 evalBinOp s m op =
   let (VLit (LU32 b) : VLit (LU32 a) : vs) = Map.findWithDefault [] s m
       c = op a b
-      m' = insertListOrDelete s (VLit (LU32 c) : vs) m
+      m' = Map.insert s (VLit (LU32 c) : vs) m
    in MultiStack m'
 
 evalBinCmpOp s m op =
   let (VLit (LU32 b) : VLit (LU32 a) : vs) = Map.findWithDefault [] s m
       c = op a b
-      m' = insertListOrDelete s (VLit (LBool c) : vs) m
+      m' = Map.insert s (VLit (LBool c) : vs) m
    in MultiStack m'
 
 decr :: Word32 -> Word32
@@ -172,12 +195,12 @@ popPatternMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] 
   (VLit l' : vs) -> Nothing
   _ -> error "EMatch arity/type mismatch"
 
-evalWithFuel :: Env -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
+evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
 evalWithFuel env ctx (0, e, ms) = (0, e, ms)
 evalWithFuel env ctx@(s : _) (fuel, EIntrinsic IApply, MultiStack m) =
   let (VQuote e : vs) = Map.findWithDefault [] s m
       m' = insertListOrDelete s vs m
-  in evalWithFuel env ctx (fuel - 1, e, MultiStack m')
+   in evalWithFuel env ctx (fuel - 1, e, MultiStack m')
 evalWithFuel env ctx (fuel, ECompose [], ms) = (fuel, ECompose [], ms)
 evalWithFuel env ctx (fuel, ECompose [ECompose es], ms) =
   evalWithFuel env ctx (fuel, ECompose es, ms)
@@ -194,7 +217,8 @@ evalWithFuel env ctx (fuel, EMatch ((p, e) : cs), ms) =
   case popPatternMatches ctx p ms of
     Nothing -> evalWithFuel env ctx (fuel - 1, EMatch cs, ms)
     Just ms' -> evalWithFuel env ctx (fuel - 1, e, ms')
-evalWithFuel env ctx (fuel, ECall fid, ms) = case Map.lookup fid env of
-  Nothing -> error ("undefined function: " ++ fid)
-  Just (e, t) -> evalWithFuel env ctx (fuel - 1, e, ms)
+evalWithFuel env@EvalEnv {fnExprs} ctx (fuel, ECall fid, ms) =
+  case Map.lookup fid fnExprs of
+    Nothing -> error ("undefined function: " ++ fid)
+    Just e -> evalWithFuel env ctx (fuel - 1, e, ms)
 evalWithFuel env ctx (fuel, e, ms) = (fuel - 1, ECompose [], eval env ctx e ms)

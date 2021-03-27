@@ -2,6 +2,7 @@
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Dawn.Phase1.Core
   ( (-->),
@@ -12,11 +13,13 @@ module Language.Dawn.Phase1.Core
     addMissingStacks,
     checkType,
     composeSubst,
+    ConsId,
     Context,
     defineFn,
     defineFns,
+    emptyEnv,
     ensureUniqueStackId,
-    Env,
+    Env (..),
     Expr (..),
     FnDef (..),
     FnDefError (..),
@@ -52,7 +55,6 @@ module Language.Dawn.Phase1.Core
     tempStackIds,
     tU32,
     Type (..),
-    TypeCons (..),
     TypeError (..),
     TypeVar (..),
     TypeVars,
@@ -86,6 +88,7 @@ data Expr
   | EContext StackId Expr
   | ELit Literal
   | EMatch [(Pattern, Expr)]
+  | ECons ConsId
   | ECall FnId
   deriving (Eq, Ord, Show)
 
@@ -98,6 +101,7 @@ data Pattern
   = PEmpty
   | PProd Pattern Pattern
   | PLit Literal
+  | PCons ConsId
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -133,10 +137,7 @@ data Type
   = TVar TypeVar
   | TProd Type Type
   | TFn UnivQuants MultiIO
-  | TCons [Type] TypeCons
-  deriving (Eq, Ord, Show)
-
-newtype TypeCons = TypeCons String
+  | TCons [Type] ConsId
   deriving (Eq, Ord, Show)
 
 -- | Multi-stack input/output
@@ -144,6 +145,9 @@ type MultiIO = Map.Map StackId (Type, Type)
 
 -- | Stack identifier
 type StackId = String
+
+-- | Constructor identifier
+type ConsId = String
 
 -- | Function identifier
 type FnId = String
@@ -464,9 +468,9 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
-tBool = TCons [] (TypeCons "Bool")
+tBool = TCons [] "Bool"
 
-tU32 = TCons [] (TypeCons "U32")
+tU32 = TCons [] "U32"
 
 type Context = [StackId]
 
@@ -539,10 +543,20 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 data TypeError
   = UnificationError UnificationError
   | MatchError MatchError
+  | UndefinedCons ConsId
   | UndefinedFn FnId
   deriving (Eq, Ord, Show)
 
-type Env = Map.Map FnId (Expr, Type)
+data Env = Env
+  { consArity :: Map.Map ConsId Int,
+    consTypes :: Map.Map ConsId ([Type], [Type]),
+    fnExprs :: Map.Map FnId Expr,
+    fnTypes :: Map.Map FnId Type
+  }
+  deriving (Eq, Show)
+
+emptyEnv :: Env
+emptyEnv = Env Map.empty Map.empty Map.empty Map.empty
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -600,23 +614,30 @@ stackTypes (t : t' : ts) = iter (TProd t t') ts
     iter t [] = t
     iter t (t' : ts) = iter (TProd t t') ts
 
-patternType :: Context -> Pattern -> Type
-patternType (s : _) p =
-  let ts = patternTypes p
-      (tv, _) = freshTypeVar Set.empty
+patternType :: Env -> Context -> Pattern -> Either TypeError Type
+patternType env (s : _) p = do
+  (is, os) <- patternTypes env p
+  let (tv, _) = freshTypeVar (Set.fromList (atv (is, os)))
       v = TVar tv
-      i = stackTypes (v : ts)
-   in forall [v] (s $: i --> v)
+      i = stackTypes (v : is)
+      o = stackTypes (v : os)
+  return (requantify (TFn Set.empty (s $: i --> o)))
   where
-    patternTypes :: Pattern -> [Type]
-    patternTypes PEmpty = []
-    patternTypes (PLit (LBool _)) = [tBool]
-    patternTypes (PLit (LU32 _)) = [tU32]
-    patternTypes (PProd l r) = patternTypes l ++ patternTypes r
+    patternTypes :: Env -> Pattern -> Either TypeError ([Type], [Type])
+    patternTypes env PEmpty = return ([], [])
+    patternTypes env (PProd l r) = do
+      (li, lo) <- patternTypes env l
+      (ri, ro) <- patternTypes env r
+      return (li ++ ri, lo ++ ro)
+    patternTypes env (PLit (LBool _)) = return ([tBool], [])
+    patternTypes env (PLit (LU32 _)) = return ([tU32], [])
+    patternTypes Env {consTypes} (PCons cid) = case Map.lookup cid consTypes of
+      Nothing -> throwError (UndefinedCons cid)
+      Just (is, os) -> return (os, is) -- ECons inputs are PCons outputs
 
 caseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
-  let pt = patternType ctx p
+  pt <- patternType env ctx p
   et <- inferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
@@ -632,6 +653,21 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let (mio3, _) = subs s mio1 reserved4
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
+
+getEConsType :: Env -> Context -> ConsId -> Either TypeError Type
+getEConsType Env {consTypes} (s : _) cid = case Map.lookup cid consTypes of
+  Nothing -> throwError (UndefinedCons cid)
+  Just (is, os) ->
+    let (tv, _) = freshTypeVar (Set.fromList (atv (is, os)))
+        v = TVar tv
+        i = stackTypes (v : is)
+        o = stackTypes (v : os)
+     in return (requantify (TFn Set.empty (s $: i --> o)))
+
+getECallType :: Env -> FnId -> Either TypeError Type
+getECallType Env {fnTypes} fid = case Map.lookup fid fnTypes of
+  Nothing -> throwError (UndefinedFn fid)
+  Just t -> return t
 
 -- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is only thrown if the call occurs outside of
@@ -659,9 +695,8 @@ inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
     isOtherError (Left (UndefinedFn _)) = False
     isOtherError (Left _) = True
     isOtherError _ = False
-inferType env ctx (ECall fid) = case Map.lookup fid env of
-  Nothing -> throwError (UndefinedFn fid)
-  Just (e, t) -> return t
+inferType env ctx (ECons cid) = getEConsType env ctx cid
+inferType env ctx (ECall fid) = getECallType env fid
 
 -------------------
 -- Type Checking --
@@ -669,7 +704,7 @@ inferType env ctx (ECall fid) = case Map.lookup fid env of
 
 strictCaseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 strictCaseType env ctx (p, e) = do
-  let pt = patternType ctx p
+  pt <- patternType env ctx p
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
@@ -840,6 +875,7 @@ fnDepsF mergeCases = helper
     helper (EMatch cs) =
       let caseDeps = map (uncondFnDeps . snd) cs
        in foldr1 mergeCases caseDeps
+    helper (ECons cid) = Set.empty
     helper (ECall fid) = Set.singleton fid
 
 fnDeps :: Expr -> FnIds
@@ -886,8 +922,8 @@ fnDepsSort defs =
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
 defineFns :: Env -> [FnDef] -> ([FnDefError], Env)
-defineFns env defs =
-  let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
+defineFns env@Env {fnExprs} defs =
+  let existingFnIds = Map.keysSet fnExprs `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
       newFnIds = Set.fromList (map fnDefFnId defs')
       sortedDefs = fnDepsSort defs'
@@ -904,17 +940,23 @@ defineFns env defs =
             then (FnAlreadyDefined fid : errs, defs')
             else (errs, FnDef fid e : defs)
 
-    inferTypes newFnIds def@(FnDef fid e) (errs, env, defs) =
+    inferTypes :: FnIds -> FnDef -> ([FnDefError], Env, [FnDef]) -> ([FnDefError], Env, [FnDef])
+    inferTypes newFnIds def@(FnDef fid e) (errs, env@Env {fnExprs, fnTypes}, defs) =
       case inferNormType env ["$"] e of
         Left err -> (FnTypeError fid err : errs, env, defs)
         Right t
           | not (null (tempStackIds t)) ->
             (FnStackError fid (tempStackIds t) : errs, env, defs)
-        Right t -> (errs, Map.insert fid (e, t) env, def : defs)
+        Right t ->
+          let fnExprs' = Map.insert fid e fnExprs
+              fnTypes' = Map.insert fid t fnTypes
+              env' = env {fnExprs = fnExprs', fnTypes = fnTypes'}
+           in (errs, env', def : defs)
 
-    checkTypes newFnIds (FnDef fid e) (errs, env) =
-      case checkType env ["$"] e (snd (env Map.! fid)) of
-        Left err -> (FnTypeError fid err : errs, Map.delete fid env)
+    checkTypes :: FnIds -> FnDef -> ([FnDefError], Env) -> ([FnDefError], Env)
+    checkTypes newFnIds (FnDef fid e) (errs, env@Env {fnTypes}) =
+      case checkType env ["$"] e (fnTypes Map.! fid) of
+        Left err -> (FnTypeError fid err : errs, env {fnTypes = Map.delete fid fnTypes})
         Right () -> (errs, env)
 
 defineFn :: Env -> FnDef -> Either FnDefError Env

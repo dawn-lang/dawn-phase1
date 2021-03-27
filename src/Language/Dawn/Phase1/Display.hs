@@ -25,6 +25,7 @@ instance Display Expr where
   display (ELit (LBool b)) = show b
   display (ELit (LU32 i)) = show i
   display (EMatch cases) = "{match " ++ unwords (map displayCase cases) ++ "}"
+  display (ECons cid) = cid
   display (ECall fid) = fid
 
 displayedExprs :: [Expr] -> [String]
@@ -58,7 +59,7 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
-  display (TCons args tc) = unwords (map display args ++ [display tc])
+  display (TCons args cid) = unwords (map display args ++ [cid])
 
 displayMultiIO mio
   | Map.keys mio == ["$"] =
@@ -67,9 +68,6 @@ displayMultiIO mio
   | otherwise = unwords (map iter (Map.toAscList mio))
   where
     iter (sid, (i, o)) = "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
-
-instance Display TypeCons where
-  display (TypeCons s) = s
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n

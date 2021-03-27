@@ -2,6 +2,7 @@
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Main where
 
@@ -27,7 +28,7 @@ import Text.Parsec.String
 
 main = do
   putStrLn "Dawn Phase 1 Interpreter"
-  runInputT defaultSettings (readEvalPrintLoop (Map.empty, MultiStack Map.empty))
+  runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
 
 readEvalPrintLoop :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
 readEvalPrintLoop (env, ms) = do
@@ -45,7 +46,7 @@ readEvalPrint (env, ms) = do
         return (env, ms)
       Right CmdExit -> liftIO exitSuccess
       Right CmdReset -> do
-        return (Map.empty, MultiStack Map.empty)
+        return (emptyEnv, MultiStack Map.empty)
       Right CmdDrop -> do
         return (env, MultiStack Map.empty)
       Right (CmdType e) -> do
@@ -64,7 +65,7 @@ readEvalPrint (env, ms) = do
                 printExpectsInputs t
                 return (env, ms)
               Right t -> do
-                result <- tryTraceEval env e ms
+                result <- tryTraceEval (toEvalEnv env) e ms
                 case result :: Either SomeException (Expr, MultiStack) of
                   Left err -> do
                     outputStrLn $ show err
@@ -85,8 +86,8 @@ readEvalPrint (env, ms) = do
           let s = intercalate ", " (Set.toList sids)
           outputStrLn ("Error: exposed temporary stacks: " ++ s)
           return (env, ms)
-        Right env' -> do
-          let (Just (_, t)) = Map.lookup fid env'
+        Right env'@Env {fnTypes} -> do
+          let (Just t) = Map.lookup fid fnTypes
           outputStrLn $ fid ++ " :: " ++ display t
           return (env', ms)
       Right (CmdEval e) ->
@@ -102,7 +103,7 @@ readEvalPrint (env, ms) = do
                 printExpectsInputs t
                 return (env, ms)
               Right t -> do
-                result <- tryEval env e ms
+                result <- tryEval (toEvalEnv env) e ms
                 case result :: Either SomeException MultiStack of
                   Left err -> do
                     outputStrLn $ show err
@@ -141,7 +142,7 @@ printExprType env e =
     Right t | exposedTempStackIds t -> printExposedTempStackIds t
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
-tryTraceEval :: Env -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
+tryTraceEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
 tryTraceEval env e@(ECompose []) ms = do
   outputStrLn $ display ms
   return (Right (e, ms))
@@ -152,7 +153,7 @@ tryTraceEval env e ms = do
     Left err -> return (Left err)
     Right (_, e', ms') -> tryTraceEval env e' ms'
 
-tryEval :: Env -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
+tryEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
 

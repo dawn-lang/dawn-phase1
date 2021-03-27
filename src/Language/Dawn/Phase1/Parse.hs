@@ -39,6 +39,7 @@ expr =
     <$> many
       ( literalExpr <|> bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
+          <|> consExpr
           <|> callExpr
       )
 
@@ -86,9 +87,12 @@ matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (symbol 
 
 pattern' :: Parser Pattern
 pattern' =
-  try (PProd <$> literalPattern <*> literalPattern)
+  try (PProd <$> literalOrConsPattern <*> literalOrConsPattern)
     <|> try literalPattern
+    <|> try consPattern
     <|> return PEmpty
+  where
+    literalOrConsPattern = try literalPattern <|> consPattern
 
 desugarSpread :: [StackId] -> Expr
 desugarSpread dstStackIds =
@@ -154,11 +158,23 @@ intrinsic cons =
     <|> try (keyword "lteq" >> return (cons ILteq))
     <|> try (keyword "gteq" >> return (cons IGteq))
 
+consExpr = ECons <$> consId
+
+consPattern = PCons <$> consId
+
 callExpr = ECall <$> fnId
 
 stackId = lexeme stackId_
 
-fnId = lexeme ident_
+consId = lexeme ((:) <$> consIdFirstChar <*> many consIdChar)
+  where
+    consIdFirstChar = upper
+    consIdChar = letter <|> char '_' <|> digit
+
+fnId = lexeme ((:) <$> fnIdFirstChar <*> many fnIdChar)
+  where
+    fnIdFirstChar = lower <|> char '_'
+    fnIdChar = letter <|> char '_' <|> digit
 
 stackId_ = (:) <$> char '$' <*> ident_
 
