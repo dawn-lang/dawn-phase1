@@ -13,8 +13,10 @@ module Language.Dawn.Phase1.Core
     addMissingStacks,
     checkType,
     composeSubst,
+    ConsDef (..),
     ConsId,
     Context,
+    DataDef (..),
     defineFn,
     defineFns,
     emptyEnv,
@@ -963,3 +965,13 @@ defineFn :: Env -> FnDef -> Either FnDefError Env
 defineFn env def = case defineFns env [def] of
   ([], env') -> return env'
   ([err], _) -> throwError err
+
+------------------------------------
+-- Algebraic Data Type Definition --
+------------------------------------
+
+data DataDef = DataDef [Type] ConsId [ConsDef]
+  deriving (Eq, Show)
+
+data ConsDef = ConsDef [Type] ConsId
+  deriving (Eq, Show)

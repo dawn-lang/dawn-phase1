@@ -7,6 +7,7 @@ module Language.Dawn.Phase1.Parse
   ( expr,
     fnDef,
     keyword,
+    parseDataDef,
     parseExpr,
     parseFnDef,
     parseVals,
@@ -20,6 +21,9 @@ import Language.Dawn.Phase1.Utils
 import Text.Parsec
 import Text.Parsec.String
 import Prelude hiding (drop)
+
+parseDataDef :: String -> Either ParseError DataDef
+parseDataDef = undefined -- TODO
 
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skipMany space *> fnDef <* eof) ""

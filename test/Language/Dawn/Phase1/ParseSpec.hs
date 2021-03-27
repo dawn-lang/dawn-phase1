@@ -13,6 +13,10 @@ import Text.Parsec.Error
 import Text.Parsec.Pos
 import Prelude hiding (drop, (*))
 
+[tv0, tv1, tv2, tv3, tv4, tv5, _, _, tv8] = map TypeVar [0 .. 8]
+
+[v0, v1, v2, v3, v4, v5, v6, v7, v8] = map (TVar . TypeVar) [0 .. 8]
+
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
 
@@ -270,3 +274,54 @@ spec = do
       let (Right e) = parseExpr _fibExprSrc
       parseFnDef _fibSrc
         `shouldBe` Right (FnDef "_fib" e)
+
+    it "parses `{data Bit {cons B0} {cons B1}}`" $ do
+      parseDataDef "{data Bit {cons B0} {cons B1}}"
+        `shouldBe` Right
+          ( DataDef
+              []
+              "Bit"
+              [ ConsDef [] "B0",
+                ConsDef [] "B1"
+              ]
+          )
+
+    it "parses `{data NewU32 {cons U32 NewU32}}`" $ do
+      parseDataDef "{data NewU32 {cons U32 NewU32}}"
+        `shouldBe` Right
+          ( DataDef
+              []
+              "NewU32"
+              [ConsDef [TCons [] "U32"] "NewU32"]
+          )
+
+    it "parses `{data v0 v1 Pair {cons v0 v1 Pair}}`" $ do
+      parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+        `shouldBe` Right
+          ( DataDef
+              [v0, v1]
+              "Pair"
+              [ ConsDef [v0, v1] "Pair"
+              ]
+          )
+
+    it "parses `{data v0 v1 SwapPair {cons v1 v0 SwapPair}}`" $ do
+      parseDataDef "{data v0 v1 SwapPair {cons v1 v0 SwapPair}}"
+        `shouldBe` Right
+          ( DataDef
+              [v0, v1]
+              "SwapPair"
+              [ ConsDef [v1, v0] "SwapPair"
+              ]
+          )
+
+    it "parses `{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}`" $ do
+      parseDataDef "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+        `shouldBe` Right
+          ( DataDef
+              [v0]
+              "Stack"
+              [ ConsDef [] "Empty",
+                ConsDef [TCons [v0] "Stack", v0] "Push"
+              ]
+          )
