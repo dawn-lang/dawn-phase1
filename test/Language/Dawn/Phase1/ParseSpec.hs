@@ -325,3 +325,10 @@ spec = do
                 ConsDef [TCons [v0] "Stack", v0] "Push"
               ]
           )
+
+    it "parses `B0`" $ do
+      parseExpr "B0" `shouldBe` Right (ECons "B0")
+
+    it "parses `{match {case B0 => }}`" $ do
+      parseExpr "{match {case B0 => }}"
+        `shouldBe` Right (EMatch [(PCons "B0", ECompose [])])
