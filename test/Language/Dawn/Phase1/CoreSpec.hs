@@ -220,6 +220,24 @@ spec = do
       inferNormType' e
         `shouldBe` Right (forall' [v0, v1, v2] (v0 * v1 * v2 --> v0 * v2 * v1))
 
+    it "infers `{$c swap}`" $ do
+      let (Right e) = parseExpr "{$c $a<- $b<- $a-> $b->}"
+      inferNormType' e
+        `shouldBe` Right
+          ( forall
+              [v0, v1, v2]
+              ("$c" $: v0 * v1 * v2 --> v0 * v2 * v1)
+          )
+
+    it "infers `{$a swap}`" $ do
+      let (Right e) = parseExpr "{$a $a<- $b<- $a-> $b->}"
+      inferNormType' e
+        `shouldBe` Right
+          ( forall
+              [v0, v1, v2]
+              ("$a" $: v0 * v1 * v2 --> v0 * v2 * v1)
+          )
+
     it "infers `[clone] [swap apply] apply`" $ do
       let (Right e) = parseExpr "[clone] [$a<- $b<- $a-> $b-> apply] apply"
       let nnf = forall' [v1, v2] (v1 * v2 --> v1 * v2 * v2)

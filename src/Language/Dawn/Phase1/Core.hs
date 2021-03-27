@@ -15,6 +15,7 @@ module Language.Dawn.Phase1.Core
     Context,
     defineFn,
     defineFns,
+    ensureUniqueStackId,
     Expr (..),
     FnDef (..),
     FnDefError (..),
