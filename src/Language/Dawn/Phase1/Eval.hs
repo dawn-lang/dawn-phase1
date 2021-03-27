@@ -105,7 +105,8 @@ eval env (s : _) e@(EQuote _) (MultiStack m) =
 eval env ctx (ECompose es) ms =
   let folder ms e = eval env ctx e ms
    in foldl folder ms es
-eval env ctx (EContext s e) ms = eval env (s : ctx) e ms
+eval env ctx (EContext s e) ms =
+  eval env (ensureUniqueStackId ctx s : ctx) e ms
 eval env (s : _) e@(ELit _) (MultiStack m) =
   let vs = Map.findWithDefault [] s m
       m' = insertListOrDelete s (toVal e : vs) m
