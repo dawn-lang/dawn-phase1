@@ -226,6 +226,14 @@ spec = do
       let ms' = MultiStack (Map.singleton "$c" vs)
       eval env ["$"] e ms `shouldBe` ms'
 
+    it "evals `{$a 0 1 swap}`" $ do
+      let (Right env) = defineFn Map.empty swap
+      let (Right e) = parseExpr "{$a 0 1 swap}"
+      let (Right vs) = parseVals "1 0"
+      let ms = MultiStack Map.empty
+      let ms' = MultiStack (Map.singleton "$a" vs)
+      eval env ["$"] e ms `shouldBe` ms'
+
     it "evals fib" $ do
       let (Right env) = defineFn Map.empty swap
       let (Right env') = defineFn env fib
