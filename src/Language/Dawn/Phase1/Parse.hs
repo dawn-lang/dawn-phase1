@@ -23,7 +23,7 @@ import Text.Parsec.String
 import Prelude hiding (drop)
 
 parseDataDef :: String -> Either ParseError DataDef
-parseDataDef = undefined -- TODO
+parseDataDef = parse (skipMany space *> dataDef <* eof) ""
 
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skipMany space *> fnDef <* eof) ""
@@ -33,6 +33,40 @@ parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseVals :: String -> Either ParseError [Val]
 parseVals = parse (skipMany space *> vals <* eof) ""
+
+dataDef :: Parser DataDef
+dataDef =
+  betweenBraces
+    ( DataDef <$> (keyword "data" *> many varType) <*> consId <*> many consDef
+    )
+
+consDef :: Parser ConsDef
+consDef = betweenBraces innerConsDef
+  where
+    innerConsDef = do
+      _ <- keyword "cons"
+      args <- many consDefArgs
+      let (args', args'') = splitAt (length args - 1) args
+      case args'' of
+        [TCons [] cid] -> return (ConsDef args' cid)
+        _ -> fail "expected consId"
+
+consDefArgs :: Parser Type
+consDefArgs = simpleConsType <|> varType <|> betweenParens consDefArgs'
+  where
+    consDefArgs' = try consType <|> varType <|> betweenParens consDefArgs'
+
+simpleConsType :: Parser Type
+simpleConsType = lexeme (TCons [] <$> consId)
+
+consType :: Parser Type
+consType = lexeme (TCons <$> many varType <*> consId)
+
+varType :: Parser Type
+varType = lexeme (TVar <$> typeVar)
+
+typeVar :: Parser TypeVar
+typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
@@ -76,6 +110,8 @@ u32Lit = do
 integer :: Parser Integer
 integer = read <$> lexeme (many1 digit)
 
+betweenParens = between (symbol "(") (symbol ")")
+
 betweenBraces = between (symbol "{") (symbol "}")
 
 bracedExpr =
@@ -118,7 +154,7 @@ ePushTo s = EContext s (EIntrinsic IPush)
 
 ePopFrom s = EContext s (EIntrinsic IPop)
 
-groupedExpr = between (symbol "(") (symbol ")") expr
+groupedExpr = betweenParens expr
 
 quotedExpr = between (symbol "[") (symbol "]") (EQuote <$> expr)
 
