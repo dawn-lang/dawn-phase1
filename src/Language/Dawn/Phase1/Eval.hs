@@ -96,6 +96,8 @@ fromVal :: Val -> Expr
 fromVal (VQuote e) = EQuote e
 fromVal (VLit l) = ELit l
 fromVal (VCons Empty cid) = ECons cid
+fromVal (VCons args cid) =
+  ECompose (map fromVal (fromStack args) ++ [ECons cid])
 
 insertStackOrDelete s Empty m = Map.delete s m
 insertStackOrDelete s vs m = Map.insert s vs m
