@@ -42,27 +42,23 @@ dataDef =
     )
 
 consDef :: Parser ConsDef
-consDef = betweenBraces innerConsDef
-  where
-    innerConsDef = do
-      _ <- keyword "cons"
-      args <- many consDefArgs
-      let (args', args'') = splitAt (length args - 1) args
-      case args'' of
-        [TCons [] cid] -> return (ConsDef args' cid)
-        -- TODO: this gives terrible error messages
-        _ -> fail "expected consId"
-
-consDefArgs :: Parser Type
-consDefArgs = simpleConsType <|> varType <|> betweenParens consDefArgs'
-  where
-    consDefArgs' = try consType <|> varType <|> betweenParens consDefArgs'
+consDef = betweenBraces (ConsDef <$> (keyword "cons" *> consTypeArgs) <*> consId)
 
 simpleConsType :: Parser Type
 simpleConsType = lexeme (TCons [] <$> consId)
 
 consType :: Parser Type
-consType = lexeme (TCons <$> many varType <*> consId)
+consType = lexeme (TCons <$> consTypeArgs <*> consId)
+
+consTypeArgs :: Parser [Type]
+consTypeArgs = do
+  argsAndConsId <- lookAhead (try (many1 consTypeArg))
+  case last argsAndConsId of
+    TCons [] cid -> count (length argsAndConsId - 1) consTypeArg
+    _ -> fail "expected consId"
+  where
+    consTypeArg = simpleConsType <|> varType <|> betweenParens consTypeArg'
+    consTypeArg' = try consType <|> varType <|> betweenParens consTypeArg'
 
 varType :: Parser Type
 varType = lexeme (TVar <$> typeVar)
