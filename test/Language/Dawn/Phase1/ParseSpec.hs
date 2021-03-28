@@ -13,9 +13,9 @@ import Text.Parsec.Error
 import Text.Parsec.Pos
 import Prelude hiding (drop, (*))
 
-[tv0, tv1, tv2, tv3, tv4, tv5, _, _, tv8] = map TypeVar [0 .. 8]
+[tv0, tv1] = map TypeVar [0 .. 1]
 
-[v0, v1, v2, v3, v4, v5, v6, v7, v8] = map (TVar . TypeVar) [0 .. 8]
+[v0, v1] = map (TVar . TypeVar) [0 .. 1]
 
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
