@@ -236,6 +236,14 @@ spec = do
       parseVals "[clone] [drop] 0"
         `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
 
+    it "parses `B0`" $ do
+      parseVals "B0"
+        `shouldBe` Right [VCons [] "B0"]
+
+    it "parses `(Empty B0 Push)`" $ do
+      parseVals "(Empty B0 Push)"
+        `shouldBe` Right [VCons [VCons [] "Empty", VCons [] "B0"] "Push"]
+
   describe "parseFnDef `and`" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
