@@ -231,10 +231,8 @@ spec = do
 
   describe "parseVal" $ do
     it "parses `[clone] [drop] 0`" $ do
-      -- Note that the values are in reverse, so that `eval` can
-      -- easily pattern match on the top of the stack.
       parseVals "[clone] [drop] 0"
-        `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
+        `shouldBe` Right [VQuote clone, VQuote drop, VLit (LU32 0)]
 
     it "parses `B0`" $ do
       parseVals "B0"
@@ -243,6 +241,20 @@ spec = do
     it "parses `(Empty B0 Push)`" $ do
       parseVals "(Empty B0 Push)"
         `shouldBe` Right [VCons [VCons [] "Empty", VCons [] "B0"] "Push"]
+
+    it "parses `((Empty B0 A) Foo B)`" $ do
+      parseVals "((Empty B0 A) Foo B)"
+        `shouldBe` Right
+          [ VCons
+              [ VCons
+                  [ VCons [] "Empty",
+                    VCons [] "B0"
+                  ]
+                  "A",
+                VCons [] "Foo"
+              ]
+              "B"
+          ]
 
   describe "parseFnDef `and`" $ do
     it "parses `{fn drop2 => drop drop}`" $ do

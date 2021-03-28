@@ -32,7 +32,7 @@ parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseVals :: String -> Either ParseError [Val]
-parseVals = parse (skipMany space *> reversedVals <* eof) ""
+parseVals = parse (skipMany space *> many val <* eof) ""
 
 dataDef :: Parser DataDef
 dataDef =
@@ -80,9 +80,6 @@ expr =
           <|> consExpr
           <|> callExpr
       )
-
-reversedVals :: Parser [Val]
-reversedVals = reverse <$> many val
 
 val :: Parser Val
 val = literalVal <|> quotedVal <|> simpleConsVal <|> betweenParens consVal
