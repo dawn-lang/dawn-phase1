@@ -299,7 +299,7 @@ spec = do
       parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
         `shouldBe` Right
           ( DataDef
-              [v0, v1]
+              [tv0, tv1]
               "Pair"
               [ ConsDef [v0, v1] "Pair"
               ]
@@ -309,7 +309,7 @@ spec = do
       parseDataDef "{data v0 v1 SwapPair {cons v1 v0 SwapPair}}"
         `shouldBe` Right
           ( DataDef
-              [v0, v1]
+              [tv0, tv1]
               "SwapPair"
               [ ConsDef [v1, v0] "SwapPair"
               ]
@@ -319,7 +319,7 @@ spec = do
       parseDataDef "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
         `shouldBe` Right
           ( DataDef
-              [v0]
+              [tv0]
               "Stack"
               [ ConsDef [] "Empty",
                 ConsDef [TCons [v0] "Stack", v0] "Push"

@@ -27,7 +27,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
-import Language.Dawn.Phase1.Core hiding (consArity, fnExprs, (*))
+import Language.Dawn.Phase1.Core hiding ((*))
 import qualified Language.Dawn.Phase1.Core as Core
 import Language.Dawn.Phase1.Utils
 
@@ -41,7 +41,10 @@ emptyEvalEnv :: EvalEnv
 emptyEvalEnv = EvalEnv Map.empty Map.empty
 
 toEvalEnv :: Env -> EvalEnv
-toEvalEnv Env {Core.consArity, Core.fnExprs} = EvalEnv {consArity, fnExprs}
+toEvalEnv Env {consTypes, fnDefs} =
+  let consArity = Map.map (\(is, os) -> length is) consTypes
+      fnExprs = Map.map (\(FnDef fid e) -> e) fnDefs
+   in EvalEnv {consArity, fnExprs}
 
 newtype MultiStack = MultiStack (Map.Map StackId [Val])
   deriving (Eq, Show)

@@ -37,7 +37,7 @@ parseVals = parse (skipMany space *> vals <* eof) ""
 dataDef :: Parser DataDef
 dataDef =
   betweenBraces
-    ( DataDef <$> (keyword "data" *> many varType) <*> consId <*> many consDef
+    ( DataDef <$> (keyword "data" *> many typeVar) <*> consId <*> many consDef
     )
 
 consDef :: Parser ConsDef
