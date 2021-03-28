@@ -256,16 +256,22 @@ spec = do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
-      let (Right vs) = parseVals "B1"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let ms' = MultiStack (Map.singleton "$" [VCons [] "B1"])
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
-      let (Right vs) = parseVals "B1"
-      let ms' = MultiStack (Map.singleton "$a" vs)
+      let ms' = MultiStack (Map.singleton "$a" [VCons [] "B1"])
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `0 True Pair {match {case Pair => }}`" $ do
+      let (Right d) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "0 True Pair {match {case Pair => }}"
+      let (Right vs) = parseVals "0 True"
+      let ms' = MultiStack (Map.singleton "$" vs)
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
   describe "evalWithFuel" $ do

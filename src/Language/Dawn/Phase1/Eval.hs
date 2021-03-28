@@ -140,7 +140,7 @@ eval env ctx (EMatch cs) ms = iter ctx cs ms
       Nothing -> iter ctx cs ms
       Just ms' -> eval env ctx e ms'
 eval env@EvalEnv {consArities} (s : _) (ECons cid) (MultiStack m) =
-  let (vs, vs') = splitAt (consArities Map.! cid) (m Map.! s)
+  let (vs, vs') = splitAt (consArities Map.! cid) (Map.findWithDefault [] s m)
       vs'' = VCons vs cid : vs'
       m' = Map.insert s vs'' m
    in MultiStack m'
@@ -196,7 +196,12 @@ popPatternMatches ctx@(s : _) (PProd l r) ms = case popPatternMatches ctx r ms o
 popPatternMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault [] s m of
   (VLit l' : vs) | l == l' -> Just (MultiStack (insertListOrDelete s vs m))
   (VLit l' : vs) -> Nothing
-  _ -> error "EMatch arity/type mismatch"
+popPatternMatches (s : _) (PCons cid) (MultiStack m) =
+  case Map.findWithDefault [] s m of
+    (VCons args cid' : vs)
+      | cid == cid' ->
+        Just (MultiStack (insertListOrDelete s (args ++ vs) m)) -- TODO: reverse args?
+    (VCons args cid' : vs) -> Nothing
 
 evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
 evalWithFuel env ctx (0, e, ms) = (0, e, ms)
