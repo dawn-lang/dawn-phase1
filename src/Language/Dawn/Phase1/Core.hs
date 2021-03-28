@@ -1018,13 +1018,16 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
     removeConsAlreadyDefined :: ConsIds -> [DataDef] -> ([DataDefError], [DataDef])
     removeConsAlreadyDefined cids [] = ([], [])
     removeConsAlreadyDefined cids (def@(DataDef args tcid consDefs) : defs) =
-      let (errs, defs') = removeConsAlreadyDefined (Set.insert tcid cids) defs
+      let newConsIds = Set.fromList (map (\(ConsDef _ cid) -> cid) consDefs)
+          cids' = cids `Set.union` newConsIds
+          (errs, defs') = removeConsAlreadyDefined cids' defs
        in case checkConsDefs consDefs of
             Left err -> (err : errs, defs')
             Right () -> (errs, def : defs')
       where
         checkConsDefs :: [ConsDef] -> Either DataDefError ()
         checkConsDefs = mapM_ checkDef
+
         checkDef :: ConsDef -> Either DataDefError ()
         checkDef (ConsDef _ cid)
           | cid `Set.member` cids = throwError (ConsAlreadyDefined tcid cid)
@@ -1077,17 +1080,14 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
 
     checkUndefinedTypeVar :: DataDef -> Either DataDefError ()
     checkUndefinedTypeVar (DataDef args tcid consDefs) =
-      checkDefs (Set.fromList args) consDefs
+      mapM_ (checkConsDef (Set.fromList args)) consDefs
       where
-        checkDefs :: TypeVars -> [ConsDef] -> Either DataDefError ()
-        checkDefs tvs [] = return ()
-        checkDefs tvs (ConsDef ts cid : defs) = checkVars tvs (atv ts)
+        checkConsDef :: TypeVars -> ConsDef -> Either DataDefError ()
+        checkConsDef tvs (ConsDef args cid) = mapM_ (checkVar tvs) (atv args)
 
-        checkVars :: TypeVars -> [TypeVar] -> Either DataDefError ()
-        checkVars definedTvs [] = return ()
-        checkVars definedTvs (tv : tvs)
-          | tv `Set.member` definedTvs = checkVars definedTvs tvs
-        checkVars definedTvs (tv : tvs) = throwError (UndefinedTypeVar tcid tv)
+        checkVar :: TypeVars -> TypeVar -> Either DataDefError ()
+        checkVar tvs tv | not (tv `Set.member` tvs) = throwError (UndefinedTypeVar tcid tv)
+        checkVar tvs tv = return ()
 
     checkTypeCons :: Map.Map TypeConsId Int -> DataDef -> Either DataDefError ()
     checkTypeCons typeConsArities (DataDef _ tcid consDefs) =
