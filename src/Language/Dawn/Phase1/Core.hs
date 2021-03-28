@@ -20,7 +20,6 @@ module Language.Dawn.Phase1.Core
     Context,
     DataDef (..),
     DataDefError (..),
-    defineFn,
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
@@ -968,11 +967,6 @@ addFnDefs env@Env {fnDefs} defs =
       case checkType env ["$"] e (fnTypes Map.! fid) of
         Left err -> (FnTypeError fid err : errs, env {fnTypes = Map.delete fid fnTypes})
         Right () -> (errs, env)
-
-defineFn :: Env -> FnDef -> Either FnDefError Env
-defineFn env def = case addFnDefs env [def] of
-  ([], env') -> return env'
-  ([err], _) -> throwError err
 
 ------------------------------------
 -- Algebraic Data Type Definition --

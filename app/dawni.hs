@@ -80,21 +80,18 @@ readEvalPrint (env, ms) = do
         (errs, env') -> do
           mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
           return (env, ms)
-      Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
-        Left (FnAlreadyDefined fid) -> do
-          outputStrLn ("Error: already defined: " ++ fid)
-          return (env, ms)
-        Left (FnTypeError fid err) -> do
-          printInferTypeError e err
-          return (env, ms)
-        Left (FnStackError fid sids) -> do
-          let s = intercalate ", " (Set.toList sids)
-          outputStrLn ("Error: exposed temporary stacks: " ++ s)
-          return (env, ms)
-        Right env'@Env {fnTypes} -> do
-          let (Just t) = Map.lookup fid fnTypes
-          outputStrLn $ fid ++ " :: " ++ display t
+      Right (CmdFnDefs defs) -> case addFnDefs env defs of
+        ([], env'@Env {fnTypes}) -> do
+          mapM_
+            ( \(FnDef fid _) -> do
+                let (Just t) = Map.lookup fid fnTypes
+                outputStrLn $ fid ++ " :: " ++ display t
+            )
+            defs
           return (env', ms)
+        (errs, env') -> do
+          mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
+          return (env, ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -174,7 +171,7 @@ command =
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
     <|> try (CmdDataDefs <$> many1 dataDef)
-    <|> try (CmdFnDef <$> fnDef)
+    <|> try (CmdFnDefs <$> many1 fnDef)
     <|> CmdEval <$> expr
 
 data Command
@@ -185,5 +182,5 @@ data Command
   | CmdTrace Expr
   | CmdPartialEval Expr
   | CmdDataDefs [DataDef]
-  | CmdFnDef FnDef
+  | CmdFnDefs [FnDef]
   | CmdEval Expr
