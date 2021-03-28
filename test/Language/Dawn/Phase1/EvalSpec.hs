@@ -347,7 +347,7 @@ spec = do
       evalWithFuel emptyEvalEnv ["$"] (7, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `fib`" $ do
-      let ([], env) = defineFns emptyEnv [swap, fib]
+      let ([], env) = addFnDefs emptyEnv [swap, fib]
           evalFib n =
             let (Right e) = parseExpr (show n ++ " fib")
                 ms = MultiStack Map.empty
@@ -369,7 +369,7 @@ spec = do
       evalFib 9 `shouldBe` 34 `inSteps` 1010
 
     it "evals tail recursive fib" $ do
-      let ([], env) = defineFns emptyEnv [fastFib, _fastFib]
+      let ([], env) = addFnDefs emptyEnv [fastFib, _fastFib]
           evalFastFib n =
             let (Right e) = parseExpr (show n ++ " fib")
                 ms = MultiStack Map.empty

@@ -502,7 +502,7 @@ spec = do
       let fnDefs = [f, h, g]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
-  describe "defineFns examples" $ do
+  describe "addFnDefs examples" $ do
     it "defines drop2 and drop3" $ do
       let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
       let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
@@ -517,7 +517,7 @@ spec = do
                       ]
                 }
             )
-      defineFns emptyEnv [drop2, drop3]
+      addFnDefs emptyEnv [drop2, drop3]
         `shouldBe` (errs, env)
 
     it "defines mutually recursive fns" $ do
@@ -573,7 +573,7 @@ spec = do
                       ]
                 }
             )
-      defineFns emptyEnv [is_odd, decr_even, decr_odd, count_down]
+      addFnDefs emptyEnv [is_odd, decr_even, decr_odd, count_down]
         `shouldBe` (errs, env)
 
     it "succeeds on direct recursion in one match case" $ do
@@ -596,13 +596,13 @@ spec = do
               { fnDefs = Map.singleton "fib" fib,
                 fnTypes = Map.singleton "fib" fib_t
               }
-      defineFns emptyEnv [fib] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [fib] `shouldBe` (errs, env)
 
     it "fails on direct recursion outside of match expr" $ do
       let (Right diverge) = parseFnDef "{fn diverge => drop diverge 1}"
       let errs = [FnTypeError "diverge" (UndefinedFn "diverge")]
       let env = emptyEnv
-      defineFns emptyEnv [diverge] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [diverge] `shouldBe` (errs, env)
 
     it "fails on direct recursion in all match cases" $ do
       let (Right foo) =
@@ -619,7 +619,7 @@ spec = do
       let foo_t = forall' [v0] (v0 * tU32 --> v0 * tU32)
       let errs = [FnTypeError "foo" (UndefinedFn "foo")]
       let env = emptyEnv
-      defineFns emptyEnv [foo] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [foo] `shouldBe` (errs, env)
 
     it "succeeds on mutual recursion in one match case in each function" $ do
       let (Right is_even) =
@@ -654,7 +654,7 @@ spec = do
               { fnDefs = Map.fromList [("is_even", is_even), ("is_odd", is_odd)],
                 fnTypes = Map.fromList [("is_even", is_even_t), ("is_odd", is_odd_t)]
               }
-      defineFns emptyEnv [is_even, is_odd] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [is_even, is_odd] `shouldBe` (errs, env)
 
     it "fails on mutual recursion outside of match expr" $ do
       let (Right f1) = parseFnDef "{fn f1 => decr f2}"
@@ -668,7 +668,7 @@ spec = do
               FnTypeError "f2" (UndefinedFn "f1")
             ]
       let env = emptyEnv
-      defineFns emptyEnv [f1, f2] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [f1, f2] `shouldBe` (errs, env)
 
     it "fails on mutual recursion in all match cases" $ do
       let (Right is_even) =
@@ -702,7 +702,7 @@ spec = do
               FnTypeError "is_odd" (UndefinedFn "is_even")
             ]
       let env = emptyEnv
-      defineFns emptyEnv [is_even, is_odd] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [is_even, is_odd] `shouldBe` (errs, env)
 
     it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
       let (Right is_even) =
@@ -728,7 +728,7 @@ spec = do
               { fnDefs = Map.fromList [("is_even", is_even), ("is_odd", is_odd)],
                 fnTypes = Map.fromList [("is_even", is_even_t), ("is_odd", is_odd_t)]
               }
-      defineFns emptyEnv [is_odd, is_even] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [is_odd, is_even] `shouldBe` (errs, env)
 
     it "succeeds on mutual recursion in all but some match cases in one function (2)" $ do
       let (Right is_odd) =
@@ -754,7 +754,7 @@ spec = do
               { fnDefs = Map.fromList [("is_even", is_even), ("is_odd", is_odd)],
                 fnTypes = Map.fromList [("is_even", is_even_t), ("is_odd", is_odd_t)]
               }
-      defineFns emptyEnv [is_odd, is_even] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [is_odd, is_even] `shouldBe` (errs, env)
 
     it "defines tail recursive fib" $ do
       let errs = []
@@ -778,7 +778,7 @@ spec = do
                       )
                     ]
               }
-      defineFns emptyEnv [fastFib, _fastFib] `shouldBe` (errs, env)
+      addFnDefs emptyEnv [fastFib, _fastFib] `shouldBe` (errs, env)
 
   describe "addDataDefs" $ do
     it "adds `{data Bit {cons B0} {cons B1}}`" $ do
