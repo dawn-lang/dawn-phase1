@@ -130,6 +130,7 @@ test-suite dawn-phase1-test
   main-is: Spec.hs
   other-modules:
       Language.Dawn.Phase1.CoreSpec
+      Language.Dawn.Phase1.DisplaySpec
       Language.Dawn.Phase1.EvalSpec
       Language.Dawn.Phase1.ParseSpec
       Language.Dawn.Phase1.PartialEvalSpec
