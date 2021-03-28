@@ -119,8 +119,8 @@ readEvalPrint (env, ms) = do
 
 multiStackToExpr :: MultiStack -> Expr
 multiStackToExpr (MultiStack ms) =
-  let mapper ("$", v) = ECompose (map fromVal v)
-      mapper (s, v) = EContext s (ECompose (map fromVal v))
+  let mapper ("$", vs) = ECompose (map fromVal (fromStack vs))
+      mapper (s, vs) = EContext s (ECompose (map fromVal (fromStack vs)))
    in ECompose (map mapper (Map.toAscList ms))
 
 printInferTypeError e err =

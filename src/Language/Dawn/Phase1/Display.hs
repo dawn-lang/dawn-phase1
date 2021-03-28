@@ -93,12 +93,17 @@ instance Display DataDefError where
     unwords ["TypeConsArityMismatch", tcid, "(" ++ display t ++ ")"]
   display err = show err
 
+instance Display Val where
+  display (VCons Empty cid) = cid
+  display (VCons args cid) = "(" ++ display args ++ " " ++ cid ++ ")"
+  display v = display (fromVal v)
+
+instance (Display a) => Display (Stack a) where
+  display Empty = ""
+  display (Empty :*: v) = display v
+  display (s :*: v) = display s ++ " " ++ display v
+
 instance Display MultiStack where
   display (MultiStack m) = "{" ++ unwords (map iter (Map.toAscList m)) ++ "}"
     where
-      iter (sid, vs) = sid ++ ": " ++ unwords (map display (reverse vs))
-
-instance Display Val where
-  display (VCons [] cid) = cid
-  display (VCons args cid) = "(" ++ unwords (map display args ++ [cid]) ++ ")"
-  display v = display (fromVal v)
+      iter (sid, vs) = sid ++ ": " ++ display vs

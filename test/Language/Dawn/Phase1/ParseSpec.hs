@@ -236,23 +236,27 @@ spec = do
 
     it "parses `B0`" $ do
       parseVals "B0"
-        `shouldBe` Right [VCons [] "B0"]
+        `shouldBe` Right [VCons Empty "B0"]
 
     it "parses `(Empty B0 Push)`" $ do
       parseVals "(Empty B0 Push)"
-        `shouldBe` Right [VCons [VCons [] "Empty", VCons [] "B0"] "Push"]
+        `shouldBe` Right [VCons (toStack [VCons Empty "Empty", VCons Empty "B0"]) "Push"]
 
     it "parses `((Empty B0 A) Foo B)`" $ do
       parseVals "((Empty B0 A) Foo B)"
         `shouldBe` Right
           [ VCons
-              [ VCons
-                  [ VCons [] "Empty",
-                    VCons [] "B0"
+              ( toStack
+                  [ VCons
+                      ( toStack
+                          [ VCons Empty "Empty",
+                            VCons Empty "B0"
+                          ]
+                      )
+                      "A",
+                    VCons Empty "Foo"
                   ]
-                  "A",
-                VCons [] "Foo"
-              ]
+              )
               "B"
           ]
 

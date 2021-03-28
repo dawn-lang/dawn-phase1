@@ -19,7 +19,7 @@ import Control.Monad (fail, void, when)
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Utils
-import Text.Parsec
+import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
 
@@ -86,14 +86,14 @@ val :: Parser Val
 val = literalVal <|> quotedVal <|> simpleConsVal <|> betweenParens consVal
 
 simpleConsVal :: Parser Val
-simpleConsVal = VCons [] <$> consId
+simpleConsVal = VCons Empty <$> consId
 
 consVal :: Parser Val
 consVal = do
   args <- many val
   let (args', args'') = splitAt (length args - 1) args
   case args'' of
-    [VCons [] cid] -> return (VCons args' cid)
+    [VCons Empty cid] -> return (VCons (toStack args') cid)
     _ -> fail "expected consId"
 
 literalExpr = ELit <$> literal
