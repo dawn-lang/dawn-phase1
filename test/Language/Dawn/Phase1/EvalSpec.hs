@@ -389,6 +389,36 @@ spec = do
       evalFastFib 8 `shouldBe` 21 `inSteps` 80
       evalFastFib 9 `shouldBe` 34 `inSteps` 89
 
+    it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "B1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel (toEvalEnv env) ["$"] (3, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "B1"
+      let ms' = MultiStack (Map.singleton "$a" vs)
+      evalWithFuel (toEvalEnv env) ["$"] (3, e, ms) `shouldBe` (0, e', ms')
+
+    it "evals `0 True Pair {match {case Pair => }}`" $ do
+      let (Right d) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "0 True Pair {match {case Pair => }}"
+      let ms = MultiStack Map.empty
+      let e' = ECompose []
+      let (Right vs) = parseVals "0 True"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      evalWithFuel (toEvalEnv env) ["$"] (4, e, ms) `shouldBe` (0, e', ms')
+
 swapSrc = "{fn swap => $a<- $b<- $a-> $b->}"
 
 (Right swap) = parseFnDef swapSrc
