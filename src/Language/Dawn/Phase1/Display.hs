@@ -66,9 +66,10 @@ displayMultiIO mio
   | Map.keys mio == ["$"] =
     let [("$", (i, o))] = Map.toList mio
      in display i ++ " -> " ++ display o
-  | otherwise = unwords (map iter (Map.toAscList mio))
+  | otherwise = unwords (map mapper (Map.toAscList mio))
   where
-    iter (sid, (i, o)) = "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
+    mapper (sid, (i, o)) =
+      "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n
@@ -111,6 +112,7 @@ instance (Display a) => Display (Stack a) where
   display (s :*: v) = display s ++ " " ++ display v
 
 instance Display MultiStack where
-  display (MultiStack m) = "{" ++ unwords (map iter (Map.toAscList m)) ++ "}"
+  display (MultiStack m) =
+    "{" ++ unwords (map mapper (Map.toAscList m)) ++ "}"
     where
-      iter (sid, vs) = sid ++ ": " ++ display vs
+      mapper (sid, vs) = sid ++ ": " ++ display vs
