@@ -84,8 +84,14 @@ instance Display UnificationError where
     display t ++ " does not unify with " ++ display t'
   display (OccursIn tv t) = display tv ++ " occurs in " ++ display t
 
+instance Display MatchError where
+  display (DoesNotMatch t t') =
+    display t ++ " does not match " ++ display t'
+
 instance Display TypeError where
   display (UnificationError err) = "unification error: " ++ display err
+  display (MatchError matchError) = "match error: " ++ display matchError
+  display (UndefinedCons cid) = "undefined constructor: " ++ cid
   display (UndefinedFn fid) = "undefined function: " ++ fid
 
 instance Display DataDefError where
