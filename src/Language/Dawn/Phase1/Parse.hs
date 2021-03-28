@@ -50,6 +50,7 @@ consDef = betweenBraces innerConsDef
       let (args', args'') = splitAt (length args - 1) args
       case args'' of
         [TCons [] cid] -> return (ConsDef args' cid)
+        -- TODO: this gives terrible error messages
         _ -> fail "expected consId"
 
 consDefArgs :: Parser Type
