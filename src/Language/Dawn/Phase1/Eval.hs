@@ -32,7 +32,7 @@ import qualified Language.Dawn.Phase1.Core as Core
 import Language.Dawn.Phase1.Utils
 
 data EvalEnv = EvalEnv
-  { consArity :: Map.Map ConsId Int,
+  { consArities :: Map.Map ConsId Int,
     fnExprs :: Map.Map FnId Expr
   }
   deriving (Eq, Show)
@@ -42,9 +42,9 @@ emptyEvalEnv = EvalEnv Map.empty Map.empty
 
 toEvalEnv :: Env -> EvalEnv
 toEvalEnv Env {consTypes, fnDefs} =
-  let consArity = Map.map (\(is, os) -> length is) consTypes
+  let consArities = Map.map (\(is, os) -> length is) consTypes
       fnExprs = Map.map (\(FnDef fid e) -> e) fnDefs
-   in EvalEnv {consArity, fnExprs}
+   in EvalEnv {consArities, fnExprs}
 
 newtype MultiStack = MultiStack (Map.Map StackId [Val])
   deriving (Eq, Show)
@@ -139,8 +139,8 @@ eval env ctx (EMatch cs) ms = iter ctx cs ms
     iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
       Just ms' -> eval env ctx e ms'
-eval env@EvalEnv {consArity} (s : _) (ECons cid) (MultiStack m) =
-  let (vs, vs') = splitAt (consArity Map.! cid) (m Map.! s)
+eval env@EvalEnv {consArities} (s : _) (ECons cid) (MultiStack m) =
+  let (vs, vs') = splitAt (consArities Map.! cid) (m Map.! s)
       vs'' = VCons vs cid : vs'
       m' = Map.insert s vs'' m
    in MultiStack m'
