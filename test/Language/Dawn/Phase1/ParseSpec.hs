@@ -5,6 +5,7 @@
 
 module Language.Dawn.Phase1.ParseSpec (spec) where
 
+import Data.Either.Combinators
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
@@ -229,21 +230,28 @@ spec = do
       parseExpr "{collect $a $a $b}"
         `shouldBe` parseExpr "($b-> $s1<-) ($a-> $s2<-) ($a-> $s3<-) ($s3-> $s2-> $s1->)"
 
-  describe "parseVal" $ do
+    it "parses `B0`" $ do
+      parseExpr "B0" `shouldBe` Right (ECons "B0")
+
+    it "parses `{match {case B0 => }}`" $ do
+      parseExpr "{match {case B0 => }}"
+        `shouldBe` Right (EMatch [(PCons "B0", ECompose [])])
+
+  describe "parseValStack" $ do
     it "parses `[clone] [drop] 0`" $ do
-      parseValStack "[clone] [drop] 0"
+      mapRight fromStack (parseValStack "[clone] [drop] 0")
         `shouldBe` Right [VQuote clone, VQuote drop, VLit (LU32 0)]
 
     it "parses `B0`" $ do
-      parseValStack "B0"
+      mapRight fromStack (parseValStack "B0")
         `shouldBe` Right [VCons Empty "B0"]
 
     it "parses `(Empty B0 Push)`" $ do
-      parseValStack "(Empty B0 Push)"
+      mapRight fromStack (parseValStack "(Empty B0 Push)")
         `shouldBe` Right [VCons (toStack [VCons Empty "Empty", VCons Empty "B0"]) "Push"]
 
     it "parses `((Empty B0 A) Foo B)`" $ do
-      parseValStack "((Empty B0 A) Foo B)"
+      mapRight fromStack (parseValStack "((Empty B0 A) Foo B)")
         `shouldBe` Right
           [ VCons
               ( toStack
@@ -260,7 +268,7 @@ spec = do
               "B"
           ]
 
-  describe "parseFnDef `and`" $ do
+  describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
       parseFnDef "{fn drop2 => drop drop}"
@@ -299,6 +307,7 @@ spec = do
       parseFnDef _fibSrc
         `shouldBe` Right (FnDef "_fib" e)
 
+  describe "parseDataDef" $ do
     it "parses `{data Bit {cons B0} {cons B1}}`" $ do
       parseDataDef "{data Bit {cons B0} {cons B1}}"
         `shouldBe` Right
@@ -349,10 +358,3 @@ spec = do
                 ConsDef [TCons [v0] "Stack", v0] "Push"
               ]
           )
-
-    it "parses `B0`" $ do
-      parseExpr "B0" `shouldBe` Right (ECons "B0")
-
-    it "parses `{match {case B0 => }}`" $ do
-      parseExpr "{match {case B0 => }}"
-        `shouldBe` Right (EMatch [(PCons "B0", ECompose [])])
