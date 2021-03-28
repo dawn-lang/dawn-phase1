@@ -983,12 +983,6 @@ data DataDef = DataDef [TypeVar] TypeConsId [ConsDef]
 data ConsDef = ConsDef [Type] ConsId
   deriving (Eq, Show)
 
-instance HasTypeVars ConsDef where
-  renameTypeVar from to (ConsDef ts cid) = ConsDef (renameTypeVar from to ts) cid
-  ftv (ConsDef ts cid) = ftv ts
-  btv (ConsDef ts cid) = btv ts
-  atv (ConsDef ts cid) = atv ts
-
 data DataDefError
   = TypeConsAlreadyDefined TypeConsId
   | ConsAlreadyDefined ConsId
@@ -1079,7 +1073,7 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
       where
         checkDefs :: TypeVars -> [ConsDef] -> Either DataDefError ()
         checkDefs tvs [] = return ()
-        checkDefs tvs (def : defs) = checkVars tvs (atv def)
+        checkDefs tvs (ConsDef ts cid : defs) = checkVars tvs (atv ts)
 
         checkVars :: TypeVars -> [TypeVar] -> Either DataDefError ()
         checkVars definedTvs [] = return ()
