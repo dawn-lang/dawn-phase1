@@ -100,4 +100,6 @@ instance Display MultiStack where
       iter (sid, vs) = sid ++ ": " ++ unwords (map display (reverse vs))
 
 instance Display Val where
+  display (VCons [] cid) = cid
+  display (VCons args cid) = "(" ++ unwords (map display args ++ [cid]) ++ ")"
   display v = display (fromVal v)
