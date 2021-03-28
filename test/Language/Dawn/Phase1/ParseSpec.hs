@@ -268,6 +268,23 @@ spec = do
               "B"
           ]
 
+    it "parses `(((v0 Stack) Stack) Foo)`" $ do
+      mapRight fromStack (parseValStack "(((B0 Stack) Stack) Foo)")
+        `shouldBe` Right
+          [ VCons
+              ( Empty
+                  :*: VCons
+                    ( Empty
+                        :*: VCons
+                          ( Empty :*: VCons Empty "B0"
+                          )
+                          "Stack"
+                    )
+                    "Stack"
+              )
+              "Foo"
+          ]
+
   describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
