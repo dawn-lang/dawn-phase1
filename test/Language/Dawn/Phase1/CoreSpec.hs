@@ -317,6 +317,11 @@ spec = do
       let tBit = TCons [] "Bit"
       inferNormType env ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 * tBit --> v0 * tBit))
+    
+    it "throws UndefinedCons on `Test`" $ do
+      let (Right e) = parseExpr "Test"
+      inferNormType emptyEnv ["$"] e
+        `shouldBe` Left (UndefinedCons "Test")
 
     it "throws UndefinedFn on `test`" $ do
       let (Right e) = parseExpr "test"
