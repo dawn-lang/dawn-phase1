@@ -43,7 +43,7 @@ emptyEvalEnv = EvalEnv Map.empty Map.empty
 toEvalEnv :: Env -> EvalEnv
 toEvalEnv Env {consTypes, fnDefs} =
   let consArities = Map.map (\(is, os) -> length is) consTypes
-      fnExprs = Map.map (\(FnDef fid e) -> e) fnDefs
+      fnExprs = Map.map fnDefExpr fnDefs
    in EvalEnv {consArities, fnExprs}
 
 data Val
