@@ -985,11 +985,11 @@ data ConsDef = ConsDef [Type] ConsId
 
 data DataDefError
   = TypeConsAlreadyDefined TypeConsId
-  | ConsAlreadyDefined ConsId
-  | DuplicateTypeVar TypeVar
-  | UndefinedTypeVar TypeVar
+  | ConsAlreadyDefined TypeConsId ConsId
+  | DuplicateTypeVar TypeConsId TypeVar
+  | UndefinedTypeVar TypeConsId TypeVar
   | UndefinedTypeCons TypeConsId
-  | TypeConsArityMismatch Type
+  | TypeConsArityMismatch TypeConsId Type
   deriving (Eq, Show)
 
 type TypeConsIds = Set.Set TypeConsId
@@ -1016,11 +1016,18 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
 
     removeConsAlreadyDefined :: ConsIds -> [DataDef] -> ([DataDefError], [DataDef])
     removeConsAlreadyDefined cids [] = ([], [])
-    removeConsAlreadyDefined cids (DataDef args tcid consDefs : defs) =
+    removeConsAlreadyDefined cids (def@(DataDef args tcid consDefs) : defs) =
       let (errs, defs') = removeConsAlreadyDefined (Set.insert tcid cids) defs
-       in if tcid `Set.member` cids
-            then (ConsAlreadyDefined tcid : errs, defs')
-            else (errs, DataDef args tcid consDefs : defs)
+       in case checkConsDefs consDefs of
+            Left err -> (err : errs, defs')
+            Right () -> (errs, def : defs')
+      where
+        checkConsDefs :: [ConsDef] -> Either DataDefError ()
+        checkConsDefs = mapM_ checkDef
+        checkDef :: ConsDef -> Either DataDefError ()
+        checkDef (ConsDef _ cid)
+          | cid `Set.member` cids = throwError (ConsAlreadyDefined tcid cid)
+        checkDef _ = return ()
 
     addDataDefs' :: Env -> [DataDef] -> Env
     addDataDefs' = foldr addDataDef
@@ -1064,7 +1071,7 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
         check :: TypeVars -> [TypeVar] -> Either DataDefError ()
         check tvs [] = return ()
         check tvs (tv : tvl)
-          | tv `Set.member` tvs = throwError (DuplicateTypeVar tv)
+          | tv `Set.member` tvs = throwError (DuplicateTypeVar tcid tv)
         check tvs (tv : tvl) = check (Set.insert tv tvs) tvl
 
     checkUndefinedTypeVar :: DataDef -> Either DataDefError ()
@@ -1079,7 +1086,7 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
         checkVars definedTvs [] = return ()
         checkVars definedTvs (tv : tvs)
           | tv `Set.member` definedTvs = checkVars definedTvs tvs
-        checkVars definedTvs (tv : tvs) = throwError (UndefinedTypeVar tv)
+        checkVars definedTvs (tv : tvs) = throwError (UndefinedTypeVar tcid tv)
 
     checkTypeCons :: Map.Map TypeConsId Int -> DataDef -> Either DataDefError ()
     checkTypeCons typeConsArities (DataDef _ tcid consDefs) =
@@ -1093,5 +1100,5 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
             throwError (UndefinedTypeCons tcid)
         checkArg t@(TCons args tcid)
           | length args /= (typeConsArities Map.! tcid) =
-            throwError (TypeConsArityMismatch t)
+            throwError (TypeConsArityMismatch tcid t)
         checkArg (TCons args tcid) = mapM_ checkArg args
