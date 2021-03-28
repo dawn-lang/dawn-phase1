@@ -237,7 +237,7 @@ popPatternMatches (s : _) (PCons cid) (MultiStack m) =
   case Map.findWithDefault Empty s m of
     (vs :*: VCons args cid')
       | cid == cid' ->
-        Just (MultiStack (insertStackOrDelete s (vs `appendStack` args) m)) -- TODO: reverse args?
+        Just (MultiStack (insertStackOrDelete s (vs `appendStack` args) m))
     (vs :*: VCons args cid') -> Nothing
 
 evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
