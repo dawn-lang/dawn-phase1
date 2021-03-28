@@ -302,6 +302,22 @@ spec = do
       inferNormType emptyEnv ["$"] e
         `shouldBe` Right (forall' [v0, v1] (v0 * v1 * tU32 --> v0 * v1 * v1))
 
+    it "infers `{match {case B0 => B1} {case B1 => B0}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "{match {case B0 => B1} {case B1 => B0}}"
+      let tBit = TCons [] "Bit"
+      inferNormType env ["$"] e
+        `shouldBe` Right (forall' [v0] (v0 * tBit --> v0 * tBit))
+
+    it "infers `{$a {match {case B0 => B1} {case B1 => B0}}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "{$a {match {case B0 => B1} {case B1 => B0}}}"
+      let tBit = TCons [] "Bit"
+      inferNormType env ["$"] e
+        `shouldBe` Right (forall [v0] ("$a" $: v0 * tBit --> v0 * tBit))
+
     it "throws UndefinedFn on `test`" $ do
       let (Right e) = parseExpr "test"
       inferNormType emptyEnv ["$"] e
