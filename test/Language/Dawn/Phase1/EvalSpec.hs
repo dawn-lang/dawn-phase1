@@ -252,6 +252,22 @@ spec = do
       let ms = MultiStack (Map.singleton "$" vs)
       eval (toEvalEnv env') ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
+    it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
+      let (Right vs) = parseVals "B1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
+      let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
+      let (Right vs) = parseVals "B1"
+      let ms' = MultiStack (Map.singleton "$a" vs)
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
   describe "evalWithFuel" $ do
     it "stops at 0 fuel" $ do
       let (Right e) = parseExpr "0"
