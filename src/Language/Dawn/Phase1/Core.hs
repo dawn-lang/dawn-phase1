@@ -1059,13 +1059,13 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
 
     checkDuplicateTypeVar :: DataDef -> Either DataDefError ()
     checkDuplicateTypeVar (DataDef args tcid consDefs) =
-      check (Set.fromList args) args
+      check Set.empty args
       where
         check :: TypeVars -> [TypeVar] -> Either DataDefError ()
         check tvs [] = return ()
         check tvs (tv : tvl)
           | tv `Set.member` tvs = throwError (DuplicateTypeVar tv)
-        check tvs (tv : tvl) = check tvs tvl
+        check tvs (tv : tvl) = check (Set.insert tv tvs) tvl
 
     checkUndefinedTypeVar :: DataDef -> Either DataDefError ()
     checkUndefinedTypeVar (DataDef args tcid consDefs) =
