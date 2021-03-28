@@ -11,6 +11,7 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addDataDefs,
+    addFnDefs,
     addMissingStacks,
     checkType,
     composeSubst,
@@ -19,8 +20,6 @@ module Language.Dawn.Phase1.Core
     Context,
     DataDef (..),
     DataDefError (..),
-    defineFn,
-    defineFns,
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
@@ -931,8 +930,8 @@ fnDepsSort defs =
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
-defineFns :: Env -> [FnDef] -> ([FnDefError], Env)
-defineFns env@Env {fnDefs} defs =
+addFnDefs :: Env -> [FnDef] -> ([FnDefError], Env)
+addFnDefs env@Env {fnDefs} defs =
   let existingFnIds = Map.keysSet fnDefs `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
       newFnIds = Set.fromList (map fnDefFnId defs')
@@ -968,11 +967,6 @@ defineFns env@Env {fnDefs} defs =
       case checkType env ["$"] e (fnTypes Map.! fid) of
         Left err -> (FnTypeError fid err : errs, env {fnTypes = Map.delete fid fnTypes})
         Right () -> (errs, env)
-
-defineFn :: Env -> FnDef -> Either FnDefError Env
-defineFn env def = case defineFns env [def] of
-  ([], env') -> return env'
-  ([err], _) -> throwError err
 
 ------------------------------------
 -- Algebraic Data Type Definition --

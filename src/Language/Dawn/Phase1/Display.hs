@@ -96,6 +96,13 @@ instance Display TypeError where
   display (UndefinedCons cid) = "undefined constructor: " ++ cid
   display (UndefinedFn fid) = "undefined function: " ++ fid
 
+instance Display FnDefError where
+  display err@(FnAlreadyDefined fid) = show err
+  display (FnTypeError fid err) = "type error: " ++ display err
+  display (FnStackError fid sids) =
+    let s = intercalate ", " (Set.toList sids)
+     in "exposed temporary stacks: " ++ s
+
 instance Display DataDefError where
   display (TypeConsArityMismatch tcid t) =
     unwords ["TypeConsArityMismatch", tcid, display t]

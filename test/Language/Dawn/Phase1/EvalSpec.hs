@@ -212,7 +212,7 @@ spec = do
       eval' e `shouldBe` ms
 
     it "evals `0 1 swap`" $ do
-      let (Right env) = defineFn emptyEnv swap
+      let ([], env) = addFnDefs emptyEnv [swap]
       let (Right e) = parseExpr "0 1 swap"
       let (Right vs) = parseValStack "1 0"
       let ms = MultiStack Map.empty
@@ -220,7 +220,7 @@ spec = do
       eval (toEvalEnv env) ["$"] e ms `shouldBe` ms'
 
     it "evals `{$c 0 1 swap}`" $ do
-      let (Right env) = defineFn emptyEnv swap
+      let ([], env) = addFnDefs emptyEnv [swap]
       let (Right e) = parseExpr "{$c 0 1 swap}"
       let (Right vs) = parseValStack "1 0"
       let ms = MultiStack Map.empty
@@ -228,7 +228,7 @@ spec = do
       eval (toEvalEnv env) ["$"] e ms `shouldBe` ms'
 
     it "evals `{$a 0 1 swap}`" $ do
-      let (Right env) = defineFn emptyEnv swap
+      let ([], env) = addFnDefs emptyEnv [swap]
       let (Right e) = parseExpr "{$a 0 1 swap}"
       let (Right vs) = parseValStack "1 0"
       let ms = MultiStack Map.empty
@@ -236,22 +236,21 @@ spec = do
       eval (toEvalEnv env) ["$"] e ms `shouldBe` ms'
 
     it "evals fib" $ do
-      let (Right env) = defineFn emptyEnv swap
-      let (Right env') = defineFn env fib
+      let ([], env) = addFnDefs emptyEnv [swap, fib]
       let (Right e) = parseExpr "0 fib"
       let (Right vs) = parseValStack "0"
       let ms = MultiStack (Map.singleton "$" vs)
-      eval (toEvalEnv env') ["$"] e (MultiStack Map.empty) `shouldBe` ms
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
       let (Right e) = parseExpr "1 fib"
       let (Right vs) = parseValStack "1"
       let ms = MultiStack (Map.singleton "$" vs)
-      eval (toEvalEnv env') ["$"] e (MultiStack Map.empty) `shouldBe` ms
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
       let (Right e) = parseExpr "6 fib"
       let (Right vs) = parseValStack "8"
       let ms = MultiStack (Map.singleton "$" vs)
-      eval (toEvalEnv env') ["$"] e (MultiStack Map.empty) `shouldBe` ms
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
@@ -347,7 +346,7 @@ spec = do
       evalWithFuel emptyEvalEnv ["$"] (7, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `fib`" $ do
-      let ([], env) = defineFns emptyEnv [swap, fib]
+      let ([], env) = addFnDefs emptyEnv [swap, fib]
           evalFib n =
             let (Right e) = parseExpr (show n ++ " fib")
                 ms = MultiStack Map.empty
@@ -369,7 +368,7 @@ spec = do
       evalFib 9 `shouldBe` 34 `inSteps` 1010
 
     it "evals tail recursive fib" $ do
-      let ([], env) = defineFns emptyEnv [fastFib, _fastFib]
+      let ([], env) = addFnDefs emptyEnv [fastFib, _fastFib]
           evalFastFib n =
             let (Right e) = parseExpr (show n ++ " fib")
                 ms = MultiStack Map.empty
