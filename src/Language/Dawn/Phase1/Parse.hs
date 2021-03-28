@@ -11,7 +11,7 @@ module Language.Dawn.Phase1.Parse
     parseDataDef,
     parseExpr,
     parseFnDef,
-    parseVals,
+    parseValStack,
   )
 where
 
@@ -32,8 +32,8 @@ parseFnDef = parse (skipMany space *> fnDef <* eof) ""
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
-parseVals :: String -> Either ParseError [Val]
-parseVals = parse (skipMany space *> many val <* eof) ""
+parseValStack :: String -> Either ParseError (Stack Val)
+parseValStack = parse (skipMany space *> (toStack <$> many val) <* eof) ""
 
 dataDef :: Parser DataDef
 dataDef =

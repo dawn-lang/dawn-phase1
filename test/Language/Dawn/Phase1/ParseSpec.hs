@@ -231,19 +231,19 @@ spec = do
 
   describe "parseVal" $ do
     it "parses `[clone] [drop] 0`" $ do
-      parseVals "[clone] [drop] 0"
+      parseValStack "[clone] [drop] 0"
         `shouldBe` Right [VQuote clone, VQuote drop, VLit (LU32 0)]
 
     it "parses `B0`" $ do
-      parseVals "B0"
+      parseValStack "B0"
         `shouldBe` Right [VCons Empty "B0"]
 
     it "parses `(Empty B0 Push)`" $ do
-      parseVals "(Empty B0 Push)"
+      parseValStack "(Empty B0 Push)"
         `shouldBe` Right [VCons (toStack [VCons Empty "Empty", VCons Empty "B0"]) "Push"]
 
     it "parses `((Empty B0 A) Foo B)`" $ do
-      parseVals "((Empty B0 A) Foo B)"
+      parseValStack "((Empty B0 A) Foo B)"
         `shouldBe` Right
           [ VCons
               ( toStack
