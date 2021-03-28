@@ -58,10 +58,12 @@ data Val
 toVal :: Expr -> Val
 toVal (EQuote e) = VQuote e
 toVal (ELit l) = VLit l
+toVal (ECons cid) = VCons [] cid
 
 fromVal :: Val -> Expr
 fromVal (VQuote e) = EQuote e
 fromVal (VLit l) = ELit l
+fromVal (VCons [] cid) = ECons cid
 
 insertListOrDelete s [] m = Map.delete s m
 insertListOrDelete s vs m = Map.insert s vs m

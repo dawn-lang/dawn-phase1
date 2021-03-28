@@ -88,11 +88,10 @@ instance Display TypeError where
   display (UnificationError err) = "unification error: " ++ display err
   display (UndefinedFn fid) = "undefined function: " ++ fid
 
-instance Display a => Display [a] where
-  display l = "[" ++ intercalate ", " (map display l) ++ "]"
-
-instance (Display a, Display b) => Display (a, b) where
-  display (a, b) = "(" ++ display a ++ ", " ++ display b ++ ")"
+instance Display DataDefError where
+  display (TypeConsArityMismatch tcid t) =
+    unwords ["TypeConsArityMismatch", tcid, "(" ++ display t ++ ")"]
+  display err = show err
 
 instance Display MultiStack where
   display (MultiStack m) = "{" ++ unwords (map iter (Map.toAscList m)) ++ "}"

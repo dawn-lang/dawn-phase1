@@ -75,6 +75,11 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
+      Right (CmdDataDefs defs) -> case addDataDefs env defs of
+        ([], env') -> return (env', ms)
+        (err : errs, env') -> do
+          outputStrLn ("Error: " ++ display err)
+          return (env, ms)
       Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
         Left (FnAlreadyDefined fid) -> do
           outputStrLn ("Error: already defined: " ++ fid)
@@ -168,6 +173,7 @@ command =
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
+    <|> try (CmdDataDefs <$> many1 dataDef)
     <|> try (CmdFnDef <$> fnDef)
     <|> CmdEval <$> expr
 
@@ -178,5 +184,6 @@ data Command
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
+  | CmdDataDefs [DataDef]
   | CmdFnDef FnDef
   | CmdEval Expr

@@ -4,7 +4,8 @@
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
 module Language.Dawn.Phase1.Parse
-  ( expr,
+  ( dataDef,
+    expr,
     fnDef,
     keyword,
     parseDataDef,
