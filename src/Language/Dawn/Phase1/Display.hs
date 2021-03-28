@@ -59,7 +59,8 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
-  display (TCons args cid) = unwords (map display args ++ [cid])
+  display (TCons [] cid) = cid
+  display (TCons args cid) = "(" ++ unwords (map display args ++ [cid]) ++ ")"
 
 displayMultiIO mio
   | Map.keys mio == ["$"] =
@@ -96,7 +97,7 @@ instance Display TypeError where
 
 instance Display DataDefError where
   display (TypeConsArityMismatch tcid t) =
-    unwords ["TypeConsArityMismatch", tcid, "(" ++ display t ++ ")"]
+    unwords ["TypeConsArityMismatch", tcid, display t]
   display err = show err
 
 instance Display Val where
