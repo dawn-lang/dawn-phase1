@@ -358,3 +358,13 @@ spec = do
                 ConsDef [TCons [v0] "Stack", v0] "Push"
               ]
           )
+
+    it "parses `{data v0 Foo {cons ((v0 Stack) Stack) Foo}}`" $ do
+      parseDataDef "{data v0 Foo {cons ((v0 Stack) Stack) Foo}}"
+        `shouldBe` Right
+          ( DataDef
+              [tv0]
+              "Foo"
+              [ ConsDef [TCons [TCons [v0] "Stack"] "Stack"] "Foo"
+              ]
+          )
