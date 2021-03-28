@@ -77,8 +77,8 @@ readEvalPrint (env, ms) = do
         return (env, ms)
       Right (CmdDataDefs defs) -> case addDataDefs env defs of
         ([], env') -> return (env', ms)
-        (err : errs, env') -> do
-          outputStrLn ("Error: " ++ display err)
+        (errs, env') -> do
+          mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
           return (env, ms)
       Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
         Left (FnAlreadyDefined fid) -> do
