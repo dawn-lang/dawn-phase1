@@ -2,6 +2,7 @@
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Dawn.Phase1.Core
   ( (-->),
@@ -9,13 +10,20 @@ module Language.Dawn.Phase1.Core
     (+->),
     ($:),
     ($.),
+    addDataDefs,
     addMissingStacks,
     checkType,
     composeSubst,
+    ConsDef (..),
+    ConsId,
     Context,
+    DataDef (..),
+    DataDefError (..),
     defineFn,
     defineFns,
+    emptyEnv,
     ensureUniqueStackId,
+    Env (..),
     Expr (..),
     FnDef (..),
     FnDefError (..),
@@ -23,7 +31,6 @@ module Language.Dawn.Phase1.Core
     fnDefFnId,
     fnDeps,
     fnDepsSort,
-    FnEnv,
     FnId,
     FnIds,
     forall,
@@ -52,7 +59,7 @@ module Language.Dawn.Phase1.Core
     tempStackIds,
     tU32,
     Type (..),
-    TypeCons (..),
+    TypeConsId,
     TypeError (..),
     TypeVar (..),
     TypeVars,
@@ -86,6 +93,7 @@ data Expr
   | EContext StackId Expr
   | ELit Literal
   | EMatch [(Pattern, Expr)]
+  | ECons ConsId
   | ECall FnId
   deriving (Eq, Ord, Show)
 
@@ -98,6 +106,7 @@ data Pattern
   = PEmpty
   | PProd Pattern Pattern
   | PLit Literal
+  | PCons ConsId
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -133,10 +142,7 @@ data Type
   = TVar TypeVar
   | TProd Type Type
   | TFn UnivQuants MultiIO
-  | TCons TypeCons
-  deriving (Eq, Ord, Show)
-
-newtype TypeCons = TypeCons String
+  | TCons [Type] TypeConsId
   deriving (Eq, Ord, Show)
 
 -- | Multi-stack input/output
@@ -144,6 +150,12 @@ type MultiIO = Map.Map StackId (Type, Type)
 
 -- | Stack identifier
 type StackId = String
+
+-- | Type Constructor identifier
+type TypeConsId = String
+
+-- | Constructor identifier
+type ConsId = String
 
 -- | Function identifier
 type FnId = String
@@ -191,22 +203,23 @@ instance HasTypeVars Type where
     TFn
       (Set.map (\tv -> if tv == from then to else tv) uqs)
       (renameTypeVar from to mio)
-  renameTypeVar from to t@(TCons _) = t
+  renameTypeVar from to (TCons args tc) =
+    TCons (renameTypeVar from to args) tc
 
   ftv (TVar tv) = Set.singleton tv
   ftv (TProd l r) = ftv l `Set.union` ftv r
   ftv (TFn qs io) = ftv io `Set.difference` qs
-  ftv (TCons _) = Set.empty
+  ftv (TCons args _) = ftv args
 
   btv (TVar _) = Set.empty
   btv (TProd l r) = btv l `Set.union` btv r
   btv (TFn qs io) = qs `Set.union` btv io
-  btv (TCons _) = Set.empty
+  btv (TCons args _) = btv args
 
   atv (TVar tv) = [tv]
   atv (TProd l r) = atv l `union` atv r
   atv (TFn _ io) = atv io
-  atv (TCons _) = []
+  atv (TCons args _) = atv args
 
 instance HasTypeVars a => HasTypeVars [a] where
   renameTypeVar from to ts = map (renameTypeVar from to) ts
@@ -316,7 +329,9 @@ instance Subs Type where
       else
         let (io', reserved') = subs s io reserved
          in (TFn qs io', reserved')
-  subs s t@(TCons _) reserved = (t, reserved)
+  subs s (TCons args tc) reserved =
+    let (args', reserved') = subs s args reserved
+     in (TCons args' tc, reserved')
 
 instance Subs a => Subs [a] where
   subs s ts reserved = foldr helper ([], reserved) ts
@@ -376,8 +391,8 @@ mgu f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in mguList (is ++ os) reserved'
-mgu (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
-  | s == s' = return (Subst Map.empty, reserved)
+mgu (TCons args tc) (TCons args' tc') reserved
+  | tc == tc' = mguList (zip args args') reserved
 mgu t (TVar u) reserved = bindTypeVar u t reserved
 mgu (TVar u) t reserved = bindTypeVar u t reserved
 mgu t t' _ = throwError $ DoesNotUnify t t'
@@ -414,8 +429,8 @@ match f1@TFn {} f2@TFn {} reserved =
       is = zip (map fst (Map.elems mio)) (map fst (Map.elems mio'))
       os = zip (map snd (Map.elems mio)) (map snd (Map.elems mio'))
    in matchList (is ++ os) reserved'
-match (TCons (TypeCons s)) (TCons (TypeCons s')) reserved
-  | s == s' = return (Subst Map.empty, reserved)
+match (TCons args tc) (TCons args' tc') reserved
+  | tc == tc' = matchList (zip args args') reserved
 match (TVar u) t reserved = return (u +-> t, reserved)
 match t t' _ = throwError $ DoesNotMatch t t'
 
@@ -461,9 +476,9 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
-tBool = TCons (TypeCons "Bool")
+tBool = TCons [] "Bool"
 
-tU32 = TCons (TypeCons "U32")
+tU32 = TCons [] "U32"
 
 type Context = [StackId]
 
@@ -536,10 +551,22 @@ literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 data TypeError
   = UnificationError UnificationError
   | MatchError MatchError
+  | UndefinedCons ConsId
   | UndefinedFn FnId
   deriving (Eq, Ord, Show)
 
-type FnEnv = Map.Map FnId (Expr, Type)
+data Env = Env
+  { dataDefs :: Map.Map TypeConsId DataDef,
+    typeConsArities :: Map.Map TypeConsId Int,
+    consDefs :: Map.Map ConsId ConsDef,
+    consTypes :: Map.Map ConsId ([Type], Type),
+    fnDefs :: Map.Map FnId FnDef,
+    fnTypes :: Map.Map FnId Type
+  }
+  deriving (Eq, Show)
+
+emptyEnv :: Env
+emptyEnv = Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -555,7 +582,8 @@ requantify t = recurse t
     count (TFn _ mio) =
       let iter (i, o) = Map.unionWith (+) (count i) (count o)
        in foldr1 (Map.unionWith (+)) (map iter (Map.elems mio))
-    count (TCons _) = Map.empty
+    count (TCons args _) =
+      foldr (Map.unionWith (+) . count) Map.empty args
     counts = count t
     recurse t@(TVar _) = t
     recurse (TProd l r) = TProd (recurse l) (recurse r)
@@ -566,7 +594,7 @@ requantify t = recurse t
           mio' = Map.map (\(i, o) -> (recurse i, recurse o)) mio
           qs' = qs `Set.difference` btv mio'
        in TFn qs' mio'
-    recurse t@(TCons _) = t
+    recurse t@(TCons _ _) = t -- Tfn is not allowed in TCons args
 
 composeTypes :: [Type] -> Either UnificationError Type
 composeTypes [] = return (forall' [v0] (v0 --> v0))
@@ -596,23 +624,31 @@ stackTypes (t : t' : ts) = iter (TProd t t') ts
     iter t [] = t
     iter t (t' : ts) = iter (TProd t t') ts
 
-patternType :: Context -> Pattern -> Type
-patternType (s : _) p =
-  let ts = patternTypes p
-      (tv, _) = freshTypeVar Set.empty
+patternType :: Env -> Context -> Pattern -> Either TypeError Type
+patternType env (s : _) p = do
+  (is, os) <- patternTypes env p
+  let (tv, _) = freshTypeVar (Set.fromList (atv (is, os)))
       v = TVar tv
-      i = stackTypes (v : ts)
-   in forall [v] (s $: i --> v)
+      i = stackTypes (v : is)
+      o = stackTypes (v : os)
+  return (requantify (TFn Set.empty (s $: i --> o)))
   where
-    patternTypes :: Pattern -> [Type]
-    patternTypes PEmpty = []
-    patternTypes (PLit (LBool _)) = [tBool]
-    patternTypes (PLit (LU32 _)) = [tU32]
-    patternTypes (PProd l r) = patternTypes l ++ patternTypes r
+    patternTypes :: Env -> Pattern -> Either TypeError ([Type], [Type])
+    patternTypes env PEmpty = return ([], [])
+    patternTypes env (PProd l r) = do
+      (li, lo) <- patternTypes env l
+      (ri, ro) <- patternTypes env r
+      return (li ++ ri, lo ++ ro)
+    patternTypes env (PLit (LBool _)) = return ([tBool], [])
+    patternTypes env (PLit (LU32 _)) = return ([tU32], [])
+    patternTypes Env {consTypes} (PCons cid) = case Map.lookup cid consTypes of
+      Nothing -> throwError (UndefinedCons cid)
+      -- Note: ECons inputs are PCons outputs
+      Just (inTypes, outType) -> return ([outType], inTypes)
 
-caseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+caseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
-  let pt = patternType ctx p
+  pt <- patternType env ctx p
   et <- inferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
@@ -629,10 +665,24 @@ unifyCaseTypes (f1@TFn {} : f2@TFn {} : ts) = do
   let t3 = requantify (TFn Set.empty mio3)
   unifyCaseTypes (t3 : ts)
 
--- | Infer an expression's type in the given FnEnv and Context.
+getEConsType :: Env -> Context -> ConsId -> Either TypeError Type
+getEConsType Env {consTypes} (s : _) cid = case Map.lookup cid consTypes of
+  Nothing -> throwError (UndefinedCons cid)
+  Just (inTypes, outType) ->
+    let (tv, _) = freshTypeVar (Set.fromList (atv (inTypes, outType)))
+        v = TVar tv
+        i = stackTypes (v : inTypes)
+     in return (requantify (TFn Set.empty (s $: i --> v * outType)))
+
+getECallType :: Env -> FnId -> Either TypeError Type
+getECallType Env {fnTypes} fid = case Map.lookup fid fnTypes of
+  Nothing -> throwError (UndefinedFn fid)
+  Just t -> return t
+
+-- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is only thrown if the call occurs outside of
 -- | a match or if all match cases call an undefined function.
-inferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+inferType :: Env -> Context -> Expr -> Either TypeError Type
 inferType env ctx (EIntrinsic i) = return $ intrinsicType ctx i
 inferType env ctx (EQuote e) = do
   t <- inferType env ctx e
@@ -655,23 +705,22 @@ inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
     isOtherError (Left (UndefinedFn _)) = False
     isOtherError (Left _) = True
     isOtherError _ = False
-inferType env ctx (ECall fid) = case Map.lookup fid env of
-  Nothing -> throwError (UndefinedFn fid)
-  Just (e, t) -> return t
+inferType env ctx (ECons cid) = getEConsType env ctx cid
+inferType env ctx (ECall fid) = getECallType env fid
 
 -------------------
 -- Type Checking --
 -------------------
 
-strictCaseType :: FnEnv -> Context -> (Pattern, Expr) -> Either TypeError Type
+strictCaseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
 strictCaseType env ctx (p, e) = do
-  let pt = patternType ctx p
+  pt <- patternType env ctx p
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
--- | Infer an expression's type in the given FnEnv and Context.
+-- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is thrown for any undefined function call.
-strictInferType :: FnEnv -> Context -> Expr -> Either TypeError Type
+strictInferType :: Env -> Context -> Expr -> Either TypeError Type
 strictInferType env ctx (EQuote e) = do
   t <- strictInferType env ctx e
   return (quoteType ctx t)
@@ -685,8 +734,8 @@ strictInferType env ctx (EMatch cases) = do
   mapLeft UnificationError (unifyCaseTypes ts)
 strictInferType env ctx e = inferType env ctx e
 
--- | Check an expression's type in the given FnEnv and Context.
-checkType :: FnEnv -> Context -> Expr -> Type -> Either TypeError ()
+-- | Check an expression's type in the given Env and Context.
+checkType :: Env -> Context -> Expr -> Type -> Either TypeError ()
 checkType env ctx e f1 = do
   f2 <- strictInferType env ctx e
   let (f1', reserved1) = instantiate f1 Set.empty
@@ -708,8 +757,7 @@ removeTrivialStacks t = recurse t
           mio'' = if null mio' then Map.fromAscList [head (Map.toAscList mio)] else mio'
           mio''' = Map.map (\(i, o) -> (recurse i, recurse o)) mio''
        in requantify (TFn Set.empty mio''')
-    recurse t@(TCons _) = t
-
+    recurse t@(TCons _ _) = t -- Tfn is not allowed in TCons args
     isTrivial qs (TVar i, TVar o) | i `elem` qs && o `elem` qs = True
     isTrivial _ _ = False
 
@@ -727,7 +775,7 @@ normalizeTypeVars t =
 normalizeType :: Type -> Type
 normalizeType = normalizeTypeVars . removeTrivialStacks
 
-inferNormType :: FnEnv -> Context -> Expr -> Either TypeError Type
+inferNormType :: Env -> Context -> Expr -> Either TypeError Type
 inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
@@ -817,7 +865,7 @@ tempStackIds (TFn _ mio) =
         tempStackIds i `Set.union` tempStackIds o `Set.union` acc
       sids' = foldr folder Set.empty (Map.elems mio)
    in sids `Set.union` sids'
-tempStackIds (TCons _) = Set.empty
+tempStackIds (TCons _ _) = Set.empty -- Tfn is not allowed in TCons args
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
@@ -837,6 +885,7 @@ fnDepsF mergeCases = helper
     helper (EMatch cs) =
       let caseDeps = map (uncondFnDeps . snd) cs
        in foldr1 mergeCases caseDeps
+    helper (ECons cid) = Set.empty
     helper (ECall fid) = Set.singleton fid
 
 fnDeps :: Expr -> FnIds
@@ -882,9 +931,9 @@ fnDepsSort defs =
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
-defineFns :: FnEnv -> [FnDef] -> ([FnDefError], FnEnv)
-defineFns env defs =
-  let existingFnIds = Map.keysSet env `Set.union` intrinsicFnIds
+defineFns :: Env -> [FnDef] -> ([FnDefError], Env)
+defineFns env@Env {fnDefs} defs =
+  let existingFnIds = Map.keysSet fnDefs `Set.union` intrinsicFnIds
       (errs1, defs') = removeAlreadyDefined existingFnIds defs
       newFnIds = Set.fromList (map fnDefFnId defs')
       sortedDefs = fnDepsSort defs'
@@ -901,20 +950,156 @@ defineFns env defs =
             then (FnAlreadyDefined fid : errs, defs')
             else (errs, FnDef fid e : defs)
 
-    inferTypes newFnIds def@(FnDef fid e) (errs, env, defs) =
+    inferTypes :: FnIds -> FnDef -> ([FnDefError], Env, [FnDef]) -> ([FnDefError], Env, [FnDef])
+    inferTypes newFnIds def@(FnDef fid e) (errs, env@Env {fnDefs, fnTypes}, defs) =
       case inferNormType env ["$"] e of
         Left err -> (FnTypeError fid err : errs, env, defs)
         Right t
           | not (null (tempStackIds t)) ->
             (FnStackError fid (tempStackIds t) : errs, env, defs)
-        Right t -> (errs, Map.insert fid (e, t) env, def : defs)
+        Right t ->
+          let fnDefs' = Map.insert fid def fnDefs
+              fnTypes' = Map.insert fid t fnTypes
+              env' = env {fnDefs = fnDefs', fnTypes = fnTypes'}
+           in (errs, env', def : defs)
 
-    checkTypes newFnIds (FnDef fid e) (errs, env) =
-      case checkType env ["$"] e (snd (env Map.! fid)) of
-        Left err -> (FnTypeError fid err : errs, Map.delete fid env)
+    checkTypes :: FnIds -> FnDef -> ([FnDefError], Env) -> ([FnDefError], Env)
+    checkTypes newFnIds (FnDef fid e) (errs, env@Env {fnTypes}) =
+      case checkType env ["$"] e (fnTypes Map.! fid) of
+        Left err -> (FnTypeError fid err : errs, env {fnTypes = Map.delete fid fnTypes})
         Right () -> (errs, env)
 
-defineFn :: FnEnv -> FnDef -> Either FnDefError FnEnv
+defineFn :: Env -> FnDef -> Either FnDefError Env
 defineFn env def = case defineFns env [def] of
   ([], env') -> return env'
   ([err], _) -> throwError err
+
+------------------------------------
+-- Algebraic Data Type Definition --
+------------------------------------
+
+data DataDef = DataDef [TypeVar] TypeConsId [ConsDef]
+  deriving (Eq, Show)
+
+data ConsDef = ConsDef [Type] ConsId
+  deriving (Eq, Show)
+
+data DataDefError
+  = TypeConsAlreadyDefined TypeConsId
+  | ConsAlreadyDefined TypeConsId ConsId
+  | DuplicateTypeVar TypeConsId TypeVar
+  | UndefinedTypeVar TypeConsId TypeVar
+  | UndefinedTypeCons TypeConsId
+  | TypeConsArityMismatch TypeConsId Type
+  deriving (Eq, Show)
+
+type TypeConsIds = Set.Set TypeConsId
+
+type ConsIds = Set.Set ConsId
+
+addDataDefs :: Env -> [DataDef] -> ([DataDefError], Env)
+addDataDefs env@Env {dataDefs, consDefs} defs =
+  let existingTypeConsIds = Map.keysSet dataDefs
+      (errs1, defs1) = removeTypeConsAlreadyDefined (Map.keysSet dataDefs) defs
+      (errs2, defs2) = removeConsAlreadyDefined (Map.keysSet consDefs) defs1
+      env' = addDataDefs' env defs2
+      (errs3, defs3) = removeOtherErrors env' defs2
+      env'' = addDataDefs' env defs3
+   in (errs1 ++ errs2 ++ errs3, env'')
+  where
+    removeTypeConsAlreadyDefined :: TypeConsIds -> [DataDef] -> ([DataDefError], [DataDef])
+    removeTypeConsAlreadyDefined tcids [] = ([], [])
+    removeTypeConsAlreadyDefined tcids (DataDef args tcid consDefs : defs) =
+      let (errs, defs') = removeTypeConsAlreadyDefined (Set.insert tcid tcids) defs
+       in if tcid `Set.member` tcids
+            then (TypeConsAlreadyDefined tcid : errs, defs')
+            else (errs, DataDef args tcid consDefs : defs)
+
+    removeConsAlreadyDefined :: ConsIds -> [DataDef] -> ([DataDefError], [DataDef])
+    removeConsAlreadyDefined cids [] = ([], [])
+    removeConsAlreadyDefined cids (def@(DataDef args tcid consDefs) : defs) =
+      let newConsIds = Set.fromList (map (\(ConsDef _ cid) -> cid) consDefs)
+          cids' = cids `Set.union` newConsIds
+          (errs, defs') = removeConsAlreadyDefined cids' defs
+       in case checkConsDefs consDefs of
+            Left err -> (err : errs, defs')
+            Right () -> (errs, def : defs')
+      where
+        checkConsDefs :: [ConsDef] -> Either DataDefError ()
+        checkConsDefs = mapM_ checkDef
+
+        checkDef :: ConsDef -> Either DataDefError ()
+        checkDef (ConsDef _ cid)
+          | cid `Set.member` cids = throwError (ConsAlreadyDefined tcid cid)
+        checkDef _ = return ()
+
+    addDataDefs' :: Env -> [DataDef] -> Env
+    addDataDefs' = foldr addDataDef
+      where
+        addDataDef
+          def@(DataDef tvs tcid newConsDefs)
+          env@Env {dataDefs, typeConsArities, consDefs, consTypes} =
+            let dataDefs' = Map.insert tcid def dataDefs
+                typeConsArities' = Map.insert tcid (length tvs) typeConsArities
+                consDefs' = foldr addConsDef consDefs newConsDefs
+                addConsDef def@(ConsDef _ cid) = Map.insert cid def
+                consTypes' = foldr addConsType consTypes newConsDefs
+                addConsType def@(ConsDef args cid) =
+                  Map.insert cid (args, TCons (map TVar tvs) tcid)
+             in env
+                  { dataDefs = dataDefs',
+                    typeConsArities = typeConsArities',
+                    consDefs = consDefs',
+                    consTypes = consTypes'
+                  }
+
+    removeOtherErrors :: Env -> [DataDef] -> ([DataDefError], [DataDef])
+    removeOtherErrors env [] = ([], [])
+    removeOtherErrors env (def : defs) =
+      let (errs, defs') = removeOtherErrors env defs
+       in case checkEach env def of
+            Left err -> (err : errs, defs')
+            Right () -> (errs, def : defs')
+
+    checkEach :: Env -> DataDef -> Either DataDefError ()
+    checkEach env@Env {dataDefs, typeConsArities} def = do
+      _ <- checkDuplicateTypeVar def
+      _ <- checkUndefinedTypeVar def
+      _ <- checkTypeCons typeConsArities def
+      return ()
+
+    checkDuplicateTypeVar :: DataDef -> Either DataDefError ()
+    checkDuplicateTypeVar (DataDef args tcid consDefs) =
+      check Set.empty args
+      where
+        check :: TypeVars -> [TypeVar] -> Either DataDefError ()
+        check tvs [] = return ()
+        check tvs (tv : tvl)
+          | tv `Set.member` tvs = throwError (DuplicateTypeVar tcid tv)
+        check tvs (tv : tvl) = check (Set.insert tv tvs) tvl
+
+    checkUndefinedTypeVar :: DataDef -> Either DataDefError ()
+    checkUndefinedTypeVar (DataDef args tcid consDefs) =
+      mapM_ (checkConsDef (Set.fromList args)) consDefs
+      where
+        checkConsDef :: TypeVars -> ConsDef -> Either DataDefError ()
+        checkConsDef tvs (ConsDef args cid) = mapM_ (checkVar tvs) (atv args)
+
+        checkVar :: TypeVars -> TypeVar -> Either DataDefError ()
+        checkVar tvs tv | not (tv `Set.member` tvs) = throwError (UndefinedTypeVar tcid tv)
+        checkVar tvs tv = return ()
+
+    checkTypeCons :: Map.Map TypeConsId Int -> DataDef -> Either DataDefError ()
+    checkTypeCons typeConsArities (DataDef _ tcid consDefs) =
+      mapM_ checkConsDef consDefs
+      where
+        checkConsDef (ConsDef args _) = mapM_ checkArg args
+        checkArg :: Type -> Either DataDefError ()
+        checkArg (TVar _) = return ()
+        checkArg (TCons args tcid)
+          | not (tcid `Map.member` typeConsArities) =
+            throwError (UndefinedTypeCons tcid)
+        checkArg t@(TCons args tcid)
+          | length args /= (typeConsArities Map.! tcid) =
+            throwError (TypeConsArityMismatch tcid t)
+        checkArg (TCons args tcid) = mapM_ checkArg args

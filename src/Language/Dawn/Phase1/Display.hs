@@ -25,6 +25,7 @@ instance Display Expr where
   display (ELit (LBool b)) = show b
   display (ELit (LU32 i)) = show i
   display (EMatch cases) = "{match " ++ unwords (map displayCase cases) ++ "}"
+  display (ECons cid) = cid
   display (ECall fid) = fid
 
 displayedExprs :: [Expr] -> [String]
@@ -58,18 +59,17 @@ instance Display Type where
       ++ (if null qs then "" else " . ")
       ++ displayMultiIO mio
       ++ ")"
-  display (TCons tc) = display tc
+  display (TCons [] cid) = cid
+  display (TCons args cid) = "(" ++ unwords (map display args ++ [cid]) ++ ")"
 
 displayMultiIO mio
   | Map.keys mio == ["$"] =
     let [("$", (i, o))] = Map.toList mio
      in display i ++ " -> " ++ display o
-  | otherwise = unwords (map iter (Map.toAscList mio))
+  | otherwise = unwords (map mapper (Map.toAscList mio))
   where
-    iter (sid, (i, o)) = "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
-
-instance Display TypeCons where
-  display (TypeCons s) = s
+    mapper (sid, (i, o)) =
+      "{" ++ sid ++ " " ++ display i ++ " -> " ++ display o ++ "}"
 
 instance Display TypeVar where
   display (TypeVar n) = "v" ++ show n
@@ -86,20 +86,33 @@ instance Display UnificationError where
     display t ++ " does not unify with " ++ display t'
   display (OccursIn tv t) = display tv ++ " occurs in " ++ display t
 
+instance Display MatchError where
+  display (DoesNotMatch t t') =
+    display t ++ " does not match " ++ display t'
+
 instance Display TypeError where
   display (UnificationError err) = "unification error: " ++ display err
+  display (MatchError matchError) = "match error: " ++ display matchError
+  display (UndefinedCons cid) = "undefined constructor: " ++ cid
   display (UndefinedFn fid) = "undefined function: " ++ fid
 
-instance Display a => Display [a] where
-  display l = "[" ++ intercalate ", " (map display l) ++ "]"
-
-instance (Display a, Display b) => Display (a, b) where
-  display (a, b) = "(" ++ display a ++ ", " ++ display b ++ ")"
-
-instance Display MultiStack where
-  display (MultiStack m) = "{" ++ unwords (map iter (Map.toAscList m)) ++ "}"
-    where
-      iter (sid, vs) = sid ++ ": " ++ unwords (map display (reverse vs))
+instance Display DataDefError where
+  display (TypeConsArityMismatch tcid t) =
+    unwords ["TypeConsArityMismatch", tcid, display t]
+  display err = show err
 
 instance Display Val where
+  display (VCons Empty cid) = cid
+  display (VCons args cid) = "(" ++ display args ++ " " ++ cid ++ ")"
   display v = display (fromVal v)
+
+instance (Display a) => Display (Stack a) where
+  display Empty = ""
+  display (Empty :*: v) = display v
+  display (s :*: v) = display s ++ " " ++ display v
+
+instance Display MultiStack where
+  display (MultiStack m) =
+    "{" ++ unwords (map mapper (Map.toAscList m)) ++ "}"
+    where
+      mapper (sid, vs) = sid ++ ": " ++ display vs

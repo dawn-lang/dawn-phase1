@@ -2,6 +2,7 @@
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Main where
 
@@ -27,14 +28,14 @@ import Text.Parsec.String
 
 main = do
   putStrLn "Dawn Phase 1 Interpreter"
-  runInputT defaultSettings (readEvalPrintLoop (Map.empty, MultiStack Map.empty))
+  runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
 
-readEvalPrintLoop :: (FnEnv, MultiStack) -> InputT IO (FnEnv, MultiStack)
+readEvalPrintLoop :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
 readEvalPrintLoop (env, ms) = do
   (env', ms') <- readEvalPrint (env, ms)
   readEvalPrintLoop (env', ms')
 
-readEvalPrint :: (FnEnv, MultiStack) -> InputT IO (FnEnv, MultiStack)
+readEvalPrint :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
 readEvalPrint (env, ms) = do
   maybeLine <- getInputLine "> "
   case maybeLine of
@@ -45,7 +46,7 @@ readEvalPrint (env, ms) = do
         return (env, ms)
       Right CmdExit -> liftIO exitSuccess
       Right CmdReset -> do
-        return (Map.empty, MultiStack Map.empty)
+        return (emptyEnv, MultiStack Map.empty)
       Right CmdDrop -> do
         return (env, MultiStack Map.empty)
       Right (CmdType e) -> do
@@ -64,7 +65,7 @@ readEvalPrint (env, ms) = do
                 printExpectsInputs t
                 return (env, ms)
               Right t -> do
-                result <- tryTraceEval env e ms
+                result <- tryTraceEval (toEvalEnv env) e ms
                 case result :: Either SomeException (Expr, MultiStack) of
                   Left err -> do
                     outputStrLn $ show err
@@ -74,6 +75,11 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
+      Right (CmdDataDefs defs) -> case addDataDefs env defs of
+        ([], env') -> return (env', ms)
+        (errs, env') -> do
+          mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
+          return (env, ms)
       Right (CmdFnDef (FnDef fid e)) -> case defineFn env (FnDef fid e) of
         Left (FnAlreadyDefined fid) -> do
           outputStrLn ("Error: already defined: " ++ fid)
@@ -85,8 +91,8 @@ readEvalPrint (env, ms) = do
           let s = intercalate ", " (Set.toList sids)
           outputStrLn ("Error: exposed temporary stacks: " ++ s)
           return (env, ms)
-        Right env' -> do
-          let (Just (_, t)) = Map.lookup fid env'
+        Right env'@Env {fnTypes} -> do
+          let (Just t) = Map.lookup fid fnTypes
           outputStrLn $ fid ++ " :: " ++ display t
           return (env', ms)
       Right (CmdEval e) ->
@@ -102,7 +108,7 @@ readEvalPrint (env, ms) = do
                 printExpectsInputs t
                 return (env, ms)
               Right t -> do
-                result <- tryEval env e ms
+                result <- tryEval (toEvalEnv env) e ms
                 case result :: Either SomeException MultiStack of
                   Left err -> do
                     outputStrLn $ show err
@@ -113,8 +119,8 @@ readEvalPrint (env, ms) = do
 
 multiStackToExpr :: MultiStack -> Expr
 multiStackToExpr (MultiStack ms) =
-  let mapper ("$", v) = ECompose (map fromVal v)
-      mapper (s, v) = EContext s (ECompose (map fromVal v))
+  let mapper ("$", vs) = ECompose (map fromVal (fromStack vs))
+      mapper (s, vs) = EContext s (ECompose (map fromVal (fromStack vs)))
    in ECompose (map mapper (Map.toAscList ms))
 
 printInferTypeError e err =
@@ -141,7 +147,7 @@ printExprType env e =
     Right t | exposedTempStackIds t -> printExposedTempStackIds t
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
-tryTraceEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
+tryTraceEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
 tryTraceEval env e@(ECompose []) ms = do
   outputStrLn $ display ms
   return (Right (e, ms))
@@ -152,7 +158,7 @@ tryTraceEval env e ms = do
     Left err -> return (Left err)
     Right (_, e', ms') -> tryTraceEval env e' ms'
 
-tryEval :: FnEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
+tryEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
 
@@ -167,6 +173,7 @@ command =
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
+    <|> try (CmdDataDefs <$> many1 dataDef)
     <|> try (CmdFnDef <$> fnDef)
     <|> CmdEval <$> expr
 
@@ -177,5 +184,6 @@ data Command
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
+  | CmdDataDefs [DataDef]
   | CmdFnDef FnDef
   | CmdEval Expr

@@ -4,12 +4,14 @@
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 
 module Language.Dawn.Phase1.Parse
-  ( expr,
+  ( dataDef,
+    expr,
     fnDef,
     keyword,
+    parseDataDef,
     parseExpr,
     parseFnDef,
-    parseVals,
+    parseValStack,
   )
 where
 
@@ -17,9 +19,12 @@ import Control.Monad (fail, void, when)
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Utils
-import Text.Parsec
+import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
+
+parseDataDef :: String -> Either ParseError DataDef
+parseDataDef = parse (skipMany space *> dataDef <* eof) ""
 
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skipMany space *> fnDef <* eof) ""
@@ -27,8 +32,39 @@ parseFnDef = parse (skipMany space *> fnDef <* eof) ""
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
-parseVals :: String -> Either ParseError [Val]
-parseVals = parse (skipMany space *> vals <* eof) ""
+parseValStack :: String -> Either ParseError (Stack Val)
+parseValStack = parse (skipMany space *> (toStack <$> many val) <* eof) ""
+
+dataDef :: Parser DataDef
+dataDef =
+  betweenBraces
+    ( DataDef <$> (keyword "data" *> many typeVar) <*> consId <*> many consDef
+    )
+
+consDef :: Parser ConsDef
+consDef = betweenBraces (ConsDef <$> (keyword "cons" *> consTypeArgs) <*> consId)
+
+simpleConsType :: Parser Type
+simpleConsType = lexeme (TCons [] <$> consId)
+
+consType :: Parser Type
+consType = lexeme (TCons <$> consTypeArgs <*> consId)
+
+consTypeArgs :: Parser [Type]
+consTypeArgs = do
+  argsAndConsId <- lookAhead (try (many1 consTypeArg))
+  case last argsAndConsId of
+    TCons [] cid -> count (length argsAndConsId - 1) consTypeArg
+    _ -> fail "expected consId"
+  where
+    consTypeArg = simpleConsType <|> varType <|> betweenParens consTypeArg'
+    consTypeArg' = try consType <|> varType <|> betweenParens consTypeArg'
+
+varType :: Parser Type
+varType = lexeme (TVar <$> typeVar)
+
+typeVar :: Parser TypeVar
+typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
@@ -39,11 +75,23 @@ expr =
     <$> many
       ( literalExpr <|> bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
+          <|> consExpr
           <|> callExpr
       )
 
-vals :: Parser [Val]
-vals = reverse <$> many (literalVal <|> quotedVal)
+val :: Parser Val
+val = literalVal <|> quotedVal <|> simpleConsVal <|> betweenParens consVal
+
+simpleConsVal :: Parser Val
+simpleConsVal = VCons Empty <$> consId
+
+consVal :: Parser Val
+consVal = do
+  args <- many val
+  let (args', args'') = splitAt (length args - 1) args
+  case args'' of
+    [VCons Empty cid] -> return (VCons (toStack args') cid)
+    _ -> fail "expected consId"
 
 literalExpr = ELit <$> literal
 
@@ -71,6 +119,8 @@ u32Lit = do
 integer :: Parser Integer
 integer = read <$> lexeme (many1 digit)
 
+betweenParens = between (symbol "(") (symbol ")")
+
 betweenBraces = between (symbol "{") (symbol "}")
 
 bracedExpr =
@@ -86,9 +136,12 @@ matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (symbol 
 
 pattern' :: Parser Pattern
 pattern' =
-  try (PProd <$> literalPattern <*> literalPattern)
+  try (PProd <$> literalOrConsPattern <*> literalOrConsPattern)
     <|> try literalPattern
+    <|> try consPattern
     <|> return PEmpty
+  where
+    literalOrConsPattern = try literalPattern <|> consPattern
 
 desugarSpread :: [StackId] -> Expr
 desugarSpread dstStackIds =
@@ -110,7 +163,7 @@ ePushTo s = EContext s (EIntrinsic IPush)
 
 ePopFrom s = EContext s (EIntrinsic IPop)
 
-groupedExpr = between (symbol "(") (symbol ")") expr
+groupedExpr = betweenParens expr
 
 quotedExpr = between (symbol "[") (symbol "]") (EQuote <$> expr)
 
@@ -154,11 +207,23 @@ intrinsic cons =
     <|> try (keyword "lteq" >> return (cons ILteq))
     <|> try (keyword "gteq" >> return (cons IGteq))
 
+consExpr = ECons <$> consId
+
+consPattern = PCons <$> consId
+
 callExpr = ECall <$> fnId
 
 stackId = lexeme stackId_
 
-fnId = lexeme ident_
+consId = lexeme ((:) <$> consIdFirstChar <*> many consIdChar)
+  where
+    consIdFirstChar = upper
+    consIdChar = letter <|> char '_' <|> digit
+
+fnId = lexeme ((:) <$> fnIdFirstChar <*> many fnIdChar)
+  where
+    fnIdFirstChar = lower <|> char '_'
+    fnIdChar = letter <|> char '_' <|> digit
 
 stackId_ = (:) <$> char '$' <*> ident_
 

@@ -5,6 +5,7 @@
 
 module Language.Dawn.Phase1.ParseSpec (spec) where
 
+import Data.Either.Combinators
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
@@ -12,6 +13,10 @@ import Test.Hspec
 import Text.Parsec.Error
 import Text.Parsec.Pos
 import Prelude hiding (drop, (*))
+
+[tv0, tv1] = map TypeVar [0 .. 1]
+
+[v0, v1] = map (TVar . TypeVar) [0 .. 1]
 
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
@@ -225,14 +230,62 @@ spec = do
       parseExpr "{collect $a $a $b}"
         `shouldBe` parseExpr "($b-> $s1<-) ($a-> $s2<-) ($a-> $s3<-) ($s3-> $s2-> $s1->)"
 
-  describe "parseVal" $ do
-    it "parses `[clone] [drop] 0`" $ do
-      -- Note that the values are in reverse, so that `eval` can
-      -- easily pattern match on the top of the stack.
-      parseVals "[clone] [drop] 0"
-        `shouldBe` Right [VLit (LU32 0), VQuote drop, VQuote clone]
+    it "parses `B0`" $ do
+      parseExpr "B0" `shouldBe` Right (ECons "B0")
 
-  describe "parseFnDef `and`" $ do
+    it "parses `{match {case B0 => }}`" $ do
+      parseExpr "{match {case B0 => }}"
+        `shouldBe` Right (EMatch [(PCons "B0", ECompose [])])
+
+  describe "parseValStack" $ do
+    it "parses `[clone] [drop] 0`" $ do
+      mapRight fromStack (parseValStack "[clone] [drop] 0")
+        `shouldBe` Right [VQuote clone, VQuote drop, VLit (LU32 0)]
+
+    it "parses `B0`" $ do
+      mapRight fromStack (parseValStack "B0")
+        `shouldBe` Right [VCons Empty "B0"]
+
+    it "parses `(Empty B0 Push)`" $ do
+      mapRight fromStack (parseValStack "(Empty B0 Push)")
+        `shouldBe` Right [VCons (toStack [VCons Empty "Empty", VCons Empty "B0"]) "Push"]
+
+    it "parses `((Empty B0 A) Foo B)`" $ do
+      mapRight fromStack (parseValStack "((Empty B0 A) Foo B)")
+        `shouldBe` Right
+          [ VCons
+              ( toStack
+                  [ VCons
+                      ( toStack
+                          [ VCons Empty "Empty",
+                            VCons Empty "B0"
+                          ]
+                      )
+                      "A",
+                    VCons Empty "Foo"
+                  ]
+              )
+              "B"
+          ]
+
+    it "parses `(((v0 Stack) Stack) Foo)`" $ do
+      mapRight fromStack (parseValStack "(((B0 Stack) Stack) Foo)")
+        `shouldBe` Right
+          [ VCons
+              ( Empty
+                  :*: VCons
+                    ( Empty
+                        :*: VCons
+                          ( Empty :*: VCons Empty "B0"
+                          )
+                          "Stack"
+                    )
+                    "Stack"
+              )
+              "Foo"
+          ]
+
+  describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
       parseFnDef "{fn drop2 => drop drop}"
@@ -270,3 +323,65 @@ spec = do
       let (Right e) = parseExpr _fibExprSrc
       parseFnDef _fibSrc
         `shouldBe` Right (FnDef "_fib" e)
+
+  describe "parseDataDef" $ do
+    it "parses `{data Bit {cons B0} {cons B1}}`" $ do
+      parseDataDef "{data Bit {cons B0} {cons B1}}"
+        `shouldBe` Right
+          ( DataDef
+              []
+              "Bit"
+              [ ConsDef [] "B0",
+                ConsDef [] "B1"
+              ]
+          )
+
+    it "parses `{data NewU32 {cons U32 NewU32}}`" $ do
+      parseDataDef "{data NewU32 {cons U32 NewU32}}"
+        `shouldBe` Right
+          ( DataDef
+              []
+              "NewU32"
+              [ConsDef [TCons [] "U32"] "NewU32"]
+          )
+
+    it "parses `{data v0 v1 Pair {cons v0 v1 Pair}}`" $ do
+      parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+        `shouldBe` Right
+          ( DataDef
+              [tv0, tv1]
+              "Pair"
+              [ ConsDef [v0, v1] "Pair"
+              ]
+          )
+
+    it "parses `{data v0 v1 SwapPair {cons v1 v0 SwapPair}}`" $ do
+      parseDataDef "{data v0 v1 SwapPair {cons v1 v0 SwapPair}}"
+        `shouldBe` Right
+          ( DataDef
+              [tv0, tv1]
+              "SwapPair"
+              [ ConsDef [v1, v0] "SwapPair"
+              ]
+          )
+
+    it "parses `{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}`" $ do
+      parseDataDef "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+        `shouldBe` Right
+          ( DataDef
+              [tv0]
+              "Stack"
+              [ ConsDef [] "Empty",
+                ConsDef [TCons [v0] "Stack", v0] "Push"
+              ]
+          )
+
+    it "parses `{data v0 Foo {cons ((v0 Stack) Stack) Foo}}`" $ do
+      parseDataDef "{data v0 Foo {cons ((v0 Stack) Stack) Foo}}"
+        `shouldBe` Right
+          ( DataDef
+              [tv0]
+              "Foo"
+              [ ConsDef [TCons [TCons [v0] "Stack"] "Stack"] "Foo"
+              ]
+          )
