@@ -18,6 +18,7 @@ module Language.Dawn.Phase1.Core
     ConsId,
     Context,
     DataDef (..),
+    DataDefError (..),
     defineFn,
     defineFns,
     emptyEnv,

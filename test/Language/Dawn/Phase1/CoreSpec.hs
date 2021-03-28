@@ -759,6 +759,123 @@ spec = do
               }
       defineFns emptyEnv [fastFib, _fastFib] `shouldBe` (errs, env)
 
+  describe "addDataDefs" $ do
+    it "adds `{data Bit {cons B0} {cons B1}}`" $ do
+      let (Right def) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let dataDefs = Map.singleton "Bit" def
+      let typeConsArities = Map.singleton "Bit" 0
+      let consDefs = Map.fromList [("B0", ConsDef [] "B0"), ("B1", ConsDef [] "B1")]
+      let tBit = TCons [] "Bit"
+      let consTypes = Map.fromList [("B0", ([], tBit)), ("B1", ([], tBit))]
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+
+    it "adds `{data v0 v1 Pair {cons v0 v1 Pair}}`" $ do
+      let (Right def) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+      let dataDefs = Map.singleton "Pair" def
+      let typeConsArities = Map.singleton "Pair" 2
+      let consDefs = Map.fromList [("Pair", ConsDef [v0, v1] "Pair")]
+      let consTypes = Map.fromList [("Pair", ([v0, v1], TCons [v0, v1] "Pair"))]
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+
+    it "adds `{data v0 v1 SwapPair {cons v1 v0 SwapPair}}`" $ do
+      let (Right def) = parseDataDef "{data v0 v1 SwapPair {cons v1 v0 SwapPair}}"
+      let dataDefs = Map.singleton "SwapPair" def
+      let typeConsArities = Map.singleton "SwapPair" 2
+      let consDefs = Map.fromList [("SwapPair", ConsDef [v1, v0] "SwapPair")]
+      let consTypes = Map.fromList [("SwapPair", ([v1, v0], TCons [v0, v1] "SwapPair"))]
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+
+    it "adds `{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}`" $ do
+      let (Right def) =
+            parseDataDef
+              "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+      let dataDefs = Map.singleton "Stack" def
+      let typeConsArities = Map.singleton "Stack" 1
+      let tStack = TCons [v0] "Stack"
+      let consDefs =
+            Map.fromList
+              [ ("Empty", ConsDef [] "Empty"),
+                ("Push", ConsDef [tStack, v0] "Push")
+              ]
+      let consTypes =
+            Map.fromList
+              [ ("Empty", ([], tStack)),
+                ("Push", ([tStack, v0], tStack))
+              ]
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+
+    it "adds mutually recursive definitions" $ do
+      let (Right defA) =
+            parseDataDef
+              "{data v0 v1 A {cons EmptyA} {cons (v0 v1 B) v0 A}}"
+      let (Right defB) =
+            parseDataDef
+              "{data v0 v1 B {cons EmptyB} {cons (v0 v1 A) v1 B}}"
+      let dataDefs = Map.fromList [("A", defA), ("B", defB)]
+      let typeConsArities = Map.fromList [("A", 2), ("B", 2)]
+      let (tA, tB) = (TCons [v0, v1] "A", TCons [v0, v1] "B")
+      let consDefs =
+            Map.fromList
+              [ ("EmptyA", ConsDef [] "EmptyA"),
+                ("A", ConsDef [tB, v0] "A"),
+                ("EmptyB", ConsDef [] "EmptyB"),
+                ("B", ConsDef [tA, v1] "B")
+              ]
+      let consTypes =
+            Map.fromList
+              [ ("EmptyA", ([], tA)),
+                ("A", ([tB, v0], tA)),
+                ("EmptyB", ([], tB)),
+                ("B", ([tA, v1], tB))
+              ]
+      addDataDefs emptyEnv [defA, defB]
+        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+
+    it "fails with TypeConsAlreadyDefined" $ do
+      let (Right def) = parseDataDef "{data Foo}"
+      let ([], env) = addDataDefs emptyEnv [def]
+      addDataDefs env [def]
+        `shouldBe` ([TypeConsAlreadyDefined "Foo"], env)
+      addDataDefs emptyEnv [def, def]
+        `shouldBe` ([TypeConsAlreadyDefined "Foo"], env)
+
+    it "fails with ConsAlreadyDefined" $ do
+      let (Right def1) = parseDataDef "{data Bit1 {cons B0} {cons B1}}"
+      let (Right def2) = parseDataDef "{data Bit2 {cons B0} {cons B1}}"
+      let ([], env) = addDataDefs emptyEnv [def1]
+      addDataDefs env [def2]
+        `shouldBe` ([ConsAlreadyDefined "Bit2" "B0"], env)
+      addDataDefs emptyEnv [def1, def2]
+        `shouldBe` ([ConsAlreadyDefined "Bit2" "B0"], env)
+
+    it "fails with DuplicateTypeVar" $ do
+      let (Right def) = parseDataDef "{data v0 v0 Test {cons v0 v0 Test}}"
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([DuplicateTypeVar "Test" tv0], emptyEnv)
+
+    it "fails with UndefinedTypeVar" $ do
+      let (Right def) = parseDataDef "{data Stack {cons Empty} {cons Stack v0 Push}}"
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([UndefinedTypeVar "Stack" tv0], emptyEnv)
+
+    it "fails with UndefinedTypeCons" $ do
+      let (Right def) =
+            parseDataDef
+              "{data v0 v1 A {cons EmptyA} {cons (v0 v1 B) v0 A}}"
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([UndefinedTypeCons "B"], emptyEnv)
+
+    it "fails with TypeConsArityMismatch" $ do
+      let (Right def) =
+            parseDataDef
+              "{data v0 Stack {cons Empty} {cons Stack v0 Push}}"
+      addDataDefs emptyEnv [def]
+        `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
+
 fastFibSrc = "{fn fib => {$a 0} {$b 1} _fib}"
 
 _fastFibSrc =
