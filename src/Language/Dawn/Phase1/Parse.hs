@@ -32,7 +32,7 @@ parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseVals :: String -> Either ParseError [Val]
-parseVals = parse (skipMany space *> vals <* eof) ""
+parseVals = parse (skipMany space *> reversedVals <* eof) ""
 
 dataDef :: Parser DataDef
 dataDef =
@@ -81,8 +81,22 @@ expr =
           <|> callExpr
       )
 
-vals :: Parser [Val]
-vals = reverse <$> many (literalVal <|> quotedVal)
+reversedVals :: Parser [Val]
+reversedVals = reverse <$> many val
+
+val :: Parser Val
+val = literalVal <|> quotedVal <|> simpleConsVal <|> betweenParens consVal
+
+simpleConsVal :: Parser Val
+simpleConsVal = VCons [] <$> consId
+
+consVal :: Parser Val
+consVal = do
+  args <- many val
+  let (args', args'') = splitAt (length args - 1) args
+  case args'' of
+    [VCons [] cid] -> return (VCons args' cid)
+    _ -> fail "expected consId"
 
 literalExpr = ELit <$> literal
 
