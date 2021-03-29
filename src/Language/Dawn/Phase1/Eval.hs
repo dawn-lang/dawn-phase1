@@ -75,7 +75,7 @@ a `appendStack` (bs :*: b) = (a `appendStack` bs) :*: b
 
 splitStackAt :: Int -> Stack a -> (Stack a, Stack a)
 splitStackAt n s
-  | n <= 0 = (Empty, s)
+  | n <= 0 = (s, Empty)
   | otherwise = splitStackAt' n s
   where
     splitStackAt' _ Empty = (Empty, Empty)

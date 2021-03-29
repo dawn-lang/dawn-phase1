@@ -26,6 +26,32 @@ import Prelude hiding (drop, (*))
 
 spec :: Spec
 spec = do
+  describe "splitStackAt" $ do
+    it "splits `` at 0" $ do
+      let (Right vs) = parseValStack ""
+      splitStackAt 0 vs `shouldBe` (Empty, Empty)
+
+    it "splits `Z` at 0" $ do
+      let (Right vs) = parseValStack "Z"
+      splitStackAt 0 vs `shouldBe` (vs, Empty)
+
+    it "splits `Z` at 1" $ do
+      let (Right vs) = parseValStack "Z"
+      splitStackAt 1 vs `shouldBe` (Empty, vs)
+
+    it "splits `Z Z` at 0" $ do
+      let (Right vs) = parseValStack "Z Z"
+      splitStackAt 0 vs `shouldBe` (vs, Empty)
+
+    it "splits `Z Z` at 1" $ do
+      let (Right vs) = parseValStack "Z Z"
+      let (Right vs') = parseValStack "Z"
+      splitStackAt 1 vs `shouldBe` (vs', vs')
+
+    it "splits `Z Z` at 2" $ do
+      let (Right vs) = parseValStack "Z Z"
+      splitStackAt 2 vs `shouldBe` (Empty, vs)
+
   describe "eval'" $ do
     it "evals `[clone] clone`" $ do
       let (Right e) = parseExpr "[clone] clone"
@@ -273,6 +299,14 @@ spec = do
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "0 True Pair {match {case Pair => }}"
       let (Right vs) = parseValStack "0 True"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z Z`" $ do
+      let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "Z Z"
+      let (Right vs) = parseValStack "Z Z"
       let ms' = MultiStack (Map.singleton "$" vs)
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
