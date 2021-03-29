@@ -1,0 +1,25 @@
+{
+    "name": "dawn",
+    "displayName": "Dawn",
+    "description": "The Dawn Programming Language",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.39.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "dawn",
+            "aliases": ["Dawn", "dawn"],
+            "extensions": [".dn", ".dawn"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "dawn",
+            "scopeName": "source.dawn",
+            "path": "./syntaxes/dawn.tmLanguage.json"
+        }]
+    }
+}
