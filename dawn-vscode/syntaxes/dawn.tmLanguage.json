@@ -1,0 +1,45 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Dawn",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#comments"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.dawn",
+				"match": "\\b(data|cons|fn|match|case)\\b"
+			}]
+		},
+		"strings": {
+			"name": "string.quoted.double.dawn",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.dawn",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comments": {
+			"name": "comment.line.double-hyphen.dawn",
+			"begin": "--",
+			"end": "\\n",
+			"beginCaptures": {
+			  "0": {
+				"name": "punctuation.definition.comment.dawn"
+			  }
+			}
+		}
+	},
+	"scopeName": "source.dawn"
+}
