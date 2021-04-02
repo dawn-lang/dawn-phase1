@@ -39,17 +39,18 @@ displayedExprs (e : es) = display e : displayedExprs es
 displayCase (p, e) = "{case " ++ display p ++ " => " ++ display e ++ "}"
 
 instance Display Pattern where
-  display PEmpty = ""
-  display (PProd l r) = unwords [display l, display r]
   display (PLit (LBool b)) = show b
   display (PLit (LU32 i)) = show i
+  display (PCons Empty cid) = cid
+  display (PCons args cid) = "(" ++ display args ++ " " ++ cid ++ ")"
+  display PWild = "_"
 
 instance Display Intrinsic where
   display = intrinsicFnId
 
 instance Display Type where
   display (TVar tv) = display tv
-  display (TProd t t') = display t ++ " * " ++ display t'
+  display (TProd t t') = display t ++ " " ++ display t'
   display (TFn qs mio) =
     "("
       ++ ( if null qs

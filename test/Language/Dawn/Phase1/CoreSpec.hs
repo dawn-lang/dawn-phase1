@@ -4,7 +4,7 @@
 -- or the ZLib license (see LICENSE-ZLIB), at your option.
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Language.Dawn.Phase1.CoreSpec (spec) where
+module Language.Dawn.Phase1.CoreSpec (spec, testEnv) where
 
 import Control.Exception
 import Control.Monad
@@ -317,6 +317,66 @@ spec = do
       let tBit = TCons [] "Bit"
       inferNormType env ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 * tBit --> v0 * tBit))
+
+    it "infers `{match {case Z => }}`" $ do
+      let (Right e) = parseExpr "{match {case Z => }}"
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case S => }}`" $ do
+      let (Right e) = parseExpr "{match {case S => }}"
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0 Nat)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (Z S) => }}`" $ do
+      let (Right e) = parseExpr "{match {case (Z S) => }}"
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (S S) => }}`" $ do
+      let (Right e) = parseExpr "{match {case (S S) => }}"
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0 Nat)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case Push =>}}`" $ do
+      let (Right e) = parseExpr "{match {case Push =>}}"
+      let (Right t) = parseType "(forall v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (_ B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (_ B0 Push) =>}}"
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (Empty B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (Empty B0 Push) =>}}"
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (Push B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (Push B0 Push) =>}}"
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case ((_ B1 Push) B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case ((_ B1 Push) B0 Push) =>}}"
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (S Push Pair) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (S Push Pair) =>}}"
+      let (Right t) = parseType "(forall v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (Push Push Pair) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (Push Push Pair) =>}}"
+      let (Right t) = parseType "(forall v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
+
+    it "infers `{match {case (Push _ Pair) =>}}`" $ do
+      let (Right e) = parseExpr "{match {case (Push _ Pair) =>}}"
+      let (Right t) = parseType "(forall v0 v1 v2 . v0 ((v1 Stack) v2 Pair) -> v0 (v1 Stack) v1 v2)"
+      inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "throws UndefinedCons on `Test`" $ do
       let (Right e) = parseExpr "Test"
@@ -895,6 +955,18 @@ spec = do
               "{data v0 Stack {cons Empty} {cons Stack v0 Push}}"
       addDataDefs emptyEnv [def]
         `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
+
+(Right dNat) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
+
+(Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+
+(Right dStack) =
+  parseDataDef
+    "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+
+(Right dPair) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
+
+([], testEnv) = addDataDefs emptyEnv [dNat, dBit, dStack, dPair]
 
 fastFibSrc = "{fn fib => {$a 0} {$b 1} _fib}"
 

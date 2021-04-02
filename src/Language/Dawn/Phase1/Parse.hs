@@ -11,17 +11,23 @@ module Language.Dawn.Phase1.Parse
     parseDataDef,
     parseExpr,
     parseFnDef,
+    parseType,
     parseValStack,
   )
 where
 
 import Control.Monad (fail, void, when)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Utils
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
+
+parseType :: String -> Either ParseError Type
+parseType = parse (skipMany space *> type' <* eof) ""
 
 parseDataDef :: String -> Either ParseError DataDef
 parseDataDef = parse (skipMany space *> dataDef <* eof) ""
@@ -34,6 +40,26 @@ parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseValStack :: String -> Either ParseError (Stack Val)
 parseValStack = parse (skipMany space *> (toStack <$> many val) <* eof) ""
+
+type' :: Parser Type
+type' = stackTypes <$> many1 nonProdType
+
+nonProdType :: Parser Type
+nonProdType = varType <|> simpleConsType <|> betweenParens (fnType <|> consType)
+
+fnType :: Parser Type
+fnType = TFn <$> univQuants <*> multiIO
+
+univQuants :: Parser UnivQuants
+univQuants = keyword "forall" *> (Set.fromList <$> many typeVar) <* symbol "."
+
+multiIO :: Parser MultiIO
+multiIO =
+  betweenBraces undefined -- TODO
+    <|> Map.singleton "$" <$> singleIO
+
+singleIO :: Parser (Type, Type)
+singleIO = (,) <$> type' <*> (symbol "->" *> type')
 
 dataDef :: Parser DataDef
 dataDef =
@@ -95,7 +121,7 @@ consVal = do
 
 literalExpr = ELit <$> literal
 
-literalPattern = PLit <$> literal
+litPat = PLit <$> literal
 
 literalVal = VLit <$> literal
 
@@ -131,17 +157,28 @@ bracedExpr =
         <|> desugarCollect <$> (keyword "collect" *> many1 stackId)
     )
 
-matchExprCase :: Parser (Pattern, Expr)
-matchExprCase = betweenBraces ((,) <$> (keyword "case" *> pattern') <*> (symbol "=>" *> expr))
+matchExprCase :: Parser (Stack Pattern, Expr)
+matchExprCase =
+  betweenBraces
+    ( (,) <$> (keyword "case" *> (toStack <$> many pat)) <*> (symbol "=>" *> expr)
+    )
 
-pattern' :: Parser Pattern
-pattern' =
-  try (PProd <$> literalOrConsPattern <*> literalOrConsPattern)
-    <|> try literalPattern
-    <|> try consPattern
-    <|> return PEmpty
-  where
-    literalOrConsPattern = try literalPattern <|> consPattern
+pat :: Parser Pattern
+pat = litPat <|> simpleConsPat <|> betweenParens consPat <|> wildPat
+
+simpleConsPat :: Parser Pattern
+simpleConsPat = PCons Empty <$> consId
+
+consPat :: Parser Pattern
+consPat = do
+  args <- many pat
+  let (args', args'') = splitAt (length args - 1) args
+  case args'' of
+    [PCons Empty cid] -> return (PCons (toStack args') cid)
+    _ -> fail "expected consId"
+
+wildPat :: Parser Pattern
+wildPat = keyword "_" >> return PWild
 
 desugarSpread :: [StackId] -> Expr
 desugarSpread dstStackIds =
@@ -208,8 +245,6 @@ intrinsic cons =
     <|> try (keyword "gteq" >> return (cons IGteq))
 
 consExpr = ECons <$> consId
-
-consPattern = PCons <$> consId
 
 callExpr = ECall <$> fnId
 

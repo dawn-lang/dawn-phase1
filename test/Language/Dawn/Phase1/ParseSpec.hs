@@ -16,7 +16,7 @@ import Prelude hiding (drop, (*))
 
 [tv0, tv1] = map TypeVar [0 .. 1]
 
-[v0, v1] = map (TVar . TypeVar) [0 .. 1]
+[v0, v1, v2] = map (TVar . TypeVar) [0 .. 2]
 
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
@@ -198,14 +198,14 @@ spec = do
 
     it "parses `{match {case =>}}`" $ do
       parseExpr "{match {case =>}}"
-        `shouldBe` Right (EMatch [(PEmpty, ECompose [])])
+        `shouldBe` Right (EMatch [(Empty, ECompose [])])
 
     it "parses `{match {case 0 => 1} {case => drop 0}}`" $ do
       parseExpr "{match {case 0 => 1} {case => drop 0}}"
         `shouldBe` Right
           ( EMatch
-              [ (pU32 0, eU32 1),
-                (PEmpty, ECompose [drop, eU32 0])
+              [ (Empty :*: pU32 0, eU32 1),
+                (Empty, ECompose [drop, eU32 0])
               ]
           )
 
@@ -213,8 +213,8 @@ spec = do
       parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
         `shouldBe` Right
           ( EMatch
-              [ (PProd (pU32 0) (pU32 0), eU32 1),
-                (PEmpty, ECompose [drop, drop, eU32 0])
+              [ (Empty :*: pU32 0 :*: pU32 0, eU32 1),
+                (Empty, ECompose [drop, drop, eU32 0])
               ]
           )
 
@@ -235,7 +235,23 @@ spec = do
 
     it "parses `{match {case B0 => }}`" $ do
       parseExpr "{match {case B0 => }}"
-        `shouldBe` Right (EMatch [(PCons "B0", ECompose [])])
+        `shouldBe` Right (EMatch [(Empty :*: PCons Empty "B0", ECompose [])])
+
+    it "parses `{match {case (Z S) => }}`" $ do
+      let pZ = PCons Empty "Z"
+      let pS n = PCons (Empty :*: n) "S"
+      parseExpr "{match {case (Z S) => }}"
+        `shouldBe` Right (EMatch [(Empty :*: pS pZ, ECompose [])])
+
+    it "parses `{match {case _ => }}`" $ do
+      parseExpr "{match {case _ => }}"
+        `shouldBe` Right (EMatch [(Empty :*: PWild, ECompose [])])
+
+    it "parses `{match {case (Z _ Pair) => }}`" $ do
+      let pPair a b = PCons (Empty :*: a :*: b) "Pair"
+      let pZ = PCons Empty "Z"
+      parseExpr "{match {case (Z _ Pair) => }}"
+        `shouldBe` Right (EMatch [(Empty :*: pPair pZ PWild, ECompose [])])
 
   describe "parseValStack" $ do
     it "parses `[clone] [drop] 0`" $ do
@@ -384,4 +400,38 @@ spec = do
               "Foo"
               [ ConsDef [TCons [TCons [v0] "Stack"] "Stack"] "Foo"
               ]
+          )
+
+  describe "parseType" $ do
+    it "parses `v0`" $ do
+      parseType "v0" `shouldBe` Right v0
+
+    it "parses `v0 v1`" $ do
+      parseType "v0 v1" `shouldBe` Right (v0 * v1)
+
+    it "parses `v0 v1 v2`" $ do
+      parseType "v0 v1 v2" `shouldBe` Right (v0 * v1 * v2)
+
+    it "parses `(forall v0 . v0 -> v0)`" $ do
+      parseType "(forall v0 . v0 -> v0)"
+        `shouldBe` Right (forall' [v0] (v0 --> v0))
+
+    it "parses `(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)`" $ do
+      parseType "(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)"
+        `shouldBe` Right (forall' [v0, v1] (v0 * forall' [] (v0 --> v1) --> v1))
+
+    it "parses `Bit`" $ do
+      parseType "Bit" `shouldBe` Right (TCons [] "Bit")
+
+    it "parses `(v0 Stack)`" $ do
+      parseType "(v0 Stack)" `shouldBe` Right (TCons [v0] "Stack")
+
+    it "parses `(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)`" $ do
+      let tStack t = TCons [t] "Stack"
+      let tBit = TCons [] "Bit"
+      parseType "(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)"
+        `shouldBe` Right
+          ( forall'
+              [v0, v1]
+              (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )

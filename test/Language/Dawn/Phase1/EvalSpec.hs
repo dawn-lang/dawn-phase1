@@ -12,6 +12,7 @@ import Data.Either.Combinators
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.CoreSpec hiding (spec)
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Exprs
@@ -309,6 +310,115 @@ spec = do
       let (Right vs) = parseValStack "Z Z"
       let ms' = MultiStack (Map.singleton "$" vs)
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals recursive Nat pattern (1)" $ do
+      let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "Z S {match {case (Z S) => }}"
+      let ms = MultiStack Map.empty
+      eval (toEvalEnv env) ["$"] e ms `shouldBe` ms
+
+    it "evals recursive Nat pattern (2)" $ do
+      let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
+      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right e) = parseExpr "Z S S {match {case (S S) => }}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals recursive Bit Stack pattern (1)" $ do
+      let (Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let (Right dStack) =
+            parseDataDef
+              "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+      let ([], env) = addDataDefs emptyEnv [dBit, dStack]
+      let (Right e) =
+            parseExpr
+              "Empty B0 Push {match {case (Empty B0 Push) => }}"
+      let ms = MultiStack Map.empty
+      eval (toEvalEnv env) ["$"] e ms `shouldBe` ms
+
+    it "evals recursive Bit Stack pattern (2)" $ do
+      let (Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
+      let (Right dStack) =
+            parseDataDef
+              "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
+      let ([], env) = addDataDefs emptyEnv [dBit, dStack]
+      let (Right e) =
+            parseExpr
+              "Empty B1 Push B0 Push {match {case (Push B0 Push) => }}"
+      let (Right vs) = parseValStack "Empty B1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z {match {case Z => }}`" $ do
+      let (Right e) = parseExpr "Z {match {case Z => }}"
+      let ms' = MultiStack Map.empty
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z S {match {case S => }}`" $ do
+      let (Right e) = parseExpr "Z S {match {case S => }}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z S {match {case (Z S) => }}`" $ do
+      let (Right e) = parseExpr "Z S {match {case (Z S) => }}"
+      let ms' = MultiStack Map.empty
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z S S {match {case (S S) => }}`" $ do
+      let (Right e) = parseExpr "Z S S {match {case (S S) => }}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty Z Push {match {case Push =>}}`" $ do
+      let (Right e) = parseExpr "Empty Z Push {match {case Push =>}}"
+      let (Right vs) = parseValStack "Empty Z"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty B0 Push {match {case (B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "Empty B0 Push {match {case (B0 Push) =>}}"
+      let (Right vs) = parseValStack "Empty"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty B0 Push {match {case (Empty B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "Empty B0 Push {match {case (Empty B0 Push) =>}}"
+      let ms' = MultiStack Map.empty
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty B1 Push B0 Push {match {case (Push B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "Empty B1 Push B0 Push {match {case (Push B0 Push) =>}}"
+      let (Right vs) = parseValStack "Empty B1"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty B1 Push B0 Push {match {case ((B1 Push) B0 Push) =>}}`" $ do
+      let (Right e) = parseExpr "Empty B1 Push B0 Push {match {case ((B1 Push) B0 Push) =>}}"
+      let (Right vs) = parseValStack "Empty"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Z S Empty B0 Push Pair {match {case (S Push Pair) =>}}`" $ do
+      let (Right e) = parseExpr "Z S Empty B0 Push Pair {match {case (S Push Pair) =>}}"
+      let (Right vs) = parseValStack "Z Empty B0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty Z Push Empty B0 Push Pair {match {case (Push Push Pair) =>}}`" $ do
+      let (Right e) = parseExpr "Empty Z Push Empty B0 Push Pair {match {case (Push Push Pair) =>}}"
+      let (Right vs) = parseValStack "Empty Z Empty B0"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `Empty Z Push Empty B0 Push Pair {match {case (Push _ Pair) =>}}`" $ do
+      let (Right e) = parseExpr "Empty Z Push Empty B0 Push Pair {match {case (Push _ Pair) =>}}"
+      let (Right vs) = parseValStack "Empty Z (Empty B0 Push)"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
   describe "evalWithFuel" $ do
     it "stops at 0 fuel" $ do

@@ -5,19 +5,15 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Dawn.Phase1.Eval
-  ( appendStack,
-    emptyEvalEnv,
+  ( emptyEvalEnv,
     eval,
     eval',
     EvalEnv (..),
     evalWithFuel,
-    fromStack,
     fromVal,
     MultiStack (..),
     splitStackAt,
-    Stack (..),
     toEvalEnv,
-    toStack,
     toVal,
     Val (..),
   )
@@ -51,27 +47,6 @@ data Val
   | VLit Literal
   | VCons (Stack Val) ConsId
   deriving (Eq, Ord, Show)
-
-data Stack a
-  = Empty
-  | (Stack a) :*: a
-  deriving (Eq, Ord, Show)
-
-toStack :: [a] -> Stack a
-toStack vs = toStack' (reverse vs)
-  where
-    toStack' [] = Empty
-    toStack' (v : vs) = toStack' vs :*: v
-
-fromStack :: Stack a -> [a]
-fromStack vs = reverse (fromStack' vs)
-  where
-    fromStack' Empty = []
-    fromStack' (vs :*: v) = v : fromStack' vs
-
-appendStack :: Stack a -> Stack a -> Stack a
-a `appendStack` Empty = a
-a `appendStack` (bs :*: b) = (a `appendStack` bs) :*: b
 
 splitStackAt :: Int -> Stack a -> (Stack a, Stack a)
 splitStackAt n s
@@ -170,7 +145,7 @@ eval env (s : _) e@(ELit _) (MultiStack m) =
    in MultiStack m'
 eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
-    iter :: Context -> [(Pattern, Expr)] -> MultiStack -> MultiStack
+    iter :: Context -> [(Stack Pattern, Expr)] -> MultiStack -> MultiStack
     iter _ [] _ = error "Non-exhaustive patterns"
     iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
@@ -225,20 +200,25 @@ shl a b = a `shiftL` fromInteger (toInteger b)
 
 shr a b = a `shiftR` fromInteger (toInteger b)
 
-popPatternMatches :: Context -> Pattern -> MultiStack -> Maybe MultiStack
-popPatternMatches ctx PEmpty ms = Just ms
-popPatternMatches ctx@(s : _) (PProd l r) ms = case popPatternMatches ctx r ms of
-  Nothing -> Nothing
-  Just ms' -> popPatternMatches ctx l ms'
-popPatternMatches (s : _) (PLit l) (MultiStack m) = case Map.findWithDefault Empty s m of
-  (vs :*: VLit l') | l == l' -> Just (MultiStack (insertStackOrDelete s vs m))
-  (vs :*: VLit l') -> Nothing
-popPatternMatches (s : _) (PCons cid) (MultiStack m) =
-  case Map.findWithDefault Empty s m of
-    (vs :*: VCons args cid')
-      | cid == cid' ->
-        Just (MultiStack (insertStackOrDelete s (vs `appendStack` args) m))
-    (vs :*: VCons args cid') -> Nothing
+popPatternMatches :: Context -> Stack Pattern -> MultiStack -> Maybe MultiStack
+popPatternMatches ctx Empty ms = Just ms
+popPatternMatches (s : _) ps (MultiStack m) = do
+  vs <- popPatternMatches' ps (m Map.! s)
+  return (MultiStack (insertStackOrDelete s vs m))
+  where
+    popPatternMatches' :: Stack Pattern -> Stack Val -> Maybe (Stack Val)
+    popPatternMatches' Empty vs = Just vs
+    popPatternMatches' (ps :*: p) (vs :*: v) = do
+      vss <- popPatternMatches' ps vs
+      vs <- popPatternMatch p v
+      return (vss `stackAppend` vs)
+
+    popPatternMatch :: Pattern -> Val -> Maybe (Stack Val)
+    popPatternMatch (PLit l) (VLit l') =
+      if l == l' then Just Empty else Nothing
+    popPatternMatch (PCons ps cid) (VCons vs cid') =
+      if cid == cid' then popPatternMatches' ps vs else Nothing
+    popPatternMatch PWild v = Just (Empty :*: v)
 
 evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
 evalWithFuel env ctx (0, e, ms) = (0, e, ms)
