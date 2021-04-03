@@ -420,6 +420,18 @@ spec = do
       let ms' = MultiStack (Map.singleton "$" vs)
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
+    it "infers `Z (Z S) nat_add`" $ do
+      let (Right e) = parseExpr "Z (Z S) nat_add"
+      let (Right vs) = parseValStack "(Z S)"
+      let ms' = MultiStack (Map.singleton "$" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "infers `{$a Z (Z S) nat_add}`" $ do
+      let (Right e) = parseExpr "{$a Z (Z S) nat_add}"
+      let (Right vs) = parseValStack "(Z S)"
+      let ms' = MultiStack (Map.singleton "$a" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
   describe "evalWithFuel" $ do
     it "stops at 0 fuel" $ do
       let (Right e) = parseExpr "0"

@@ -393,6 +393,16 @@ spec = do
       inferNormType emptyEnv ["$"] e
         `shouldBe` Right (forall' [v0] (v0 * tBool --> v0))
 
+    it "infers `nat_add`" $ do
+      let (Right e) = parseExpr "nat_add"
+      inferNormType testEnv ["$"] e
+        `shouldBe` Right (forall' [v0] (v0 * tNat * tNat --> v0 * tNat))
+
+    it "infers `{$a nat_add}`" $ do
+      let (Right e) = parseExpr "{$a nat_add}"
+      inferNormType testEnv ["$"] e
+        `shouldBe` Right (forall [v0] ("$a" $: v0 * tNat * tNat --> v0 * tNat))
+
   describe "checkType" $ do
     it "succeeds on exact match" $ do
       let (Right e) = parseExpr "and"
@@ -958,6 +968,12 @@ spec = do
 
 (Right dNat) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
 
+tNat = TCons [] "Nat"
+
+(Right d_nat_add) =
+  parseFnDef
+    "{fn nat_add => {match {case Z =>} {case S => $tmp<- S $tmp-> nat_add} }}"
+
 (Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
 
 (Right dStack) =
@@ -966,7 +982,9 @@ spec = do
 
 (Right dPair) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
 
-([], testEnv) = addDataDefs emptyEnv [dNat, dBit, dStack, dPair]
+([], testEnv) =
+  let ([], env) = addDataDefs emptyEnv [dNat, dBit, dStack, dPair]
+   in addFnDefs env [d_nat_add]
 
 fastFibSrc = "{fn fib => {$a 0} {$b 1} _fib}"
 
