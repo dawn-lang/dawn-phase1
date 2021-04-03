@@ -435,3 +435,13 @@ spec = do
               [v0, v1]
               (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )
+
+  describe "parseDefs" $ do
+    it "parses data and fn defs" $ do
+      let drop2Src = "{fn drop2 => drop drop}"
+      let boolSrc = "{data Bool {cons False} {cons True}}"
+      let src = unlines [drop2Src, boolSrc]
+      let (Right drop2Def) = parseFnDef drop2Src
+      let (Right boolDef) = parseDataDef boolSrc
+      parseDefs src
+        `shouldBe` Right ([boolDef], [drop2Def])

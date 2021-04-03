@@ -9,6 +9,7 @@ module Language.Dawn.Phase1.Parse
     fnDef,
     keyword,
     parseDataDef,
+    parseDefs,
     parseExpr,
     parseFnDef,
     parseType,
@@ -25,6 +26,16 @@ import Language.Dawn.Phase1.Utils
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
+
+parseDefs :: String -> Either ParseError ([DataDef], [FnDef])
+parseDefs = parse (skipMany space *> defs <* eof) ""
+  where
+    defs = do
+      ds <- many def
+      let folder (Left ddef) (ddefs, fdefs) = (ddef : ddefs, fdefs)
+          folder (Right fdef) (ddefs, fdefs) = (ddefs, fdef : fdefs)
+      return (foldr folder ([], []) ds)
+    def = try (Left <$> dataDef) <|> try (Right <$> fnDef)
 
 parseType :: String -> Either ParseError Type
 parseType = parse (skipMany space *> type' <* eof) ""
