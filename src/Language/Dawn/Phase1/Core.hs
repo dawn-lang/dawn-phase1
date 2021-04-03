@@ -35,6 +35,7 @@ module Language.Dawn.Phase1.Core
     forall,
     forall',
     freshTypeVar,
+    fromStack,
     HasTypeVars (..),
     inferNormType,
     inferType,
@@ -45,17 +46,22 @@ module Language.Dawn.Phase1.Core
     Literal (..),
     MatchError (..),
     mgu,
+    MultiIO,
     normalizeType,
     Pattern (..),
     removeTrivialStacks,
     replaceTypeVars,
     requantify,
+    Stack (..),
+    stackAppend,
     StackId,
     StackIds,
+    stackTypes,
     Subs (..),
     Subst (..),
     tBool,
     tempStackIds,
+    toStack,
     tU32,
     Type (..),
     TypeConsId,
@@ -80,6 +86,35 @@ import qualified Data.Set as Set
 import Data.Word
 import Prelude hiding ((*))
 
+---------------
+-- Utilities --
+---------------
+
+data Stack a
+  = Empty
+  | Stack a :*: a
+  deriving (Eq, Ord, Show)
+
+instance Foldable Stack where
+  foldMap f Empty = mempty
+  foldMap f (a :*: b) = foldMap f a `mappend` f b
+
+toStack :: [a] -> Stack a
+toStack vs = toStack' (reverse vs)
+  where
+    toStack' [] = Empty
+    toStack' (v : vs) = toStack' vs :*: v
+
+fromStack :: Stack a -> [a]
+fromStack vs = reverse (fromStack' vs)
+  where
+    fromStack' Empty = []
+    fromStack' (vs :*: v) = v : fromStack' vs
+
+stackAppend :: Stack a -> Stack a -> Stack a
+a `stackAppend` Empty = a
+a `stackAppend` (bs :*: b) = (a `stackAppend` bs) :*: b
+
 ---------------------
 -- Abstract Syntax --
 ---------------------
@@ -91,7 +126,7 @@ data Expr
   | ECompose [Expr]
   | EContext StackId Expr
   | ELit Literal
-  | EMatch [(Pattern, Expr)]
+  | EMatch [(Stack Pattern, Expr)]
   | ECons ConsId
   | ECall FnId
   deriving (Eq, Ord, Show)
@@ -102,10 +137,9 @@ data Literal
   deriving (Eq, Ord, Show)
 
 data Pattern
-  = PEmpty
-  | PProd Pattern Pattern
-  | PLit Literal
-  | PCons ConsId
+  = PLit Literal
+  | PCons (Stack Pattern) ConsId
+  | PWild
   deriving (Eq, Ord, Show)
 
 data Intrinsic
@@ -226,6 +260,12 @@ instance HasTypeVars a => HasTypeVars [a] where
   btv = foldr (Set.union . btv) Set.empty
   atv = nub . concatMap atv
 
+instance HasTypeVars a => HasTypeVars (Stack a) where
+  renameTypeVar from to ts = toStack (renameTypeVar from to (fromStack ts))
+  ftv = ftv . fromStack
+  btv = btv . fromStack
+  atv = atv . fromStack
+
 instance (HasTypeVars a, HasTypeVars b) => HasTypeVars (a, b) where
   renameTypeVar from to (a, b) =
     (renameTypeVar from to a, renameTypeVar from to b)
@@ -255,7 +295,7 @@ replaceTypeVars (tv : tvs) t reserved =
       t' = renameTypeVar tv tv' t
    in replaceTypeVars tvs t' reserved'
 
--- | Instantiate all quantified type variables with fresh type variables
+-- | Instantiate quantified type variables with fresh type variables
 instantiate :: HasTypeVars a => a -> TypeVars -> (a, TypeVars)
 instantiate t reserved =
   let atvs = atv t
@@ -264,6 +304,13 @@ instantiate t reserved =
       conflicting = quantified `intersect` Set.toList reserved
       reserved' = reserved `Set.union` Set.fromList atvs
    in replaceTypeVars conflicting t reserved'
+
+-- | Instantiate all type variables with fresh type variables
+instantiateAll :: HasTypeVars a => a -> TypeVars -> (a, TypeVars)
+instantiateAll t reserved =
+  let atvs = atv t
+      reserved' = reserved `Set.union` Set.fromList atvs
+   in replaceTypeVars atvs t reserved'
 
 addMissingStack :: Type -> StackId -> TypeVars -> (Type, TypeVars)
 addMissingStack (TFn qs mio) s reserved =
@@ -338,6 +385,11 @@ instance Subs a => Subs [a] where
       helper t (ts, reserved) =
         let (t', reserved') = subs s t reserved
          in (t' : ts, reserved')
+
+instance Subs a => Subs (Stack a) where
+  subs s ts reserved =
+    let (ts', reserved') = subs s (fromStack ts) reserved
+     in (toStack ts', reserved')
 
 instance (Subs a, Subs b) => Subs (a, b) where
   subs s (a, b) reserved =
@@ -552,6 +604,7 @@ data TypeError
   | MatchError MatchError
   | UndefinedCons ConsId
   | UndefinedFn FnId
+  | PatternArityMismatch ConsId Pattern
   deriving (Eq, Ord, Show)
 
 data Env = Env
@@ -623,31 +676,46 @@ stackTypes (t : t' : ts) = iter (TProd t t') ts
     iter t [] = t
     iter t (t' : ts) = iter (TProd t t') ts
 
-patternType :: Env -> Context -> Pattern -> Either TypeError Type
-patternType env (s : _) p = do
-  (is, os) <- patternTypes env p
-  let (tv, _) = freshTypeVar (Set.fromList (atv (is, os)))
-      v = TVar tv
-      i = stackTypes (v : is)
-      o = stackTypes (v : os)
+patternStackType :: Env -> Context -> Stack Pattern -> Either TypeError Type
+patternStackType env@Env {consTypes} (s : _) ps = do
+  (pts, reserved) <- patternTypes ps Set.empty
+  let (inTypes, outTypes) = unzip pts
+  let v = TVar $ fst $ freshTypeVar reserved
+      i = stackTypes (v : inTypes)
+      o = stackTypes (v : concat outTypes)
   return (requantify (TFn Set.empty (s $: i --> o)))
   where
-    patternTypes :: Env -> Pattern -> Either TypeError ([Type], [Type])
-    patternTypes env PEmpty = return ([], [])
-    patternTypes env (PProd l r) = do
-      (li, lo) <- patternTypes env l
-      (ri, ro) <- patternTypes env r
-      return (li ++ ri, lo ++ ro)
-    patternTypes env (PLit (LBool _)) = return ([tBool], [])
-    patternTypes env (PLit (LU32 _)) = return ([tU32], [])
-    patternTypes Env {consTypes} (PCons cid) = case Map.lookup cid consTypes of
-      Nothing -> throwError (UndefinedCons cid)
-      -- Note: ECons inputs are PCons outputs
-      Just (inTypes, outType) -> return ([outType], inTypes)
+    patternTypes :: Stack Pattern -> TypeVars -> Either TypeError ([(Type, [Type])], TypeVars)
+    patternTypes Empty reserved = return ([], reserved)
+    patternTypes (ps :*: p) reserved = do
+      (ts, reserved') <- patternTypes ps reserved
+      (it, ots, reserved'') <- patternType p reserved'
+      return (ts ++ [(it, ots)], reserved'')
 
-caseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
+    patternType :: Pattern -> TypeVars -> Either TypeError (Type, [Type], TypeVars)
+    patternType (PLit (LBool _)) reserved = return (tBool, [], reserved)
+    patternType (PLit (LU32 _)) reserved = return (tU32, [], reserved)
+    patternType p@(PCons args cid) reserved = case Map.lookup cid consTypes of
+      Nothing -> throwError (UndefinedCons cid)
+      Just (eConsInTypes, eConsOutType)
+        | not (null args) && length args /= length eConsInTypes ->
+          throwError (PatternArityMismatch cid p)
+      Just (eConsInTypes, eConsOutType) -> do
+        let ((inType, outTypes), reserved1) = instantiateAll (eConsOutType, eConsInTypes) reserved
+        (argsTypes, reserved2) <- patternTypes args reserved1
+        let (argInTypes, argOutTypesList) = unzip argsTypes
+        let (unmatchedOutTypes, matchedOutTypes) = splitAt (length outTypes - length args) outTypes
+        (s, reserved3) <- mapLeft UnificationError (mguList (zip argInTypes matchedOutTypes) reserved2)
+        let outTypes' = unmatchedOutTypes ++ concat argOutTypesList
+        let ((inType', outTypes''), reserved4) = subs s (inType, outTypes') reserved3
+        return (inType', outTypes'', reserved4)
+    patternType PWild reserved =
+      let (tv, reserved') = freshTypeVar reserved
+       in return (TVar tv, [TVar tv], reserved')
+
+caseType :: Env -> Context -> (Stack Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
-  pt <- patternType env ctx p
+  pt <- patternStackType env ctx p
   et <- inferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
@@ -711,9 +779,9 @@ inferType env ctx (ECall fid) = getECallType env fid
 -- Type Checking --
 -------------------
 
-strictCaseType :: Env -> Context -> (Pattern, Expr) -> Either TypeError Type
+strictCaseType :: Env -> Context -> (Stack Pattern, Expr) -> Either TypeError Type
 strictCaseType env ctx (p, e) = do
-  pt <- patternType env ctx p
+  pt <- patternStackType env ctx p
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 

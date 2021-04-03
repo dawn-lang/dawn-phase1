@@ -49,3 +49,36 @@ spec = do
       -- is the front of the list and is easily accessible.
       let ms = MultiStack (Map.singleton "$" vs)
       display ms `shouldBe` "{$: 1 2 True B0}"
+
+  describe "Display Type" $ do
+    it "displays `(forall v0 . v0 Nat -> v0)`" $ do
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0)"
+      display t `shouldBe` "(∀ v0 . v0 Nat -> v0)"
+
+    it "displays `(forall v0 . v0 Nat -> v0 Nat)`" $ do
+      let (Right t) = parseType "(forall v0 . v0 Nat -> v0 Nat)"
+      display t `shouldBe` "(∀ v0 . v0 Nat -> v0 Nat)"
+
+    it "displays `(forall v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1)`" $ do
+      let (Right t) = parseType "(forall v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1)"
+      display t `shouldBe` "(∀ v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1)"
+
+    it "displays `(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))`" $ do
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+      display t `shouldBe` "(∀ v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+
+    it "displays `(forall v0 . v0 (Bit Stack) -> v0)`" $ do
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0)"
+      display t `shouldBe` "(∀ v0 . v0 (Bit Stack) -> v0)"
+
+    it "displays `(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit)`" $ do
+      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit)"
+      display t `shouldBe` "(∀ v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit)"
+
+    it "displays `(forall v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1)`" $ do
+      let (Right t) = parseType "(forall v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1)"
+      display t `shouldBe` "(∀ v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1)"
+
+    it "displays `(forall v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2)`" $ do
+      let (Right t) = parseType "(forall v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2)"
+      display t `shouldBe` "(∀ v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2)"
