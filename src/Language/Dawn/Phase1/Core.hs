@@ -741,10 +741,16 @@ getEConsType Env {consTypes} (s : _) cid = case Map.lookup cid consTypes of
         i = stackTypes (v : inTypes)
      in return (requantify (TFn Set.empty (s $: i --> v * outType)))
 
-getECallType :: Env -> FnId -> Either TypeError Type
-getECallType Env {fnTypes} fid = case Map.lookup fid fnTypes of
+getECallType :: Env -> Context -> FnId -> Either TypeError Type
+getECallType Env {fnTypes} ctx fid = case Map.lookup fid fnTypes of
   Nothing -> throwError (UndefinedFn fid)
-  Just t -> return t
+  Just t -> return (getFnTypeInContext ctx t)
+
+getFnTypeInContext :: Context -> Type -> Type
+getFnTypeInContext ctx@(s : _) (TFn qs mio) = TFn qs (Map.mapKeys mapper mio)
+  where
+    mapper "$" = s
+    mapper sid = ensureUniqueStackId ctx sid
 
 -- | Infer an expression's type in the given Env and Context.
 -- | UndefinedFn is only thrown if the call occurs outside of
@@ -773,7 +779,7 @@ inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
     isOtherError (Left _) = True
     isOtherError _ = False
 inferType env ctx (ECons cid) = getEConsType env ctx cid
-inferType env ctx (ECall fid) = getECallType env fid
+inferType env ctx (ECall fid) = getECallType env ctx fid
 
 -------------------
 -- Type Checking --
