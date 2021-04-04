@@ -9,6 +9,7 @@ module Language.Dawn.Phase1.Parse
     fnDef,
     keyword,
     parseDataDef,
+    parseDefs,
     parseExpr,
     parseFnDef,
     parseType,
@@ -25,6 +26,16 @@ import Language.Dawn.Phase1.Utils
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
+
+parseDefs :: String -> Either ParseError ([DataDef], [FnDef])
+parseDefs = parse (skipMany space *> defs <* eof) ""
+  where
+    defs = do
+      ds <- many def
+      let folder (Left ddef) (ddefs, fdefs) = (ddef : ddefs, fdefs)
+          folder (Right fdef) (ddefs, fdefs) = (ddefs, fdef : fdefs)
+      return (foldr folder ([], []) ds)
+    def = try (Left <$> dataDef) <|> try (Right <$> fnDef)
 
 parseType :: String -> Either ParseError Type
 parseType = parse (skipMany space *> type' <* eof) ""
@@ -99,14 +110,14 @@ expr :: Parser Expr
 expr =
   fromExprSeq
     <$> many
-      ( literalExpr <|> bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
+      ( bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
           <|> consExpr
           <|> callExpr
       )
 
 val :: Parser Val
-val = literalVal <|> quotedVal <|> simpleConsVal <|> betweenParens consVal
+val = quotedVal <|> simpleConsVal <|> betweenParens consVal
 
 simpleConsVal :: Parser Val
 simpleConsVal = VCons Empty <$> consId
@@ -119,28 +130,9 @@ consVal = do
     [VCons Empty cid] -> return (VCons (toStack args') cid)
     _ -> fail "expected consId"
 
-literalExpr = ELit <$> literal
-
-litPat = PLit <$> literal
-
-literalVal = VLit <$> literal
-
-literal = boolLit <|> u32Lit
-
-boolLit :: Parser Literal
-boolLit = LBool <$> (false <|> true)
-
 false = try (keyword "False") >> return False
 
 true = try (keyword "True") >> return True
-
-u32Lit :: Parser Literal
-u32Lit = do
-  integer <- integer
-  let i = fromInteger integer
-  let integer' = toInteger i
-  when (integer /= integer') (fail "literal overflow")
-  return (LU32 i)
 
 integer :: Parser Integer
 integer = read <$> lexeme (many1 digit)
@@ -164,7 +156,7 @@ matchExprCase =
     )
 
 pat :: Parser Pattern
-pat = litPat <|> simpleConsPat <|> betweenParens consPat <|> wildPat
+pat = simpleConsPat <|> betweenParens consPat <|> wildPat
 
 simpleConsPat :: Parser Pattern
 simpleConsPat = PCons Empty <$> consId
@@ -224,25 +216,6 @@ intrinsic cons =
     <|> try (keyword "quote" >> return (cons IQuote))
     <|> try (keyword "compose" >> return (cons ICompose))
     <|> try (keyword "apply" >> return (cons IApply))
-    <|> try (keyword "and" >> return (cons IAnd))
-    <|> try (keyword "or" >> return (cons IOr))
-    <|> try (keyword "not" >> return (cons INot))
-    <|> try (keyword "xor" >> return (cons IXor))
-    <|> try (keyword "incr" >> return (cons IIncr))
-    <|> try (keyword "decr" >> return (cons IDecr))
-    <|> try (keyword "add" >> return (cons IAdd))
-    <|> try (keyword "sub" >> return (cons ISub))
-    <|> try (keyword "bit_and" >> return (cons IBitAnd))
-    <|> try (keyword "bit_or" >> return (cons IBitOr))
-    <|> try (keyword "bit_not" >> return (cons IBitNot))
-    <|> try (keyword "bit_xor" >> return (cons IBitXor))
-    <|> try (keyword "shl" >> return (cons IShl))
-    <|> try (keyword "shr" >> return (cons IShr))
-    <|> try (keyword "eq" >> return (cons IEq))
-    <|> try (keyword "lt" >> return (cons ILt))
-    <|> try (keyword "gt" >> return (cons IGt))
-    <|> try (keyword "lteq" >> return (cons ILteq))
-    <|> try (keyword "gteq" >> return (cons IGteq))
 
 consExpr = ECons <$> consId
 

@@ -24,7 +24,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Word
 import Language.Dawn.Phase1.Core hiding ((*))
-import qualified Language.Dawn.Phase1.Core as Core
 import Language.Dawn.Phase1.Utils
 
 data EvalEnv = EvalEnv
@@ -44,7 +43,6 @@ toEvalEnv Env {consTypes, fnDefs} =
 
 data Val
   = VQuote Expr
-  | VLit Literal
   | VCons (Stack Val) ConsId
   deriving (Eq, Ord, Show)
 
@@ -64,12 +62,10 @@ newtype MultiStack = MultiStack (Map.Map StackId (Stack Val))
 
 toVal :: Expr -> Val
 toVal (EQuote e) = VQuote e
-toVal (ELit l) = VLit l
 toVal (ECons cid) = VCons Empty cid
 
 fromVal :: Val -> Expr
 fromVal (VQuote e) = EQuote e
-fromVal (VLit l) = ELit l
 fromVal (VCons Empty cid) = ECons cid
 fromVal (VCons args cid) =
   ECompose (map fromVal (fromStack args) ++ [ECons cid])
@@ -111,25 +107,6 @@ eval env ctx@(s : _) (EIntrinsic IApply) (MultiStack m) =
   let (vs :*: VQuote e) = Map.findWithDefault Empty s m
       m' = insertStackOrDelete s vs m
    in eval env ctx e (MultiStack m')
-eval env (s : _) (EIntrinsic IAnd) (MultiStack m) = evalBoolBinOp s m (&&)
-eval env (s : _) (EIntrinsic IOr) (MultiStack m) = evalBoolBinOp s m (||)
-eval env (s : _) (EIntrinsic INot) (MultiStack m) = evalBoolUnOp s m not
-eval env (s : _) (EIntrinsic IXor) (MultiStack m) = evalBoolBinOp s m (/=)
-eval env (s : _) (EIntrinsic IIncr) (MultiStack m) = evalUnOp s m (+ 1)
-eval env (s : _) (EIntrinsic IDecr) (MultiStack m) = evalUnOp s m decr
-eval env (s : _) (EIntrinsic IAdd) (MultiStack m) = evalBinOp s m (+)
-eval env (s : _) (EIntrinsic ISub) (MultiStack m) = evalBinOp s m (-)
-eval env (s : _) (EIntrinsic IBitAnd) (MultiStack m) = evalBinOp s m (.&.)
-eval env (s : _) (EIntrinsic IBitOr) (MultiStack m) = evalBinOp s m (.|.)
-eval env (s : _) (EIntrinsic IBitNot) (MultiStack m) = evalUnOp s m complement
-eval env (s : _) (EIntrinsic IBitXor) (MultiStack m) = evalBinOp s m xor
-eval env (s : _) (EIntrinsic IShl) (MultiStack m) = evalBinOp s m shl
-eval env (s : _) (EIntrinsic IShr) (MultiStack m) = evalBinOp s m shr
-eval env (s : _) (EIntrinsic IEq) (MultiStack m) = evalBinCmpOp s m (==)
-eval env (s : _) (EIntrinsic ILt) (MultiStack m) = evalBinCmpOp s m (<)
-eval env (s : _) (EIntrinsic IGt) (MultiStack m) = evalBinCmpOp s m (>)
-eval env (s : _) (EIntrinsic ILteq) (MultiStack m) = evalBinCmpOp s m (<=)
-eval env (s : _) (EIntrinsic IGteq) (MultiStack m) = evalBinCmpOp s m (>=)
 eval env (s : _) e@(EQuote _) (MultiStack m) =
   let vs = Map.findWithDefault Empty s m
       m' = Map.insert s (vs :*: toVal e) m
@@ -139,10 +116,6 @@ eval env ctx (ECompose es) ms =
    in foldl folder ms es
 eval env ctx (EContext s e) ms =
   eval env (ensureUniqueStackId ctx s : ctx) e ms
-eval env (s : _) e@(ELit _) (MultiStack m) =
-  let vs = Map.findWithDefault Empty s m
-      m' = Map.insert s (vs :*: toVal e) m
-   in MultiStack m'
 eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
     iter :: Context -> [(Stack Pattern, Expr)] -> MultiStack -> MultiStack
@@ -163,43 +136,6 @@ eval env@EvalEnv {fnExprs} ctx (ECall fid) ms = case Map.lookup fid fnExprs of
 eval' :: Expr -> MultiStack
 eval' e = eval emptyEvalEnv ["$"] e (MultiStack Map.empty)
 
-evalBoolUnOp s m op =
-  let (vs :*: VLit (LBool a)) = Map.findWithDefault Empty s m
-      c = op a
-      m' = Map.insert s (vs :*: VLit (LBool c)) m
-   in MultiStack m'
-
-evalBoolBinOp s m op =
-  let (vs :*: VLit (LBool a) :*: VLit (LBool b)) = Map.findWithDefault Empty s m
-      c = op a b
-      m' = Map.insert s (vs :*: VLit (LBool c)) m
-   in MultiStack m'
-
-evalUnOp s m op =
-  let (vs :*: VLit (LU32 a)) = Map.findWithDefault Empty s m
-      c = op a
-      m' = Map.insert s (vs :*: VLit (LU32 c)) m
-   in MultiStack m'
-
-evalBinOp s m op =
-  let (vs :*: VLit (LU32 a) :*: VLit (LU32 b)) = Map.findWithDefault Empty s m
-      c = op a b
-      m' = Map.insert s (vs :*: VLit (LU32 c)) m
-   in MultiStack m'
-
-evalBinCmpOp s m op =
-  let (vs :*: VLit (LU32 a) :*: VLit (LU32 b)) = Map.findWithDefault Empty s m
-      c = op a b
-      m' = Map.insert s (vs :*: VLit (LBool c)) m
-   in MultiStack m'
-
-decr :: Word32 -> Word32
-decr a = a - 1
-
-shl a b = a `shiftL` fromInteger (toInteger b)
-
-shr a b = a `shiftR` fromInteger (toInteger b)
-
 popPatternMatches :: Context -> Stack Pattern -> MultiStack -> Maybe MultiStack
 popPatternMatches ctx Empty ms = Just ms
 popPatternMatches (s : _) ps (MultiStack m) = do
@@ -214,8 +150,6 @@ popPatternMatches (s : _) ps (MultiStack m) = do
       return (vss `stackAppend` vs)
 
     popPatternMatch :: Pattern -> Val -> Maybe (Stack Val)
-    popPatternMatch (PLit l) (VLit l') =
-      if l == l' then Just Empty else Nothing
     popPatternMatch (PCons ps cid) (VCons vs cid') =
       if cid == cid' then popPatternMatches' ps vs else Nothing
     popPatternMatch PWild v = Just (Empty :*: v)

@@ -37,7 +37,7 @@ readEvalPrintLoop (env, ms) = do
 
 readEvalPrint :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
 readEvalPrint (env, ms) = do
-  maybeLine <- getInputLine "> "
+  maybeLine <- getInputLine ">>> "
   case maybeLine of
     Nothing -> return (env, ms)
     Just line -> case parseCommand line of

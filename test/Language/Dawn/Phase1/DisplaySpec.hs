@@ -16,8 +16,8 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "Display Val" $ do
-    it "displays `1 2 True B0`" $ do
-      let str = "1 2 True B0"
+    it "displays `Z (Z S) True B0`" $ do
+      let str = "Z (Z S) True B0"
       let (Right vs) = parseValStack str
       display vs `shouldBe` str
 
@@ -26,8 +26,8 @@ spec = do
       let (Right vs) = parseValStack str
       display vs `shouldBe` str
 
-    it "displays `(0 1 Pair)`" $ do
-      let str = "(0 1 Pair)"
+    it "displays `(Z (Z S) Pair)`" $ do
+      let str = "(Z (Z S) Pair)"
       let (Right vs) = parseValStack str
       display vs `shouldBe` str
 
@@ -43,12 +43,12 @@ spec = do
 
   describe "Display MultiStack" $ do
     it "displays in order" $ do
-      let str = "1 2 True B0"
+      let str = "(Z S) ((Z S) S) True B0"
       let (Right vs) = parseValStack str
       -- Note: values are reversed so that the top of the stack
       -- is the front of the list and is easily accessible.
       let ms = MultiStack (Map.singleton "$" vs)
-      display ms `shouldBe` "{$: 1 2 True B0}"
+      display ms `shouldBe` "{$: (Z S) ((Z S) S) True B0}"
 
   describe "Display Type" $ do
     it "displays `(forall v0 . v0 Nat -> v0)`" $ do

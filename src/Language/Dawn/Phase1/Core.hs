@@ -43,7 +43,6 @@ module Language.Dawn.Phase1.Core
     Intrinsic (..),
     intrinsicFnId,
     intrinsicType,
-    Literal (..),
     MatchError (..),
     mgu,
     MultiIO,
@@ -59,10 +58,8 @@ module Language.Dawn.Phase1.Core
     stackTypes,
     Subs (..),
     Subst (..),
-    tBool,
     tempStackIds,
     toStack,
-    tU32,
     Type (..),
     TypeConsId,
     TypeError (..),
@@ -125,20 +122,13 @@ data Expr
   | EQuote Expr
   | ECompose [Expr]
   | EContext StackId Expr
-  | ELit Literal
   | EMatch [(Stack Pattern, Expr)]
   | ECons ConsId
   | ECall FnId
   deriving (Eq, Ord, Show)
 
-data Literal
-  = LBool Bool
-  | LU32 Word32
-  deriving (Eq, Ord, Show)
-
 data Pattern
-  = PLit Literal
-  | PCons (Stack Pattern) ConsId
+  = PCons (Stack Pattern) ConsId
   | PWild
   deriving (Eq, Ord, Show)
 
@@ -494,9 +484,9 @@ matchList ((t1, t2) : ts) reserved = do
   let s3 = mergeSubst s2 s1
   return (s3, reserved4)
 
----------------------------------
--- Intrinsic and Literal Types --
----------------------------------
+---------------------
+-- Intrinsic Types --
+---------------------
 
 infixl 2 $.
 
@@ -527,10 +517,6 @@ forall' vs io = forall vs ("$" $: io)
 
 [v0, v1, v2, v3] = map (TVar . TypeVar) [0 .. 3]
 
-tBool = TCons [] "Bool"
-
-tU32 = TCons [] "U32"
-
 type Context = [StackId]
 
 intrinsicType :: Context -> Intrinsic -> Type
@@ -552,48 +538,6 @@ intrinsicType (s : _) ICompose =
     )
 intrinsicType (s : _) IApply =
   forall [v0, v1] (s $: v0 * forall [] (s $: v0 --> v1) --> v1)
-intrinsicType (s : _) IAnd =
-  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
-intrinsicType (s : _) IOr =
-  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
-intrinsicType (s : _) INot =
-  forall [v0] (s $: v0 * tBool --> v0 * tBool)
-intrinsicType (s : _) IXor =
-  forall [v0] (s $: v0 * tBool * tBool --> v0 * tBool)
-intrinsicType (s : _) IIncr =
-  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IDecr =
-  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IAdd =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) ISub =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IBitAnd =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IBitOr =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IBitNot =
-  forall [v0] (s $: v0 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IBitXor =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IShl =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IShr =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tU32)
-intrinsicType (s : _) IEq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
-intrinsicType (s : _) ILt =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
-intrinsicType (s : _) IGt =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
-intrinsicType (s : _) ILteq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
-intrinsicType (s : _) IGteq =
-  forall [v0] (s $: v0 * tU32 * tU32 --> v0 * tBool)
-
-literalType :: Context -> Literal -> Type
-literalType (s : _) (LBool _) = forall [v0] (s $: v0 --> v0 * tBool)
-literalType (s : _) (LU32 _) = forall [v0] (s $: v0 --> v0 * tU32)
 
 --------------------
 -- Type Inference --
@@ -693,8 +637,6 @@ patternStackType env@Env {consTypes} (s : _) ps = do
       return (ts ++ [(it, ots)], reserved'')
 
     patternType :: Pattern -> TypeVars -> Either TypeError (Type, [Type], TypeVars)
-    patternType (PLit (LBool _)) reserved = return (tBool, [], reserved)
-    patternType (PLit (LU32 _)) reserved = return (tU32, [], reserved)
     patternType p@(PCons args cid) reserved = case Map.lookup cid consTypes of
       Nothing -> throwError (UndefinedCons cid)
       Just (eConsInTypes, eConsOutType)
@@ -765,7 +707,6 @@ inferType env ctx (ECompose es) = do
   mapLeft UnificationError (composeTypes ts)
 inferType env ctx (EContext s e) =
   inferType env (ensureUniqueStackId ctx s : ctx) e
-inferType env ctx (ELit l) = return $ literalType ctx l
 inferType env ctx (EMatch cases) = case map (caseType env ctx) cases of
   rs | all isUndefinedFnError rs -> head (filter isUndefinedFnError rs)
   rs | any isOtherError rs -> head (filter isOtherError rs)
@@ -872,25 +813,6 @@ intrinsicFnId IDrop = "drop"
 intrinsicFnId IQuote = "quote"
 intrinsicFnId ICompose = "compose"
 intrinsicFnId IApply = "apply"
-intrinsicFnId IAnd = "and"
-intrinsicFnId IOr = "or"
-intrinsicFnId INot = "not"
-intrinsicFnId IXor = "xor"
-intrinsicFnId IIncr = "incr"
-intrinsicFnId IDecr = "decr"
-intrinsicFnId IAdd = "add"
-intrinsicFnId ISub = "sub"
-intrinsicFnId IBitAnd = "bit_and"
-intrinsicFnId IBitOr = "bit_or"
-intrinsicFnId IBitNot = "bit_not"
-intrinsicFnId IBitXor = "bit_xor"
-intrinsicFnId IShl = "shl"
-intrinsicFnId IShr = "shr"
-intrinsicFnId IEq = "eq"
-intrinsicFnId ILt = "lt"
-intrinsicFnId IGt = "gt"
-intrinsicFnId ILteq = "lteq"
-intrinsicFnId IGteq = "gteq"
 
 intrinsicFnIds =
   Set.fromList
@@ -900,26 +822,7 @@ intrinsicFnIds =
       "drop",
       "quote",
       "compose",
-      "apply",
-      "and",
-      "or",
-      "not",
-      "xor",
-      "incr",
-      "decr",
-      "add",
-      "sub",
-      "bit_and",
-      "bit_or",
-      "bit_not",
-      "bit_xor",
-      "shl",
-      "shr",
-      "eq",
-      "lt",
-      "gt",
-      "lteq",
-      "gteq"
+      "apply"
     ]
 
 data FnDefError
@@ -954,7 +857,6 @@ fnDepsF mergeCases = helper
     helper (ECompose es) =
       foldr (Set.union . helper) Set.empty es
     helper (EContext s e) = helper e
-    helper (ELit _) = Set.empty
     helper (EMatch cs) =
       let caseDeps = map (uncondFnDeps . snd) cs
        in foldr1 mergeCases caseDeps
