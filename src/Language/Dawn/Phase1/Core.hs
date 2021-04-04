@@ -129,12 +129,12 @@ data Expr
   | EMatch [(Stack Pattern, Expr)]
   | ECons ConsId
   | ECall FnId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Pattern
   = PCons (Stack Pattern) ConsId
   | PWild
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Intrinsic
   = IPush
@@ -170,7 +170,7 @@ data Type
   | TProd Type Type
   | TFn UnivQuants MultiIO
   | TCons [Type] TypeConsId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Multi-stack input/output
 type MultiIO = Map.Map StackId (Type, Type)
@@ -347,7 +347,7 @@ addMissingStacks t = t
 ------------------
 
 newtype Subst = Subst (Map.Map TypeVar Type)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 (+->) :: TypeVar -> Type -> Subst
 u +-> t = Subst (Map.singleton u t)
@@ -424,7 +424,7 @@ mergeSubst (Subst m1) (Subst m2) =
 data UnificationError
   = DoesNotUnify Type Type
   | OccursIn TypeVar Type
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Find the most general unifier, s, of two Types,
 -- | t and t', such that subs s t == subs s' t',
@@ -463,7 +463,7 @@ mguList ((t1, t2) : ts) reserved = do
 
 data MatchError
   = DoesNotMatch Type Type
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Given two Types, t and t', that do not share any type variables,
 -- | find the substitution, s, such that subs s t == t'.
@@ -553,7 +553,7 @@ data TypeError
   | UndefinedCons ConsId
   | UndefinedFn FnId
   | PatternArityMismatch ConsId Pattern
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Env = Env
   { dataDefs :: Map.Map TypeConsId DataDef,

@@ -43,7 +43,7 @@ toEvalEnv Env {consTypes, fnDefs} =
 data Val
   = VQuote Expr
   | VCons (Stack Val) ConsId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 splitStackAt :: Int -> Stack a -> (Stack a, Stack a)
 splitStackAt n s
