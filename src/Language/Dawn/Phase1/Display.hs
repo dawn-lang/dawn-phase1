@@ -22,8 +22,6 @@ instance Display Expr where
   display (EContext s (EIntrinsic IPush)) = s ++ "<-"
   display (EContext s (EIntrinsic IPop)) = s ++ "->"
   display (EContext s e) = "{" ++ s ++ " " ++ display e ++ "}"
-  display (ELit (LBool b)) = show b
-  display (ELit (LU32 i)) = show i
   display (EMatch cases) = "{match " ++ unwords (map displayCase cases) ++ "}"
   display (ECons cid) = cid
   display (ECall fid) = fid
@@ -39,8 +37,6 @@ displayedExprs (e : es) = display e : displayedExprs es
 displayCase (p, e) = "{case " ++ display p ++ " => " ++ display e ++ "}"
 
 instance Display Pattern where
-  display (PLit (LBool b)) = show b
-  display (PLit (LU32 i)) = show i
   display (PCons Empty cid) = cid
   display (PCons args cid) = "(" ++ display args ++ " " ++ cid ++ ")"
   display PWild = "_"

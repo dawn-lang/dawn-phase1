@@ -21,14 +21,6 @@ import Prelude hiding (drop, (*))
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
 
-pBool n = PLit (LBool n)
-
-eBool n = ELit (LBool n)
-
-pU32 n = PLit (LU32 n)
-
-eU32 n = ELit (LU32 n)
-
 spec :: Spec
 spec = do
   describe "parseExpr" $ do
@@ -60,63 +52,6 @@ spec = do
 
     it "parses `apply`" $ do
       parseExpr "apply" `shouldBe` Right apply
-
-    it "parses `and`" $ do
-      parseExpr "and" `shouldBe` Right (EIntrinsic IAnd)
-
-    it "parses `or`" $ do
-      parseExpr "or" `shouldBe` Right (EIntrinsic IOr)
-
-    it "parses `not`" $ do
-      parseExpr "not" `shouldBe` Right (EIntrinsic INot)
-
-    it "parses `xor`" $ do
-      parseExpr "xor" `shouldBe` Right (EIntrinsic IXor)
-
-    it "parses `incr`" $ do
-      parseExpr "incr" `shouldBe` Right (EIntrinsic IIncr)
-
-    it "parses `decr`" $ do
-      parseExpr "decr" `shouldBe` Right (EIntrinsic IDecr)
-
-    it "parses `add`" $ do
-      parseExpr "add" `shouldBe` Right (EIntrinsic IAdd)
-
-    it "parses `sub`" $ do
-      parseExpr "sub" `shouldBe` Right (EIntrinsic ISub)
-
-    it "parses `bit_and`" $ do
-      parseExpr "bit_and" `shouldBe` Right (EIntrinsic IBitAnd)
-
-    it "parses `bit_or`" $ do
-      parseExpr "bit_or" `shouldBe` Right (EIntrinsic IBitOr)
-
-    it "parses `bit_not`" $ do
-      parseExpr "bit_not" `shouldBe` Right (EIntrinsic IBitNot)
-
-    it "parses `bit_xor`" $ do
-      parseExpr "bit_xor" `shouldBe` Right (EIntrinsic IBitXor)
-
-    it "parses `shl`" $ do
-      parseExpr "shl" `shouldBe` Right (EIntrinsic IShl)
-
-    it "parses `shr`" $ do
-      parseExpr "shr" `shouldBe` Right (EIntrinsic IShr)
-
-    it "parses `eq`" $ do
-      parseExpr "eq" `shouldBe` Right (EIntrinsic IEq)
-
-    it "parses `lt`" $ do
-      parseExpr "lt" `shouldBe` Right (EIntrinsic ILt)
-
-    it "parses `gt`" $ do
-      parseExpr "gt" `shouldBe` Right (EIntrinsic IGt)
-
-    it "parses `lteq`" $ do
-      parseExpr "lteq" `shouldBe` Right (EIntrinsic ILteq)
-
-    it "parses `gteq`" $ do
-      parseExpr "gteq" `shouldBe` Right (EIntrinsic IGteq)
 
     it "parses `clone drop quote compose apply`" $ do
       parseExpr "clone drop quote compose apply"
@@ -166,29 +101,15 @@ spec = do
 
     it "parses `False`" $ do
       parseExpr "False"
-        `shouldBe` Right (ELit (LBool False))
+        `shouldBe` Right (ECons "False")
 
     it "parses `True`" $ do
       parseExpr "True"
-        `shouldBe` Right (ELit (LBool True))
-
-    it "parses `123`" $ do
-      parseExpr "123"
-        `shouldBe` Right (ELit (LU32 123))
-
-    it "fails `999999999999`" $ do
-      let (Left err) = parseExpr "999999999999"
-      let pos = errorPos err
-      sourceLine pos `shouldBe` 1
-      sourceColumn pos `shouldBe` 13
+        `shouldBe` Right (ECons "True")
 
     it "parses `{$a False}`" $ do
       parseExpr "{$a False}"
-        `shouldBe` Right (EContext "$a" (ELit (LBool False)))
-
-    it "parses `{$a 123}`" $ do
-      parseExpr "{$a 123}"
-        `shouldBe` Right (EContext "$a" (ELit (LU32 123)))
+        `shouldBe` Right (EContext "$a" (ECons "False"))
 
     it "fails on `{match }`" $ do
       let (Left err) = parseExpr "{match }"
@@ -200,21 +121,21 @@ spec = do
       parseExpr "{match {case =>}}"
         `shouldBe` Right (EMatch [(Empty, ECompose [])])
 
-    it "parses `{match {case 0 => 1} {case => drop 0}}`" $ do
-      parseExpr "{match {case 0 => 1} {case => drop 0}}"
+    it "parses `{match {case Z => Z S} {case => drop Z}}`" $ do
+      parseExpr "{match {case Z => Z S} {case => drop Z}}"
         `shouldBe` Right
           ( EMatch
-              [ (Empty :*: pU32 0, eU32 1),
-                (Empty, ECompose [drop, eU32 0])
+              [ (Empty :*: PCons Empty "Z", ECompose [ECons "Z", ECons "S"]),
+                (Empty, ECompose [drop, ECons "Z"])
               ]
           )
 
-    it "parses `{match {case 0 0 => 1} {case => drop drop 0}}`" $ do
-      parseExpr "{match {case 0 0 => 1} {case => drop drop 0}}"
+    it "parses `{match {case Z Z => Z S} {case => drop drop Z}}`" $ do
+      parseExpr "{match {case Z Z => Z S} {case => drop drop Z}}"
         `shouldBe` Right
           ( EMatch
-              [ (Empty :*: pU32 0 :*: pU32 0, eU32 1),
-                (Empty, ECompose [drop, drop, eU32 0])
+              [ (Empty :*: PCons Empty "Z" :*: PCons Empty "Z", ECompose [ECons "Z", ECons "S"]),
+                (Empty, ECompose [drop, drop, ECons "Z"])
               ]
           )
 
@@ -254,9 +175,9 @@ spec = do
         `shouldBe` Right (EMatch [(Empty :*: pPair pZ PWild, ECompose [])])
 
   describe "parseValStack" $ do
-    it "parses `[clone] [drop] 0`" $ do
-      mapRight fromStack (parseValStack "[clone] [drop] 0")
-        `shouldBe` Right [VQuote clone, VQuote drop, VLit (LU32 0)]
+    it "parses `[clone] [drop] Z`" $ do
+      mapRight fromStack (parseValStack "[clone] [drop] Z")
+        `shouldBe` Right [VQuote clone, VQuote drop, VCons Empty "Z"]
 
     it "parses `B0`" $ do
       mapRight fromStack (parseValStack "B0")
@@ -311,9 +232,9 @@ spec = do
       let fibExprSrc =
             unlines
               [ "{match",
-                "  {case 0 => 0}",
-                "  {case 1 => 1}",
-                "  {case => clone 1 sub fib swap 2 sub fib add}",
+                "  {case Z => Z}",
+                "  {case (Z S) => (Z S)}",
+                "  {case => clone nat_decr fib swap nat_decr nat_decr fib nat_add}",
                 "}"
               ]
       let fibSrc = "{fn fib => " ++ fibExprSrc ++ "}"
@@ -322,7 +243,7 @@ spec = do
         `shouldBe` Right (FnDef "fib" e)
 
     it "parses tail recursive fib" $ do
-      let fibExprSrc = "{$a 0} {$b 1} _fib"
+      let fibExprSrc = "{$a Z} {$b (Z S)} _fib"
       let fibSrc = "{fn fib => " ++ fibExprSrc ++ "}"
       let (Right e) = parseExpr fibExprSrc
       parseFnDef fibSrc
@@ -331,8 +252,8 @@ spec = do
       let _fibExprSrc =
             unlines
               [ "  {match",
-                "  {case 0 => {$b drop} $a->}",
-                "  {case => decr {$b clone pop $a-> add} $a<- _fib}",
+                "  {case Z => {$b drop} $a->}",
+                "  {case => nat_decr {$b clone pop $a-> nat_add} $a<- _fib}",
                 "  }"
               ]
       let _fibSrc = "{fn _fib => " ++ _fibExprSrc ++ "}"
