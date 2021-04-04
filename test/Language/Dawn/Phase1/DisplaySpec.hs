@@ -41,14 +41,14 @@ spec = do
       let (Right vs) = parseValStack str
       display vs `shouldBe` str
 
-  describe "Display MultiStack" $ do
+  describe "Display MultiStack Val" $ do
     it "displays in order" $ do
       let str = "(Z S) ((Z S) S) True B0"
       let (Right vs) = parseValStack str
       -- Note: values are reversed so that the top of the stack
       -- is the front of the list and is easily accessible.
       let ms = MultiStack (Map.singleton "$" vs)
-      display ms `shouldBe` "{$: (Z S) ((Z S) S) True B0}"
+      display ms `shouldBe` "{$ (Z S) ((Z S) S) True B0}"
 
   describe "Display Type" $ do
     it "displays `(forall v0 . v0 Nat -> v0)`" $ do

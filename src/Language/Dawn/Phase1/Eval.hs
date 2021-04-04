@@ -11,7 +11,6 @@ module Language.Dawn.Phase1.Eval
     EvalEnv (..),
     evalWithFuel,
     fromVal,
-    MultiStack (..),
     splitStackAt,
     toEvalEnv,
     toVal,
@@ -57,9 +56,6 @@ splitStackAt n s
       let (xs', xs'') = splitStackAt' (m - 1) xs
        in (xs', xs'' :*: x)
 
-newtype MultiStack = MultiStack (Map.Map StackId (Stack Val))
-  deriving (Eq, Show)
-
 toVal :: Expr -> Val
 toVal (EQuote e) = VQuote e
 toVal (ECons cid) = VCons Empty cid
@@ -73,7 +69,7 @@ fromVal (VCons args cid) =
 insertStackOrDelete s Empty m = Map.delete s m
 insertStackOrDelete s vs m = Map.insert s vs m
 
-eval :: EvalEnv -> Context -> Expr -> MultiStack -> MultiStack
+eval :: EvalEnv -> Context -> Expr -> MultiStack Val -> MultiStack Val
 eval env (s : s' : _) (EIntrinsic IPush) (MultiStack m) =
   let vs = Map.findWithDefault Empty s m
       (vs' :*: v') = Map.findWithDefault Empty s' m
@@ -118,7 +114,7 @@ eval env ctx (EContext s e) ms =
   eval env (ensureUniqueStackId ctx s : ctx) e ms
 eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
-    iter :: Context -> [(Stack Pattern, Expr)] -> MultiStack -> MultiStack
+    iter :: Context -> [(Stack Pattern, Expr)] -> MultiStack Val -> MultiStack Val
     iter _ [] _ = error "Non-exhaustive patterns"
     iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
@@ -133,10 +129,10 @@ eval env@EvalEnv {fnExprs} ctx (ECall fid) ms = case Map.lookup fid fnExprs of
   Nothing -> error ("undefined function: " ++ fid)
   Just e -> eval env ctx e ms
 
-eval' :: Expr -> MultiStack
+eval' :: Expr -> MultiStack Val
 eval' e = eval emptyEvalEnv ["$"] e (MultiStack Map.empty)
 
-popPatternMatches :: Context -> Stack Pattern -> MultiStack -> Maybe MultiStack
+popPatternMatches :: Context -> Stack Pattern -> MultiStack Val -> Maybe (MultiStack Val)
 popPatternMatches ctx Empty ms = Just ms
 popPatternMatches (s : _) ps (MultiStack m) = do
   vs <- popPatternMatches' ps (m Map.! s)
@@ -154,7 +150,7 @@ popPatternMatches (s : _) ps (MultiStack m) = do
       if cid == cid' then popPatternMatches' ps vs else Nothing
     popPatternMatch PWild v = Just (Empty :*: v)
 
-evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack) -> (Int, Expr, MultiStack)
+evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack Val) -> (Int, Expr, MultiStack Val)
 evalWithFuel env ctx (0, e, ms) = (0, e, ms)
 evalWithFuel env ctx@(s : _) (fuel, EIntrinsic IApply, MultiStack m) =
   let (vs :*: VQuote e) = Map.findWithDefault Empty s m

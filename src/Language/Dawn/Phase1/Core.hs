@@ -46,6 +46,7 @@ module Language.Dawn.Phase1.Core
     MatchError (..),
     mgu,
     MultiIO,
+    MultiStack (..),
     normalizeType,
     Pattern (..),
     removeTrivialStacks,
@@ -111,6 +112,9 @@ fromStack vs = reverse (fromStack' vs)
 stackAppend :: Stack a -> Stack a -> Stack a
 a `stackAppend` Empty = a
 a `stackAppend` (bs :*: b) = (a `stackAppend` bs) :*: b
+
+newtype MultiStack a = MultiStack (Map.Map StackId (Stack a))
+  deriving (Eq, Show)
 
 ---------------------
 -- Abstract Syntax --
