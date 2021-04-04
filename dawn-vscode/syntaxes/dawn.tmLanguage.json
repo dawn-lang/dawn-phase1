@@ -16,7 +16,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.dawn",
-				"match": "\\b(data|cons|fn|match|case)\\b"
+				"match": "\\b(pub|data|cons|fn|where|match|case|include|import|as|from|use|test)\\b"
 			}]
 		},
 		"strings": {
