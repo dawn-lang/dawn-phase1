@@ -7,7 +7,6 @@
 module Language.Dawn.Phase1.Eval
   ( emptyEvalEnv,
     eval,
-    eval',
     EvalEnv (..),
     evalWithFuel,
     fromVal,
@@ -128,9 +127,6 @@ eval env@EvalEnv {consArities} (s : _) (ECons cid) (MultiStack m) =
 eval env@EvalEnv {fnExprs} ctx (ECall fid) ms = case Map.lookup fid fnExprs of
   Nothing -> error ("undefined function: " ++ fid)
   Just e -> eval env ctx e ms
-
-eval' :: Expr -> MultiStack Val
-eval' e = eval emptyEvalEnv ["$"] e (MultiStack Map.empty)
 
 popPatternMatches ::
   Context -> MultiStack Pattern -> MultiStack Val -> Maybe (MultiStack Val)

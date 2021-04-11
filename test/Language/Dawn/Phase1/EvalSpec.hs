@@ -53,7 +53,7 @@ spec = do
       let (Right vs) = parseValStack "Z Z"
       splitStackAt 2 vs `shouldBe` (Empty, vs)
 
-  describe "eval'" $ do
+  describe "eval" $ do
     it "evals `[clone] clone`" $ do
       let (Right e) = parseExpr "[clone] clone"
       let (Right vs) = parseValStack "[clone] [clone]"
