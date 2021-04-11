@@ -14,6 +14,7 @@ module Language.Dawn.Phase1.Parse
     parseFnDef,
     parseType,
     parseValStack,
+    parseValMultiStack,
   )
 where
 
@@ -50,7 +51,10 @@ parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skipMany space *> expr <* eof) ""
 
 parseValStack :: String -> Either ParseError (Stack Val)
-parseValStack = parse (skipMany space *> (toStack <$> many val) <* eof) ""
+parseValStack = parse (skipMany space *> valStack <* eof) ""
+
+parseValMultiStack :: String -> Either ParseError (MultiStack Val)
+parseValMultiStack = parse (skipMany space *> valMultiStack <* eof) ""
 
 type' :: Parser Type
 type' = stackTypes <$> many1 nonProdType
@@ -115,6 +119,17 @@ expr =
           <|> consExpr
           <|> callExpr
       )
+
+valMultiStack :: Parser (MultiStack Val)
+valMultiStack =
+  MultiStack
+    <$> ( Map.fromList <$> many1 (betweenBraces ((,) <$> stackId <*> valStack))
+            <|> Map.singleton "$" <$> valStack
+            <|> return Map.empty
+        )
+
+valStack :: Parser (Stack Val)
+valStack = toStack <$> many val
 
 val :: Parser Val
 val = quotedVal <|> simpleConsVal <|> betweenParens consVal

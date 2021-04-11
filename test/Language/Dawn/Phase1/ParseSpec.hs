@@ -264,6 +264,17 @@ spec = do
               "Foo"
           ]
 
+  describe "parseValMultiStack" $ do
+    it "parses `Z`" $ do
+      let (Right s) = parseValStack "Z"
+      parseValMultiStack "Z"
+        `shouldBe` Right (MultiStack (Map.fromList [("$", s)]))
+
+    it "parses `{$a Z} {$b Z}`" $ do
+      let (Right s) = parseValStack "Z"
+      parseValMultiStack "{$a Z} {$b Z}"
+        `shouldBe` Right (MultiStack (Map.fromList [("$a", s), ("$b", s)]))
+
   describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"

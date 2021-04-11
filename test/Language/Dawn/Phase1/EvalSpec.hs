@@ -56,9 +56,8 @@ spec = do
   describe "eval" $ do
     it "evals `[clone] clone`" $ do
       let (Right e) = parseExpr "[clone] clone"
-      let (Right vs) = parseValStack "[clone] [clone]"
-      let ms = MultiStack (Map.singleton "$" vs)
-      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
+      let (Right msv) = parseValMultiStack "[clone] [clone]"
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` msv
 
     it "evals `[clone] drop`" $ do
       let (Right e) = parseExpr "[clone] drop"
@@ -67,38 +66,32 @@ spec = do
 
     it "evals `[clone] quote`" $ do
       let (Right e) = parseExpr "[clone] quote"
-      let (Right vs) = parseValStack "[[clone]]"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "[[clone]]"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `[clone] [clone] compose`" $ do
       let (Right e) = parseExpr "[clone] [clone] compose"
-      let (Right vs) = parseValStack "[clone clone]"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "[clone clone]"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `Z [clone] apply`" $ do
       let (Right e) = parseExpr "Z [clone] apply"
-      let (Right vs) = parseValStack "Z Z"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "Z Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `[drop] (clone compose)`" $ do
       let (Right e) = parseExpr "[drop] (clone compose)"
-      let (Right vs) = parseValStack "[drop drop]"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "[drop drop]"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `True True bool_and`" $ do
       let (Right e) = parseExpr "True True bool_and"
-      let (Right vs) = parseValStack "True"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "True"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `Z (Z S) $a<- $b<- $a-> $b->`" $ do
       let (Right e) = parseExpr "Z (Z S) $a<- $b<- $a-> $b->"
-      let (Right vs) = parseValStack "(Z S) Z"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "(Z S) Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `{match {case =>}}`" $ do
@@ -108,92 +101,78 @@ spec = do
 
     it "evals `Z {match {case Z => (Z S)} {case => drop Z}}`" $ do
       let (Right e) = parseExpr "Z {match {case Z => (Z S)} {case => drop Z}}"
-      let (Right vs) = parseValStack "(Z S)"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "(Z S)"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `(Z S) {match {case Z => (Z S)} {case => drop Z}}`" $ do
       let (Right e) = parseExpr "(Z S) {match {case Z => (Z S)} {case => drop Z}}"
-      let (Right vs) = parseValStack "Z"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `Z Z {match {case Z Z => (Z S)} {case => drop drop Z}}`" $ do
       let (Right e) = parseExpr "Z Z {match {case Z Z => (Z S)} {case => drop drop Z}}"
-      let (Right vs) = parseValStack "(Z S)"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "(Z S)"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `Z (Z S) {match {case Z Z => (Z S)} {case => drop drop Z}}`" $ do
       let (Right e) = parseExpr "Z (Z S) {match {case Z Z => (Z S)} {case => drop drop Z}}"
-      let (Right vs) = parseValStack "Z"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `Z (Z S) swap`" $ do
       let (Right e) = parseExpr "Z (Z S) swap"
-      let (Right vs) = parseValStack "(Z S) Z"
       let ms = MultiStack Map.empty
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "(Z S) Z"
       eval (toEvalEnv testEnv) ["$"] e ms `shouldBe` ms'
 
     it "evals `{$c Z (Z S) swap}`" $ do
       let (Right e) = parseExpr "{$c Z (Z S) swap}"
-      let (Right vs) = parseValStack "(Z S) Z"
       let ms = MultiStack Map.empty
-      let ms' = MultiStack (Map.singleton "$c" vs)
+      let (Right ms') = parseValMultiStack "{$c (Z S) Z}"
       eval (toEvalEnv testEnv) ["$"] e ms `shouldBe` ms'
 
     it "evals `{$a Z (Z S) swap}`" $ do
       let (Right e) = parseExpr "{$a Z (Z S) swap}"
-      let (Right vs) = parseValStack "(Z S) Z"
       let ms = MultiStack Map.empty
-      let ms' = MultiStack (Map.singleton "$a" vs)
+      let (Right ms') = parseValMultiStack "{$a (Z S) Z}"
       eval (toEvalEnv testEnv) ["$"] e ms `shouldBe` ms'
 
     it "evals fib" $ do
       let ([], env) = addFnDefs testEnv [fib]
       let (Right e) = parseExpr "Z fib"
-      let (Right vs) = parseValStack "Z"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "Z"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
       let (Right e) = parseExpr "(Z S) fib"
-      let (Right vs) = parseValStack "(Z S)"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "(Z S)"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
       let (Right e) = parseExpr "((((((Z S) S) S) S) S) S) fib"
-      let (Right vs) = parseValStack "((((((((Z S) S) S) S) S) S) S) S)"
-      let ms = MultiStack (Map.singleton "$" vs)
+      let (Right ms) = parseValMultiStack "((((((((Z S) S) S) S) S) S) S) S)"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
 
     it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
-      let (Right vs) = parseValStack "B1"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "B1"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
-      let (Right vs) = parseValStack "B1"
-      let ms' = MultiStack (Map.singleton "$a" vs)
+      let (Right ms') = parseValMultiStack "{$a B1}"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Z True Pair {match {case Pair => }}`" $ do
       let (Right e) = parseExpr "Z True Pair {match {case Pair => }}"
-      let (Right vs) = parseValStack "Z True"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z True"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Z Z`" $ do
       let (Right e) = parseExpr "Z Z"
-      let (Right vs) = parseValStack "Z Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals recursive Nat pattern (Z S)" $ do
@@ -207,8 +186,7 @@ spec = do
       let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
       let ([], env) = addDataDefs emptyEnv [d]
       let (Right e) = parseExpr "Z S S {match {case (S S) => }}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals recursive Bit Stack pattern (Z S)" $ do
@@ -232,8 +210,7 @@ spec = do
       let (Right e) =
             parseExpr
               "Empty B1 Push B0 Push {match {case (Push B0 Push) => }}"
-      let (Right vs) = parseValStack "Empty B1"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty B1"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Z {match {case Z => }}`" $ do
@@ -243,8 +220,7 @@ spec = do
 
     it "evals `Z S {match {case S => }}`" $ do
       let (Right e) = parseExpr "Z S {match {case S => }}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Z S {match {case (Z S) => }}`" $ do
@@ -254,20 +230,17 @@ spec = do
 
     it "evals `Z S S {match {case (S S) => }}`" $ do
       let (Right e) = parseExpr "Z S S {match {case (S S) => }}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty Z Push {match {case Push =>}}`" $ do
       let (Right e) = parseExpr "Empty Z Push {match {case Push =>}}"
-      let (Right vs) = parseValStack "Empty Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty Z"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty B0 Push {match {case (B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "Empty B0 Push {match {case (B0 Push) =>}}"
-      let (Right vs) = parseValStack "Empty"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty B0 Push {match {case (Empty B0 Push) =>}}`" $ do
@@ -277,68 +250,57 @@ spec = do
 
     it "evals `Empty B1 Push B0 Push {match {case (Push B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "Empty B1 Push B0 Push {match {case (Push B0 Push) =>}}"
-      let (Right vs) = parseValStack "Empty B1"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty B1"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty B1 Push B0 Push {match {case ((B1 Push) B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "Empty B1 Push B0 Push {match {case ((B1 Push) B0 Push) =>}}"
-      let (Right vs) = parseValStack "Empty"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Z S Empty B0 Push Pair {match {case (S Push Pair) =>}}`" $ do
       let (Right e) = parseExpr "Z S Empty B0 Push Pair {match {case (S Push Pair) =>}}"
-      let (Right vs) = parseValStack "Z Empty B0"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z Empty B0"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty Z Push Empty B0 Push Pair {match {case (Push Push Pair) =>}}`" $ do
       let (Right e) = parseExpr "Empty Z Push Empty B0 Push Pair {match {case (Push Push Pair) =>}}"
-      let (Right vs) = parseValStack "Empty Z Empty B0"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty Z Empty B0"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `Empty Z Push Empty B0 Push Pair {match {case (Push _ Pair) =>}}`" $ do
       let (Right e) = parseExpr "Empty Z Push Empty B0 Push Pair {match {case (Push _ Pair) =>}}"
-      let (Right vs) = parseValStack "Empty Z (Empty B0 Push)"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Empty Z (Empty B0 Push)"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "infers `Z (Z S) nat_add`" $ do
       let (Right e) = parseExpr "Z (Z S) nat_add"
-      let (Right vs) = parseValStack "(Z S)"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "(Z S)"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "infers `{$a Z (Z S) nat_add}`" $ do
       let (Right e) = parseExpr "{$a Z (Z S) nat_add}"
-      let (Right vs) = parseValStack "(Z S)"
-      let ms' = MultiStack (Map.singleton "$a" vs)
+      let (Right ms') = parseValMultiStack "{$a (Z S)}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$tmp Z S} {match {case {$tmp S} =>}}`" $ do
       let (Right e) = parseExpr "{$tmp Z S} {match {case {$tmp S} =>}}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      let (Right ms') = parseValMultiStack "{$tmp Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$tmp Z S Z S} {match {case {$tmp S S} =>}}`" $ do
       let (Right e) = parseExpr "{$tmp Z S Z S} {match {case {$tmp S S} =>}}"
-      let (Right vs) = parseValStack "Z Z"
-      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      let (Right ms') = parseValMultiStack "{$tmp Z Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$a Z S} {$b Z S} {match {case {$a S} {$b S} =>}}`" $ do
       let (Right e) = parseExpr "{$a Z S} {$b Z S} {match {case {$a S} {$b S} =>}}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.fromList [("$a", vs), ("$b", vs)])
+      let (Right ms') = parseValMultiStack "{$a Z} {$b Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$tmp Z S} {$a {match {case {$tmp S} =>}}}`" $ do
       let (Right e) = parseExpr "{$tmp Z S} {$a {match {case {$tmp S} =>}}}"
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      let (Right ms') = parseValMultiStack "{$tmp Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$tmp {$tmp Z S} {match {case {$tmp S} =>}}}`" $ do
@@ -357,24 +319,21 @@ spec = do
       let (Right e) = parseExpr "Z"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       evalWithFuel (toEvalEnv testEnv) ["$"] (-1, e, ms) `shouldBe` (-2, e', ms')
 
     it "evals `Z [clone] apply`" $ do
       let (Right e) = parseExpr "Z [clone] apply"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "Z Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z Z"
       evalWithFuel (toEvalEnv testEnv) ["$"] (4, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `Z (Z S) swap`" $ do
       let (Right e) = parseExpr "Z (Z S) swap"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "(Z S) Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "(Z S) Z"
       evalWithFuel (toEvalEnv testEnv) ["$"] (8, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `{match {case =>}}`" $ do
@@ -388,32 +347,28 @@ spec = do
       let (Right e) = parseExpr "Z {match {case Z => (Z S)} {case => drop Z}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "(Z S)"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "(Z S)"
       evalWithFuel (toEvalEnv testEnv) ["$"] (4, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `(Z S) {match {case Z => (Z S)} {case => drop Z}}`" $ do
       let (Right e) = parseExpr "(Z S) {match {case Z => (Z S)} {case => drop Z}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       evalWithFuel (toEvalEnv testEnv) ["$"] (6, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `Z Z {match {case Z Z => (Z S)} {case => drop drop Z}}`" $ do
       let (Right e) = parseExpr "Z Z {match {case Z Z => (Z S)} {case => drop drop Z}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "(Z S)"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "(Z S)"
       evalWithFuel (toEvalEnv testEnv) ["$"] (5, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `Z (Z S) {match {case Z Z => (Z S)} {case => drop drop Z}}`" $ do
       let (Right e) = parseExpr "Z (Z S) {match {case Z Z => (Z S)} {case => drop drop Z}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z"
       evalWithFuel (toEvalEnv testEnv) ["$"] (8, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `fib`" $ do
@@ -426,8 +381,8 @@ spec = do
                 e' = ECompose []
              in evalWithFuel (toEvalEnv env) ["$"] (-1, e, ms)
           n `inSteps` steps =
-            let (Right vs) = parseValStack (intToNatStr n)
-             in (-1 - steps, ECompose [], MultiStack (Map.singleton "$" vs))
+            let (Right ms) = parseValMultiStack (intToNatStr n)
+             in (-1 - steps, ECompose [], ms)
 
       evalFib 0 `shouldBe` 0 `inSteps` 4
       evalFib 1 `shouldBe` 1 `inSteps` 7
@@ -450,8 +405,8 @@ spec = do
                 e' = ECompose []
              in evalWithFuel (toEvalEnv env) ["$"] (-1, e, ms)
           n `inSteps` steps =
-            let (Right vs) = parseValStack (intToNatStr n)
-             in (-1 - steps, ECompose [], MultiStack (Map.singleton "$" vs))
+            let (Right ms) = parseValMultiStack (intToNatStr n)
+             in (-1 - steps, ECompose [], ms)
 
       evalFastFib 0 `shouldBe` 0 `inSteps` 9
       evalFastFib 1 `shouldBe` 1 `inSteps` 19
@@ -470,8 +425,7 @@ spec = do
       let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "B1"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "B1"
       evalWithFuel (toEvalEnv env) ["$"] (3, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
@@ -480,16 +434,14 @@ spec = do
       let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "B1"
-      let ms' = MultiStack (Map.singleton "$a" vs)
+      let (Right ms') = parseValMultiStack "{$a B1}"
       evalWithFuel (toEvalEnv env) ["$"] (3, e, ms) `shouldBe` (0, e', ms')
 
     it "evals `Z True Pair {match {case Pair => }}`" $ do
       let (Right e) = parseExpr "Z True Pair {match {case Pair => }}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
-      let (Right vs) = parseValStack "Z True"
-      let ms' = MultiStack (Map.singleton "$" vs)
+      let (Right ms') = parseValMultiStack "Z True"
       evalWithFuel (toEvalEnv testEnv) ["$"] (4, e, ms) `shouldBe` (0, e', ms')
 
 fibSrc =
