@@ -70,7 +70,7 @@ univQuants = keyword "forall" *> (Set.fromList <$> many typeVar) <* symbol "."
 
 multiIO :: Parser MultiIO
 multiIO =
-  betweenBraces undefined -- TODO
+  Map.fromList <$> many1 (betweenBraces ((,) <$> stackId <*> singleIO))
     <|> Map.singleton "$" <$> singleIO
 
 singleIO :: Parser (Type, Type)
