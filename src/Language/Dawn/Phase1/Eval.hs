@@ -114,7 +114,7 @@ eval env ctx (EContext s e) ms =
   eval env (ensureUniqueStackId ctx s : ctx) e ms
 eval env ctx (EMatch cs) ms = iter ctx cs ms
   where
-    iter :: Context -> [(Stack Pattern, Expr)] -> MultiStack Val -> MultiStack Val
+    iter :: Context -> [(MultiStack Pattern, Expr)] -> MultiStack Val -> MultiStack Val
     iter _ [] _ = error "Non-exhaustive patterns"
     iter ctx ((p, e) : cs) ms = case popPatternMatches ctx p ms of
       Nothing -> iter ctx cs ms
@@ -132,22 +132,34 @@ eval env@EvalEnv {fnExprs} ctx (ECall fid) ms = case Map.lookup fid fnExprs of
 eval' :: Expr -> MultiStack Val
 eval' e = eval emptyEvalEnv ["$"] e (MultiStack Map.empty)
 
-popPatternMatches :: Context -> Stack Pattern -> MultiStack Val -> Maybe (MultiStack Val)
-popPatternMatches ctx Empty ms = Just ms
-popPatternMatches (s : _) ps (MultiStack m) = do
-  vs <- popPatternMatches' ps (m Map.! s)
-  return (MultiStack (insertStackOrDelete s vs m))
+popPatternMatches ::
+  Context -> MultiStack Pattern -> MultiStack Val -> Maybe (MultiStack Val)
+popPatternMatches ctx (MultiStack pm) msv | null pm = Just msv
+popPatternMatches ctx (MultiStack pm) msv = do
+  let s = head (Map.keys pm)
+      ps = pm Map.! s
+      s' = if s == "$" then head ctx else ensureUniqueStackId ctx s
+  msv' <- popPatternMatches' s' ps msv
+  popPatternMatches ctx (MultiStack (Map.delete s pm)) msv'
   where
-    popPatternMatches' :: Stack Pattern -> Stack Val -> Maybe (Stack Val)
-    popPatternMatches' Empty vs = Just vs
-    popPatternMatches' (ps :*: p) (vs :*: v) = do
-      vss <- popPatternMatches' ps vs
+    popPatternMatches' :: StackId -> Stack Pattern -> MultiStack Val -> Maybe (MultiStack Val)
+    popPatternMatches' s Empty ms = Just ms
+    popPatternMatches' s ps (MultiStack vm) = case Map.lookup s vm of
+      Nothing -> Nothing
+      Just vs -> do
+        vs' <- popPatternMatches'' ps vs
+        return (MultiStack (insertStackOrDelete s vs' vm))
+
+    popPatternMatches'' :: Stack Pattern -> Stack Val -> Maybe (Stack Val)
+    popPatternMatches'' Empty vs = Just vs
+    popPatternMatches'' (ps :*: p) (vs :*: v) = do
+      vss <- popPatternMatches'' ps vs
       vs <- popPatternMatch p v
       return (vss `stackAppend` vs)
 
     popPatternMatch :: Pattern -> Val -> Maybe (Stack Val)
     popPatternMatch (PCons ps cid) (VCons vs cid') =
-      if cid == cid' then popPatternMatches' ps vs else Nothing
+      if cid == cid' then popPatternMatches'' ps vs else Nothing
     popPatternMatch PWild v = Just (Empty :*: v)
 
 evalWithFuel :: EvalEnv -> Context -> (Int, Expr, MultiStack Val) -> (Int, Expr, MultiStack Val)

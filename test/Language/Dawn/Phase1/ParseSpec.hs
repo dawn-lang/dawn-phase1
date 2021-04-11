@@ -6,6 +6,7 @@
 module Language.Dawn.Phase1.ParseSpec (spec) where
 
 import Data.Either.Combinators
+import qualified Data.Map as Map
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
@@ -119,14 +120,14 @@ spec = do
 
     it "parses `{match {case =>}}`" $ do
       parseExpr "{match {case =>}}"
-        `shouldBe` Right (EMatch [(Empty, ECompose [])])
+        `shouldBe` Right (EMatch [(defaultMultiStack Empty, ECompose [])])
 
     it "parses `{match {case Z => Z S} {case => drop Z}}`" $ do
       parseExpr "{match {case Z => Z S} {case => drop Z}}"
         `shouldBe` Right
           ( EMatch
-              [ (Empty :*: PCons Empty "Z", ECompose [ECons "Z", ECons "S"]),
-                (Empty, ECompose [drop, ECons "Z"])
+              [ (defaultMultiStack (Empty :*: PCons Empty "Z"), ECompose [ECons "Z", ECons "S"]),
+                (defaultMultiStack Empty, ECompose [drop, ECons "Z"])
               ]
           )
 
@@ -134,8 +135,10 @@ spec = do
       parseExpr "{match {case Z Z => Z S} {case => drop drop Z}}"
         `shouldBe` Right
           ( EMatch
-              [ (Empty :*: PCons Empty "Z" :*: PCons Empty "Z", ECompose [ECons "Z", ECons "S"]),
-                (Empty, ECompose [drop, drop, ECons "Z"])
+              [ ( defaultMultiStack (Empty :*: PCons Empty "Z" :*: PCons Empty "Z"),
+                  ECompose [ECons "Z", ECons "S"]
+                ),
+                (defaultMultiStack Empty, ECompose [drop, drop, ECons "Z"])
               ]
           )
 
@@ -156,23 +159,62 @@ spec = do
 
     it "parses `{match {case B0 => }}`" $ do
       parseExpr "{match {case B0 => }}"
-        `shouldBe` Right (EMatch [(Empty :*: PCons Empty "B0", ECompose [])])
+        `shouldBe` Right
+          ( EMatch
+              [ (defaultMultiStack (Empty :*: PCons Empty "B0"), ECompose [])
+              ]
+          )
 
     it "parses `{match {case (Z S) => }}`" $ do
       let pZ = PCons Empty "Z"
       let pS n = PCons (Empty :*: n) "S"
       parseExpr "{match {case (Z S) => }}"
-        `shouldBe` Right (EMatch [(Empty :*: pS pZ, ECompose [])])
+        `shouldBe` Right (EMatch [(defaultMultiStack (Empty :*: pS pZ), ECompose [])])
 
     it "parses `{match {case _ => }}`" $ do
       parseExpr "{match {case _ => }}"
-        `shouldBe` Right (EMatch [(Empty :*: PWild, ECompose [])])
+        `shouldBe` Right (EMatch [(defaultMultiStack (Empty :*: PWild), ECompose [])])
 
     it "parses `{match {case (Z _ Pair) => }}`" $ do
       let pPair a b = PCons (Empty :*: a :*: b) "Pair"
       let pZ = PCons Empty "Z"
       parseExpr "{match {case (Z _ Pair) => }}"
-        `shouldBe` Right (EMatch [(Empty :*: pPair pZ PWild, ECompose [])])
+        `shouldBe` Right
+          ( EMatch
+              [ (defaultMultiStack (Empty :*: pPair pZ PWild), ECompose [])
+              ]
+          )
+
+    it "parses `{match {case {$tmp S} =>}}`" $ do
+      let msp =
+            MultiStack
+              ( Map.fromList
+                  [ ("$tmp", Empty :*: PCons Empty "S")
+                  ]
+              )
+      parseExpr "{match {case {$tmp S} =>}}"
+        `shouldBe` Right (EMatch [(msp, ECompose [])])
+
+    it "parses `{match {case {$tmp S S} =>}}`" $ do
+      let msp =
+            MultiStack
+              ( Map.fromList
+                  [ ("$tmp", Empty :*: PCons Empty "S" :*: PCons Empty "S")
+                  ]
+              )
+      parseExpr "{match {case {$tmp S S} =>}}"
+        `shouldBe` Right (EMatch [(msp, ECompose [])])
+
+    it "parses `{match {case {$a S} {$b S} =>}}`" $ do
+      let msp =
+            MultiStack
+              ( Map.fromList
+                  [ ("$a", Empty :*: PCons Empty "S"),
+                    ("$b", Empty :*: PCons Empty "S")
+                  ]
+              )
+      parseExpr "{match {case {$a S} {$b S} =>}}"
+        `shouldBe` Right (EMatch [(msp, ECompose [])])
 
   describe "parseValStack" $ do
     it "parses `[clone] [drop] Z`" $ do
