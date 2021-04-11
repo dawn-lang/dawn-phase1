@@ -12,9 +12,10 @@ module Language.Dawn.Phase1.Parse
     parseDefs,
     parseExpr,
     parseFnDef,
-    parseType,
-    parseValStack,
+    parseFnType,
+    parseProdType,
     parseValMultiStack,
+    parseValStack,
   )
 where
 
@@ -38,8 +39,11 @@ parseDefs = parse (skipMany space *> defs <* eof) ""
       return (foldr folder ([], []) ds)
     def = try (Left <$> dataDef) <|> try (Right <$> fnDef)
 
-parseType :: String -> Either ParseError Type
-parseType = parse (skipMany space *> type' <* eof) ""
+parseProdType :: String -> Either ParseError Type
+parseProdType = parse (skipMany space *> prodType <* eof) ""
+
+parseFnType :: String -> Either ParseError Type
+parseFnType = parse (skipMany space *> fnType <* eof) ""
 
 parseDataDef :: String -> Either ParseError DataDef
 parseDataDef = parse (skipMany space *> dataDef <* eof) ""
@@ -56,11 +60,11 @@ parseValStack = parse (skipMany space *> valStack <* eof) ""
 parseValMultiStack :: String -> Either ParseError (MultiStack Val)
 parseValMultiStack = parse (skipMany space *> valMultiStack <* eof) ""
 
-type' :: Parser Type
-type' = stackTypes <$> many1 nonProdType
+prodType :: Parser Type
+prodType = stackTypes <$> many1 singleType
 
-nonProdType :: Parser Type
-nonProdType = varType <|> simpleConsType <|> betweenParens (fnType <|> consType)
+singleType :: Parser Type
+singleType = varType <|> simpleConsType <|> betweenParens (fnType <|> consType)
 
 fnType :: Parser Type
 fnType = TFn <$> univQuants <*> multiIO
@@ -74,7 +78,7 @@ multiIO =
     <|> Map.singleton "$" <$> singleIO
 
 singleIO :: Parser (Type, Type)
-singleIO = (,) <$> type' <*> (symbol "->" *> type')
+singleIO = (,) <$> prodType <*> (symbol "->" *> prodType)
 
 dataDef :: Parser DataDef
 dataDef =
