@@ -376,34 +376,35 @@ spec = do
               ]
           )
 
-  describe "parseType" $ do
+  describe "parseProdType" $ do
     it "parses `v0`" $ do
-      parseType "v0" `shouldBe` Right v0
+      parseProdType "v0" `shouldBe` Right v0
 
     it "parses `v0 v1`" $ do
-      parseType "v0 v1" `shouldBe` Right (v0 * v1)
+      parseProdType "v0 v1" `shouldBe` Right (v0 * v1)
 
     it "parses `v0 v1 v2`" $ do
-      parseType "v0 v1 v2" `shouldBe` Right (v0 * v1 * v2)
+      parseProdType "v0 v1 v2" `shouldBe` Right (v0 * v1 * v2)
 
+    it "parses `Bit`" $ do
+      parseProdType "Bit" `shouldBe` Right (TCons [] "Bit")
+
+    it "parses `(v0 Stack)`" $ do
+      parseProdType "(v0 Stack)" `shouldBe` Right (TCons [v0] "Stack")
+
+  describe "parseFnType" $ do
     it "parses `(forall v0 . v0 -> v0)`" $ do
-      parseType "(forall v0 . v0 -> v0)"
+      parseFnType "forall v0 . v0 -> v0"
         `shouldBe` Right (forall' [v0] (v0 --> v0))
 
     it "parses `(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)`" $ do
-      parseType "(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)"
+      parseFnType "forall v0 v1 . v0 (forall . v0 -> v1) -> v1"
         `shouldBe` Right (forall' [v0, v1] (v0 * forall' [] (v0 --> v1) --> v1))
-
-    it "parses `Bit`" $ do
-      parseType "Bit" `shouldBe` Right (TCons [] "Bit")
-
-    it "parses `(v0 Stack)`" $ do
-      parseType "(v0 Stack)" `shouldBe` Right (TCons [v0] "Stack")
 
     it "parses `(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)`" $ do
       let tStack t = TCons [t] "Stack"
       let tBit = TCons [] "Bit"
-      parseType "(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)"
+      parseFnType "forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit"
         `shouldBe` Right
           ( forall'
               [v0, v1]
@@ -412,11 +413,11 @@ spec = do
 
     it "parses `(forall v0 . {$tmp v0 Bit -> v0 Bit})`" $ do
       let tBit = TCons [] "Bit"
-      parseType "(forall v0 . {$tmp v0 Bit -> v0 Bit})"
+      parseFnType "forall v0 . {$tmp v0 Bit -> v0 Bit}"
         `shouldBe` Right (forall [v0] ("$tmp" $: v0 * tBit --> v0 * tBit))
 
     it "parses `(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})`" $ do
-      parseType "(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})"
+      parseFnType "forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}"
         `shouldBe` Right
           ( forall
               [v0, v1, v2]

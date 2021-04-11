@@ -312,62 +312,62 @@ spec = do
 
     it "infers `{match {case Z => }}`" $ do
       let (Right e) = parseExpr "{match {case Z => }}"
-      let (Right t) = parseType "(forall v0 . v0 Nat -> v0)"
+      let (Right t) = parseFnType "forall v0 . v0 Nat -> v0"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case S => }}`" $ do
       let (Right e) = parseExpr "{match {case S => }}"
-      let (Right t) = parseType "(forall v0 . v0 Nat -> v0 Nat)"
+      let (Right t) = parseFnType "forall v0 . v0 Nat -> v0 Nat"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (Z S) => }}`" $ do
       let (Right e) = parseExpr "{match {case (Z S) => }}"
-      let (Right t) = parseType "(forall v0 . v0 Nat -> v0)"
+      let (Right t) = parseFnType "forall v0 . v0 Nat -> v0"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (S S) => }}`" $ do
       let (Right e) = parseExpr "{match {case (S S) => }}"
-      let (Right t) = parseType "(forall v0 . v0 Nat -> v0 Nat)"
+      let (Right t) = parseFnType "forall v0 . v0 Nat -> v0 Nat"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case Push =>}}`" $ do
       let (Right e) = parseExpr "{match {case Push =>}}"
-      let (Right t) = parseType "(forall v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1)"
+      let (Right t) = parseFnType "forall v0 v1 . v0 (v1 Stack) -> v0 (v1 Stack) v1"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (_ B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (_ B0 Push) =>}}"
-      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+      let (Right t) = parseFnType "forall v0 . v0 (Bit Stack) -> v0 (Bit Stack)"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (Empty B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (Empty B0 Push) =>}}"
-      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0)"
+      let (Right t) = parseFnType "forall v0 . v0 (Bit Stack) -> v0"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (Push B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (Push B0 Push) =>}}"
-      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit)"
+      let (Right t) = parseFnType "forall v0 . v0 (Bit Stack) -> v0 (Bit Stack) Bit"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case ((_ B1 Push) B0 Push) =>}}`" $ do
       let (Right e) = parseExpr "{match {case ((_ B1 Push) B0 Push) =>}}"
-      let (Right t) = parseType "(forall v0 . v0 (Bit Stack) -> v0 (Bit Stack))"
+      let (Right t) = parseFnType "forall v0 . v0 (Bit Stack) -> v0 (Bit Stack)"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (S Push Pair) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (S Push Pair) =>}}"
-      let (Right t) = parseType "(forall v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1)"
+      let (Right t) = parseFnType "forall v0 v1 . v0 (Nat (v1 Stack) Pair) -> v0 Nat (v1 Stack) v1"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (Push Push Pair) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (Push Push Pair) =>}}"
-      let (Right t) = parseType "(forall v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2)"
+      let (Right t) = parseFnType "forall v0 v1 v2 . v0 ((v1 Stack) (v2 Stack) Pair) -> v0 (v1 Stack) v1 (v2 Stack) v2"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case (Push _ Pair) =>}}`" $ do
       let (Right e) = parseExpr "{match {case (Push _ Pair) =>}}"
-      let (Right t) = parseType "(forall v0 v1 v2 . v0 ((v1 Stack) v2 Pair) -> v0 (v1 Stack) v1 v2)"
+      let (Right t) = parseFnType "forall v0 v1 v2 . v0 ((v1 Stack) v2 Pair) -> v0 (v1 Stack) v1 v2"
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "throws UndefinedCons on `Test`" $ do
