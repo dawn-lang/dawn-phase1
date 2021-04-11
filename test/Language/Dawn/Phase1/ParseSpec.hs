@@ -410,6 +410,19 @@ spec = do
               (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )
 
+    it "parses `(forall v0 . {$tmp v0 Bit -> v0 Bit})`" $ do
+      let tBit = TCons [] "Bit"
+      parseType "(forall v0 . {$tmp v0 Bit -> v0 Bit})"
+        `shouldBe` Right (forall [v0] ("$tmp" $: v0 * tBit --> v0 * tBit))
+
+    it "parses `(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})`" $ do
+      parseType "(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})"
+        `shouldBe` Right
+          ( forall
+              [v0, v1, v2]
+              ("$a" $: v0 * v1 --> v0 * v2 $. "$b" $: v0 * v2 --> v0 * v1)
+          )
+
   describe "parseDefs" $ do
     it "parses data and fn defs" $ do
       let drop2Src = "{fn drop2 => drop drop}"
