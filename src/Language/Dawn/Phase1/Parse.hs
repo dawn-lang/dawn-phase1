@@ -149,11 +149,21 @@ bracedExpr =
         <|> desugarCollect <$> (keyword "collect" *> many1 stackId)
     )
 
-matchExprCase :: Parser (Stack Pattern, Expr)
+matchExprCase :: Parser (MultiStack Pattern, Expr)
 matchExprCase =
   betweenBraces
-    ( (,) <$> (keyword "case" *> (toStack <$> many pat)) <*> (symbol "=>" *> expr)
+    ( (,) <$> (keyword "case" *> patMultiStack) <*> (symbol "=>" *> expr)
     )
+
+patMultiStack :: Parser (MultiStack Pattern)
+patMultiStack =
+  MultiStack
+    <$> ( Map.fromList <$> many1 (betweenBraces ((,) <$> stackId <*> patStack))
+            <|> Map.singleton "$" <$> patStack
+        )
+
+patStack :: Parser (Stack Pattern)
+patStack = toStack <$> many pat
 
 pat :: Parser Pattern
 pat = simpleConsPat <|> betweenParens consPat <|> wildPat

@@ -115,8 +115,8 @@ instance (Display a) => Display (Stack a) where
   display (Empty :*: v) = display v
   display (s :*: v) = display s ++ " " ++ display v
 
-instance Display MultiStack where
+instance (Display a) => Display (MultiStack a) where
   display (MultiStack m) =
     "{" ++ unwords (map mapper (Map.toAscList m)) ++ "}"
     where
-      mapper (sid, vs) = sid ++ ": " ++ display vs
+      mapper (sid, vs) = sid ++ " " ++ display vs

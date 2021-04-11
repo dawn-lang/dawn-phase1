@@ -53,7 +53,7 @@ spec = do
       let (Right vs) = parseValStack "Z Z"
       splitStackAt 2 vs `shouldBe` (Empty, vs)
 
-  describe "eval'" $ do
+  describe "eval" $ do
     it "evals `[clone] clone`" $ do
       let (Right e) = parseExpr "[clone] clone"
       let (Right vs) = parseValStack "[clone] [clone]"
@@ -315,6 +315,36 @@ spec = do
       let (Right e) = parseExpr "{$a Z (Z S) nat_add}"
       let (Right vs) = parseValStack "(Z S)"
       let ms' = MultiStack (Map.singleton "$a" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$tmp Z S} {match {case {$tmp S} =>}}`" $ do
+      let (Right e) = parseExpr "{$tmp Z S} {match {case {$tmp S} =>}}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$tmp Z S Z S} {match {case {$tmp S S} =>}}`" $ do
+      let (Right e) = parseExpr "{$tmp Z S Z S} {match {case {$tmp S S} =>}}"
+      let (Right vs) = parseValStack "Z Z"
+      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$a Z S} {$b Z S} {match {case {$a S} {$b S} =>}}`" $ do
+      let (Right e) = parseExpr "{$a Z S} {$b Z S} {match {case {$a S} {$b S} =>}}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.fromList [("$a", vs), ("$b", vs)])
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$tmp Z S} {$a {match {case {$tmp S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$tmp Z S} {$a {match {case {$tmp S} =>}}}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$tmp" vs)
+      eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
+
+    it "evals `{$tmp {$tmp Z S} {match {case {$tmp S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$tmp {$tmp Z S} {match {case {$tmp S} =>}}}"
+      let (Right vs) = parseValStack "Z"
+      let ms' = MultiStack (Map.singleton "$$tmp" vs)
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
   describe "evalWithFuel" $ do

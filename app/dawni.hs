@@ -30,12 +30,12 @@ main = do
   putStrLn "Dawn Phase 1 Interpreter"
   runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
 
-readEvalPrintLoop :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
+readEvalPrintLoop :: (Env, MultiStack Val) -> InputT IO (Env, MultiStack Val)
 readEvalPrintLoop (env, ms) = do
   (env', ms') <- readEvalPrint (env, ms)
   readEvalPrintLoop (env', ms')
 
-readEvalPrint :: (Env, MultiStack) -> InputT IO (Env, MultiStack)
+readEvalPrint :: (Env, MultiStack Val) -> InputT IO (Env, MultiStack Val)
 readEvalPrint (env, ms) = do
   maybeLine <- getInputLine ">>> "
   case maybeLine of
@@ -66,7 +66,7 @@ readEvalPrint (env, ms) = do
                 return (env, ms)
               Right t -> do
                 result <- tryTraceEval (toEvalEnv env) e ms
-                case result :: Either SomeException (Expr, MultiStack) of
+                case result :: Either SomeException (Expr, MultiStack Val) of
                   Left err -> do
                     outputStrLn $ show err
                     return (env, ms)
@@ -106,7 +106,7 @@ readEvalPrint (env, ms) = do
                 return (env, ms)
               Right t -> do
                 result <- tryEval (toEvalEnv env) e ms
-                case result :: Either SomeException MultiStack of
+                case result :: Either SomeException (MultiStack Val) of
                   Left err -> do
                     outputStrLn $ show err
                     return (env, ms)
@@ -114,7 +114,7 @@ readEvalPrint (env, ms) = do
                     outputStrLn $ display ms'
                     return (env, ms')
 
-multiStackToExpr :: MultiStack -> Expr
+multiStackToExpr :: MultiStack Val -> Expr
 multiStackToExpr (MultiStack ms) =
   let mapper ("$", vs) = ECompose (map fromVal (fromStack vs))
       mapper (s, vs) = EContext s (ECompose (map fromVal (fromStack vs)))
@@ -144,7 +144,7 @@ printExprType env e =
     Right t | exposedTempStackIds t -> printExposedTempStackIds t
     Right t -> outputStrLn $ display e ++ " :: " ++ display t
 
-tryTraceEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException (Expr, MultiStack))
+tryTraceEval :: EvalEnv -> Expr -> MultiStack Val -> InputT IO (Either SomeException (Expr, MultiStack Val))
 tryTraceEval env e@(ECompose []) ms = do
   outputStrLn $ display ms
   return (Right (e, ms))
@@ -155,7 +155,7 @@ tryTraceEval env e ms = do
     Left err -> return (Left err)
     Right (_, e', ms') -> tryTraceEval env e' ms'
 
-tryEval :: EvalEnv -> Expr -> MultiStack -> InputT IO (Either SomeException MultiStack)
+tryEval :: EvalEnv -> Expr -> MultiStack Val -> InputT IO (Either SomeException (MultiStack Val))
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
 

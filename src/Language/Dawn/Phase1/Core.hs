@@ -20,6 +20,7 @@ module Language.Dawn.Phase1.Core
     Context,
     DataDef (..),
     DataDefError (..),
+    defaultMultiStack,
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
@@ -46,6 +47,7 @@ module Language.Dawn.Phase1.Core
     MatchError (..),
     mgu,
     MultiIO,
+    MultiStack (..),
     normalizeType,
     Pattern (..),
     removeTrivialStacks,
@@ -112,6 +114,12 @@ stackAppend :: Stack a -> Stack a -> Stack a
 a `stackAppend` Empty = a
 a `stackAppend` (bs :*: b) = (a `stackAppend` bs) :*: b
 
+newtype MultiStack a = MultiStack (Map.Map StackId (Stack a))
+  deriving (Eq, Show)
+
+defaultMultiStack :: Stack a -> MultiStack a
+defaultMultiStack s = MultiStack (Map.singleton "$" s)
+
 ---------------------
 -- Abstract Syntax --
 ---------------------
@@ -122,15 +130,15 @@ data Expr
   | EQuote Expr
   | ECompose [Expr]
   | EContext StackId Expr
-  | EMatch [(Stack Pattern, Expr)]
+  | EMatch [(MultiStack Pattern, Expr)]
   | ECons ConsId
   | ECall FnId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Pattern
   = PCons (Stack Pattern) ConsId
   | PWild
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Intrinsic
   = IPush
@@ -166,7 +174,7 @@ data Type
   | TProd Type Type
   | TFn UnivQuants MultiIO
   | TCons [Type] TypeConsId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Multi-stack input/output
 type MultiIO = Map.Map StackId (Type, Type)
@@ -343,7 +351,7 @@ addMissingStacks t = t
 ------------------
 
 newtype Subst = Subst (Map.Map TypeVar Type)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 (+->) :: TypeVar -> Type -> Subst
 u +-> t = Subst (Map.singleton u t)
@@ -420,7 +428,7 @@ mergeSubst (Subst m1) (Subst m2) =
 data UnificationError
   = DoesNotUnify Type Type
   | OccursIn TypeVar Type
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Find the most general unifier, s, of two Types,
 -- | t and t', such that subs s t == subs s' t',
@@ -459,7 +467,7 @@ mguList ((t1, t2) : ts) reserved = do
 
 data MatchError
   = DoesNotMatch Type Type
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- | Given two Types, t and t', that do not share any type variables,
 -- | find the substitution, s, such that subs s t == t'.
@@ -549,7 +557,7 @@ data TypeError
   | UndefinedCons ConsId
   | UndefinedFn FnId
   | PatternArityMismatch ConsId Pattern
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Env = Env
   { dataDefs :: Map.Map TypeConsId DataDef,
@@ -620,15 +628,36 @@ stackTypes (t : t' : ts) = iter (TProd t t') ts
     iter t [] = t
     iter t (t' : ts) = iter (TProd t t') ts
 
-patternStackType :: Env -> Context -> Stack Pattern -> Either TypeError Type
-patternStackType env@Env {consTypes} (s : _) ps = do
-  (pts, reserved) <- patternTypes ps Set.empty
-  let (inTypes, outTypes) = unzip pts
-  let v = TVar $ fst $ freshTypeVar reserved
-      i = stackTypes (v : inTypes)
-      o = stackTypes (v : concat outTypes)
-  return (requantify (TFn Set.empty (s $: i --> o)))
+patternMultiStackType :: Env -> Context -> MultiStack Pattern -> Either TypeError Type
+patternMultiStackType env@Env {consTypes} ctx@(s : _) (MultiStack m) = do
+  (stackTypes, reserved) <- patternStackTypes (Map.toList m) Set.empty
+  let folder ("$", io) (mio, reserved) = (Map.insert s io mio, reserved)
+      folder (sid, io) (mio, reserved) =
+        (Map.insert (ensureUniqueStackId ctx sid) io mio, reserved)
+  let (mio, reserved') = foldr folder (Map.empty, reserved) stackTypes
+  return (requantify (TFn Set.empty mio))
   where
+    patternStackTypes ::
+      [(StackId, Stack Pattern)] ->
+      TypeVars ->
+      Either TypeError ([(StackId, (Type, Type))], TypeVars)
+    patternStackTypes [] reserved = return ([], reserved)
+    patternStackTypes ((sid, ps) : pss) reserved = do
+      (stackTypes, reserved') <- patternStackTypes pss reserved
+      (i, o, reserved'') <- patternStackType ps reserved'
+      let stackTypes' = (sid, (i, o)) : stackTypes
+      return (stackTypes', reserved'')
+
+    patternStackType :: Stack Pattern -> TypeVars -> Either TypeError (Type, Type, TypeVars)
+    patternStackType ps reserved = do
+      (pts, reserved') <- patternTypes ps reserved
+      let (inTypes, outTypes) = unzip pts
+      let (tv, reserved'') = freshTypeVar reserved'
+          v = TVar tv
+          i = stackTypes (v : inTypes)
+          o = stackTypes (v : concat outTypes)
+      return (i, o, reserved'')
+
     patternTypes :: Stack Pattern -> TypeVars -> Either TypeError ([(Type, [Type])], TypeVars)
     patternTypes Empty reserved = return ([], reserved)
     patternTypes (ps :*: p) reserved = do
@@ -655,9 +684,9 @@ patternStackType env@Env {consTypes} (s : _) ps = do
       let (tv, reserved') = freshTypeVar reserved
        in return (TVar tv, [TVar tv], reserved')
 
-caseType :: Env -> Context -> (Stack Pattern, Expr) -> Either TypeError Type
+caseType :: Env -> Context -> (MultiStack Pattern, Expr) -> Either TypeError Type
 caseType env ctx (p, e) = do
-  pt <- patternStackType env ctx p
+  pt <- patternMultiStackType env ctx p
   et <- inferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
@@ -726,9 +755,9 @@ inferType env ctx (ECall fid) = getECallType env ctx fid
 -- Type Checking --
 -------------------
 
-strictCaseType :: Env -> Context -> (Stack Pattern, Expr) -> Either TypeError Type
+strictCaseType :: Env -> Context -> (MultiStack Pattern, Expr) -> Either TypeError Type
 strictCaseType env ctx (p, e) = do
-  pt <- patternStackType env ctx p
+  pt <- patternMultiStackType env ctx p
   et <- strictInferType env ctx e
   mapLeft UnificationError (composeTypes [pt, et])
 
