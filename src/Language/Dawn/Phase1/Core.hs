@@ -26,6 +26,7 @@ module Language.Dawn.Phase1.Core
     ensureUniqueStackId,
     Env (..),
     Expr (..),
+    FnDecl (..),
     FnDef (..),
     FnDefError (..),
     fnDefExpr,
@@ -565,13 +566,15 @@ data Env = Env
     typeConsArities :: Map.Map TypeConsId Int,
     consDefs :: Map.Map ConsId ConsDef,
     consTypes :: Map.Map ConsId ([Type], Type),
+    fnDecls :: Map.Map FnId FnDecl,
     fnDefs :: Map.Map FnId FnDef,
     fnTypes :: Map.Map FnId Type
   }
   deriving (Eq, Show)
 
 emptyEnv :: Env
-emptyEnv = Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
+emptyEnv =
+  Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -827,6 +830,9 @@ inferNormType env ctx e = do
 -------------------------
 -- Function Definition --
 -------------------------
+
+data FnDecl = FnDecl FnId Type
+  deriving (Eq, Show)
 
 data FnDef = FnDef FnId Expr
   deriving (Eq, Show)

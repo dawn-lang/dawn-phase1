@@ -276,6 +276,12 @@ spec = do
       parseValMultiStack "{$a Z} {$b Z}"
         `shouldBe` Right (MultiStack (Map.fromList [("$a", s), ("$b", s)]))
 
+  describe "parseFnDecl" $ do
+    it "parses `{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}`" $ do
+      let (Right t) = parseFnType "forall v0 v1 v2 . v0 v1 v2 -> v0"
+      parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+        `shouldBe` Right (FnDecl "drop2" t)
+
   describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"

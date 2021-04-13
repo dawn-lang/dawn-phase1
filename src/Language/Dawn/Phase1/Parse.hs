@@ -12,6 +12,7 @@ module Language.Dawn.Phase1.Parse
     parseDataDef,
     parseDefs,
     parseExpr,
+    parseFnDecl,
     parseFnDef,
     parseFnType,
     parseProdType,
@@ -48,6 +49,9 @@ parseFnType = parse (skipMany space *> fnType <* eof) ""
 
 parseDataDef :: String -> Either ParseError DataDef
 parseDataDef = parse (skipMany space *> dataDef <* eof) ""
+
+parseFnDecl :: String -> Either ParseError FnDecl
+parseFnDecl = parse (skipMany space *> fnDecl <* eof) ""
 
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skipMany space *> fnDef <* eof) ""
@@ -111,6 +115,9 @@ varType = lexeme (TVar <$> typeVar)
 
 typeVar :: Parser TypeVar
 typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
+
+fnDecl :: Parser FnDecl
+fnDecl = betweenBraces (FnDecl <$> (keyword "fn" *> fnId) <*> (symbol "::" *> fnType))
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
