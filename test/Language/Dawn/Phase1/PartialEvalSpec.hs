@@ -1,7 +1,8 @@
 -- Copyright (c) 2021 Scott J Maddox
 --
 -- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
--- or the ZLib license (see LICENSE-ZLIB), at your option.
+-- or the ZLib license (see LICENSE-ZLIB), at your option. This file may not be
+-- copied, modified, or distributed except according to those terms.
 
 module Language.Dawn.Phase1.PartialEvalSpec (spec) where
 
