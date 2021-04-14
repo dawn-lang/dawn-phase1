@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.34.2.
 --
@@ -11,10 +11,9 @@ homepage:       https://github.com/scottjmaddox/dawn-phase1#readme
 bug-reports:    https://github.com/scottjmaddox/dawn-phase1/issues
 author:         Scott J Maddox
 maintainer:     scottjmaddox@gmail.com
-copyright:      2020 Scott J Maddox
-license:        (Apache-2.0 OR Zlib)
-license-files:  LICENSE-APACHE,
-                LICENSE-ZLIB
+copyright:      2021 Scott J Maddox
+license:        MPL-2.0
+license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
