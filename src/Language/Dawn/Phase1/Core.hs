@@ -12,7 +12,6 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addDataDefs,
-    addFnDefs,
     addMissingStacks,
     checkType,
     composeSubst,
@@ -22,10 +21,14 @@ module Language.Dawn.Phase1.Core
     DataDef (..),
     DataDefError (..),
     defaultMultiStack,
+    Element (..),
+    ElementError (..),
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
     Expr (..),
+    FnDecl (..),
+    FnDeclError (..),
     FnDef (..),
     FnDefError (..),
     fnDefExpr,
@@ -43,7 +46,6 @@ module Language.Dawn.Phase1.Core
     inferType,
     instantiate,
     Intrinsic (..),
-    intrinsicFnId,
     intrinsicType,
     MatchError (..),
     mgu,
@@ -63,6 +65,10 @@ module Language.Dawn.Phase1.Core
     Subst (..),
     tempStackIds,
     toStack,
+    tryAddElements,
+    tryAddFnDecl,
+    tryAddFnDecls,
+    tryAddFnDefs,
     Type (..),
     TypeConsId,
     TypeError (..),
@@ -149,25 +155,6 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
-  | IAnd
-  | IOr
-  | INot
-  | IXor
-  | IIncr
-  | IDecr
-  | IAdd
-  | ISub
-  | IBitAnd
-  | IBitOr
-  | IBitNot
-  | IBitXor
-  | IShl
-  | IShr
-  | IEq
-  | ILt
-  | IGt
-  | ILteq
-  | IGteq
   deriving (Eq, Ord, Show)
 
 data Type
@@ -565,13 +552,15 @@ data Env = Env
     typeConsArities :: Map.Map TypeConsId Int,
     consDefs :: Map.Map ConsId ConsDef,
     consTypes :: Map.Map ConsId ([Type], Type),
+    fnDecls :: Map.Map FnId FnDecl,
     fnDefs :: Map.Map FnId FnDef,
     fnTypes :: Map.Map FnId Type
   }
   deriving (Eq, Show)
 
 emptyEnv :: Env
-emptyEnv = Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
+emptyEnv =
+  Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -824,25 +813,29 @@ inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
 
--------------------------
--- Function Definition --
--------------------------
+-----------------------------------------
+-- Function Declaration and Definition --
+-----------------------------------------
+
+data FnDecl = FnDecl FnId Type
+  deriving (Eq, Show)
 
 data FnDef = FnDef FnId Expr
+  deriving (Eq, Show)
+
+newtype FnDeclError
+  = FnAlreadyDeclared FnId
+  deriving (Eq, Show)
+
+data FnDefError
+  = FnAlreadyDefined FnId
+  | FnTypeError FnId TypeError
+  | FnStackError FnId StackIds
   deriving (Eq, Show)
 
 type StackIds = Set.Set StackId
 
 type FnIds = Set.Set FnId
-
-intrinsicFnId :: Intrinsic -> FnId
-intrinsicFnId IPush = "push"
-intrinsicFnId IPop = "pop"
-intrinsicFnId IClone = "clone"
-intrinsicFnId IDrop = "drop"
-intrinsicFnId IQuote = "quote"
-intrinsicFnId ICompose = "compose"
-intrinsicFnId IApply = "apply"
 
 intrinsicFnIds =
   Set.fromList
@@ -855,11 +848,20 @@ intrinsicFnIds =
       "apply"
     ]
 
-data FnDefError
-  = FnAlreadyDefined FnId
-  | FnTypeError FnId TypeError
-  | FnStackError FnId StackIds
-  deriving (Eq, Show)
+tryAddFnDecl :: Env -> FnDecl -> Either FnDeclError Env
+tryAddFnDecl env (FnDecl fid t)
+  | fid `Set.member` intrinsicFnIds =
+    throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls} (FnDecl fid t)
+  | fid `Map.member` fnDecls =
+    throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls, fnTypes} decl@(FnDecl fid t) =
+  let fnDecls' = Map.insert fid decl fnDecls
+      fnTypes' = Map.insert fid t fnTypes
+   in return (env {fnDecls = fnDecls', fnTypes = fnTypes'})
+
+tryAddFnDecls :: Env -> [FnDecl] -> Either FnDeclError Env
+tryAddFnDecls = foldM tryAddFnDecl
 
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
@@ -899,7 +901,7 @@ fnDeps = fnDepsF Set.union
 uncondFnDeps :: Expr -> FnIds
 uncondFnDeps = fnDepsF Set.intersection
 
--- | Sort FnDef's such that f precedes g if f depends on g
+-- | Sort FnDef's such that f follows g if f depends on g
 -- | (directly or transitively) and g does not depend on f,
 -- | or if f unconditionally depends on g and g does not
 -- | unconditionally depend on f.
@@ -923,56 +925,56 @@ fnDepsSort defs =
             gDepsF = path depsGraph gav fav
          in case (fUncondDepsG, gUncondDepsF, fDepsG, gDepsF) of
               (False, False, False, False) -> EQ
-              (False, False, False, True) -> GT
-              (False, False, True, False) -> LT
+              (False, False, False, True) -> LT
+              (False, False, True, False) -> GT
               (False, False, True, True) -> EQ
-              (False, True, False, True) -> GT
-              (False, True, True, True) -> GT
-              (True, False, True, False) -> LT
-              (True, False, True, True) -> LT
+              (False, True, False, True) -> LT
+              (False, True, True, True) -> LT
+              (True, False, True, False) -> GT
+              (True, False, True, True) -> GT
               (True, True, True, True) -> EQ
               _ -> error "unreachable"
    in sortBy fnDepsOrdering (dependencySortFns defs)
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
-addFnDefs :: Env -> [FnDef] -> ([FnDefError], Env)
-addFnDefs env@Env {fnDefs} defs =
-  let existingFnIds = Map.keysSet fnDefs `Set.union` intrinsicFnIds
-      (errs1, defs') = removeAlreadyDefined existingFnIds defs
-      newFnIds = Set.fromList (map fnDefFnId defs')
-      sortedDefs = fnDepsSort defs'
-      (errs2, env2, sortedDefs') = foldr (inferTypes newFnIds) ([], env, []) sortedDefs
-      (errs3, env3, sortedDefs'') = foldr (inferTypes newFnIds) ([], env2, []) sortedDefs'
-      (errs4, env4) = foldr (checkTypes newFnIds) ([], env3) sortedDefs''
-   in (errs1 ++ errs2 ++ errs3 ++ errs4, env4)
+tryAddFnDefs :: Env -> [FnDef] -> Either FnDefError Env
+tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
+  mapM_ checkAlreadyDefined defs
+  let unknownType (FnDef fid _) = not (fid `Map.member` fnTypes)
+      defsWithoutTypes = filter unknownType defs
+      defsWithoutTypesSorted = fnDepsSort defsWithoutTypes
+  env' <- inferFnTypes env defsWithoutTypesSorted
+  env'' <- inferFnTypes env' defsWithoutTypesSorted
+  checkFnTypes env'' defs
+  let fnDefs' = foldr (\def@(FnDef fid _) -> Map.insert fid def) fnDefs defs
+  return env'' {fnDefs = fnDefs'}
   where
-    removeAlreadyDefined :: FnIds -> [FnDef] -> ([FnDefError], [FnDef])
-    removeAlreadyDefined fids [] = ([], [])
-    removeAlreadyDefined fids (FnDef fid e : defs) =
-      let (errs, defs') = removeAlreadyDefined (Set.insert fid fids) defs
-       in if fid `Set.member` fids
-            then (FnAlreadyDefined fid : errs, defs')
-            else (errs, FnDef fid e : defs)
+    checkAlreadyDefined :: FnDef -> Either FnDefError ()
+    checkAlreadyDefined (FnDef fid t)
+      | fid `Set.member` intrinsicFnIds = throwError (FnAlreadyDefined fid)
+    checkAlreadyDefined (FnDef fid t)
+      | fid `Map.member` fnDefs = throwError (FnAlreadyDefined fid)
+    checkAlreadyDefined def = return ()
 
-    inferTypes :: FnIds -> FnDef -> ([FnDefError], Env, [FnDef]) -> ([FnDefError], Env, [FnDef])
-    inferTypes newFnIds def@(FnDef fid e) (errs, env@Env {fnDefs, fnTypes}, defs) =
-      case inferNormType env ["$"] e of
-        Left err -> (FnTypeError fid err : errs, env, defs)
-        Right t
-          | not (null (tempStackIds t)) ->
-            (FnStackError fid (tempStackIds t) : errs, env, defs)
-        Right t ->
-          let fnDefs' = Map.insert fid def fnDefs
-              fnTypes' = Map.insert fid t fnTypes
-              env' = env {fnDefs = fnDefs', fnTypes = fnTypes'}
-           in (errs, env', def : defs)
+    inferFnTypes :: Env -> [FnDef] -> Either FnDefError Env
+    inferFnTypes env [] = return env
+    inferFnTypes env@Env {fnTypes} (FnDef fid e : defs) = do
+      t <- mapLeft (FnTypeError fid) (inferNormType env ["$"] e)
+      checkStackError fid t
+      let fnTypes' = Map.insert fid t fnTypes
+      let env' = env {fnTypes = fnTypes'}
+      inferFnTypes env' defs
 
-    checkTypes :: FnIds -> FnDef -> ([FnDefError], Env) -> ([FnDefError], Env)
-    checkTypes newFnIds (FnDef fid e) (errs, env@Env {fnTypes}) =
-      case checkType env ["$"] e (fnTypes Map.! fid) of
-        Left err -> (FnTypeError fid err : errs, env {fnTypes = Map.delete fid fnTypes})
-        Right () -> (errs, env)
+    checkStackError :: FnId -> Type -> Either FnDefError ()
+    checkStackError fid t | null (tempStackIds t) = return ()
+    checkStackError fid t = throwError (FnStackError fid (tempStackIds t))
+
+    checkFnTypes :: Env -> [FnDef] -> Either FnDefError ()
+    checkFnTypes env [] = return ()
+    checkFnTypes env@Env {fnTypes} (FnDef fid e : defs) = do
+      mapLeft (FnTypeError fid) (checkType env ["$"] e (fnTypes Map.! fid))
+      checkFnTypes env defs
 
 ------------------------------------
 -- Algebraic Data Type Definition --
@@ -996,6 +998,11 @@ data DataDefError
 type TypeConsIds = Set.Set TypeConsId
 
 type ConsIds = Set.Set ConsId
+
+tryAddDataDefs :: Env -> [DataDef] -> Either DataDefError Env
+tryAddDataDefs env defs = case addDataDefs env defs of
+  ([], env') -> return env'
+  (err : errs, _) -> throwError err
 
 addDataDefs :: Env -> [DataDef] -> ([DataDefError], Env)
 addDataDefs env@Env {dataDefs, consDefs} defs =
@@ -1103,3 +1110,43 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
           | length args /= (typeConsArities Map.! tcid) =
             throwError (TypeConsArityMismatch tcid t)
         checkArg (TCons args tcid) = mapM_ checkArg args
+
+----------------------
+-- Program Elements --
+----------------------
+
+data Element
+  = EFnDecl FnDecl
+  | EFnDef FnDef
+  | EDataDef DataDef
+  deriving (Eq, Show)
+
+data ElementError
+  = FnDeclError FnDeclError
+  | FnDefError FnDefError
+  | DataDefError DataDefError
+  deriving (Eq, Show)
+
+getFnDecls :: [Element] -> [FnDecl]
+getFnDecls [] = []
+getFnDecls (EFnDecl d : es) = d : getFnDecls es
+getFnDecls (e : es) = getFnDecls es
+
+getFnDefs :: [Element] -> [FnDef]
+getFnDefs [] = []
+getFnDefs (EFnDef d : es) = d : getFnDefs es
+getFnDefs (e : es) = getFnDefs es
+
+getDataDefs :: [Element] -> [DataDef]
+getDataDefs [] = []
+getDataDefs (EDataDef d : es) = d : getDataDefs es
+getDataDefs (e : es) = getDataDefs es
+
+tryAddElements :: Env -> [Element] -> Either ElementError Env
+tryAddElements env elems = do
+  let dataDefs = getDataDefs elems
+      fnDecls = getFnDecls elems
+      fnDefs = getFnDefs elems
+  env1 <- mapLeft DataDefError (tryAddDataDefs env dataDefs)
+  env2 <- mapLeft FnDeclError (tryAddFnDecls env1 fnDecls)
+  mapLeft FnDefError (tryAddFnDefs env2 fnDefs)

@@ -6,12 +6,14 @@
 
 module Language.Dawn.Phase1.Parse
   ( dataDef,
+    element,
     expr,
     fnDef,
     keyword,
     parseDataDef,
-    parseDefs,
+    parseElements,
     parseExpr,
+    parseFnDecl,
     parseFnDef,
     parseFnType,
     parseProdType,
@@ -30,15 +32,8 @@ import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
 
-parseDefs :: String -> Either ParseError ([DataDef], [FnDef])
-parseDefs = parse (skipMany space *> defs <* eof) ""
-  where
-    defs = do
-      ds <- many def
-      let folder (Left ddef) (ddefs, fdefs) = (ddef : ddefs, fdefs)
-          folder (Right fdef) (ddefs, fdefs) = (ddefs, fdef : fdefs)
-      return (foldr folder ([], []) ds)
-    def = try (Left <$> dataDef) <|> try (Right <$> fnDef)
+parseElements :: String -> Either ParseError [Element]
+parseElements = parse (skipMany space *> elements <* eof) ""
 
 parseProdType :: String -> Either ParseError Type
 parseProdType = parse (skipMany space *> prodType <* eof) ""
@@ -48,6 +43,9 @@ parseFnType = parse (skipMany space *> fnType <* eof) ""
 
 parseDataDef :: String -> Either ParseError DataDef
 parseDataDef = parse (skipMany space *> dataDef <* eof) ""
+
+parseFnDecl :: String -> Either ParseError FnDecl
+parseFnDecl = parse (skipMany space *> fnDecl <* eof) ""
 
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skipMany space *> fnDef <* eof) ""
@@ -60,6 +58,15 @@ parseValStack = parse (skipMany space *> valStack <* eof) ""
 
 parseValMultiStack :: String -> Either ParseError (MultiStack Val)
 parseValMultiStack = parse (skipMany space *> valMultiStack <* eof) ""
+
+elements :: Parser [Element]
+elements = many element
+
+element :: Parser Element
+element =
+  EFnDecl <$> try fnDecl
+    <|> EFnDef <$> try fnDef
+    <|> EDataDef <$> try dataDef
 
 prodType :: Parser Type
 prodType = stackTypes <$> many1 singleType
@@ -111,6 +118,9 @@ varType = lexeme (TVar <$> typeVar)
 
 typeVar :: Parser TypeVar
 typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
+
+fnDecl :: Parser FnDecl
+fnDecl = betweenBraces (FnDecl <$> (keyword "fn" *> fnId) <*> (symbol "::" *> fnType))
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
