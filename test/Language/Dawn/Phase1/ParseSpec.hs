@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
+import Language.Dawn.Phase1.Utils
 import Test.Hspec
 import Text.Parsec.Error
 import Text.Parsec.Pos
@@ -22,6 +23,10 @@ import Prelude hiding (drop, (*))
 
 [clone, drop, quote, compose, apply] =
   map EIntrinsic [IClone, IDrop, IQuote, ICompose, IApply]
+
+tBool = TCons [] "Bool"
+
+tNat = TCons [] "Nat"
 
 spec :: Spec
 spec = do
@@ -282,6 +287,17 @@ spec = do
       parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
         `shouldBe` Right (FnDecl "drop2" t)
 
+    it "parses `{fn drop2 :: v1 v2 -> }`" $ do
+      let (Right t) = parseFnType "v1 v2 ->"
+      parseFnDecl "{fn drop2 :: v1 v2 -> }"
+        `shouldBe` Right (FnDecl "drop2" t)
+
+    it "parses `{fn zero :: Nat}`" $ do
+      let (Right t) = parseProdType "Nat"
+      let t' = fromShorthandFnType ([], [t])
+      parseFnDecl "{fn zero :: Nat}"
+        `shouldBe` Right (FnDecl "zero" t')
+
   describe "parseFnDef" $ do
     it "parses `{fn drop2 => drop drop}`" $ do
       let (Right e) = parseExpr "drop drop"
@@ -430,6 +446,28 @@ spec = do
               [v0, v1, v2]
               ("$a" $: v0 * v1 --> v0 * v2 $. "$b" $: v0 * v2 --> v0 * v1)
           )
+
+  describe "parseShorthandFnType" $ do
+    it "parses ` -> `" $ do
+      parseShorthandFnType " -> "
+        `shouldBe` Right ([], [])
+
+    it "parses `Nat -> Bool`" $ do
+      parseShorthandFnType "Nat -> Bool"
+        `shouldBe` Right ([tNat], [tBool])
+
+    it "parses `v1 -> v1 v1`" $ do
+      parseShorthandFnType "v1 -> v1 v1"
+        `shouldBe` Right ([v1], [v1, v1])
+
+  -- TODO: advanced shorthand:
+  -- it "parses `{$ Nat} {$a Nat} {$b Nat} -> Nat`" $ do
+  --   parseShorthandFnType "{$ Nat} {$a Nat} {$b Nat} -> Nat"
+  --     `shouldBe` Right ([tNat], [tBool])
+
+  -- it "parses `{$ v0} {$tmp v1} -> {$ v1} {$tmp v0}`" $ do
+  --   parseShorthandFnType "{$ v0} {$tmp v1} -> {$ v1} {$tmp v0}"
+  --     `shouldBe` Right ([tNat], [tBool])
 
   describe "parseElements" $ do
     it "parses all declarations and definitions" $ do

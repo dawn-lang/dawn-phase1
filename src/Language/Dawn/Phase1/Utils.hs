@@ -7,10 +7,12 @@
 module Language.Dawn.Phase1.Utils
   ( checkType',
     fromExprSeq,
+    fromShorthandFnType,
     inferNormType',
     inferType',
     polymorphicRank,
     renameTypeVar,
+    ShorthandFnType,
     toExprSeq,
     unusedQuantifiers,
   )
@@ -34,6 +36,16 @@ inferType' = inferType emptyEnv ["$"]
 
 inferNormType' :: Expr -> Either TypeError Type
 inferNormType' = inferNormType emptyEnv ["$"]
+
+type ShorthandFnType = ([Type], [Type])
+
+fromShorthandFnType :: ShorthandFnType -> Type
+fromShorthandFnType ts@(is, os) =
+  let (tv, reserved) = freshTypeVar (Set.fromList (atv ts))
+      v = TVar tv
+      i = stackTypes (v : is)
+      o = stackTypes (v : os)
+   in requantify (forall' [] (i --> o))
 
 -------------------
 -- Type Checking --
