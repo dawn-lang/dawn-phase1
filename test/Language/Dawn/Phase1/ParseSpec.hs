@@ -460,15 +460,6 @@ spec = do
       parseShorthandFnType "v1 -> v1 v1"
         `shouldBe` Right ([v1], [v1, v1])
 
-  -- TODO: advanced shorthand:
-  -- it "parses `{$ Nat} {$a Nat} {$b Nat} -> Nat`" $ do
-  --   parseShorthandFnType "{$ Nat} {$a Nat} {$b Nat} -> Nat"
-  --     `shouldBe` Right ([tNat], [tBool])
-
-  -- it "parses `{$ v0} {$tmp v1} -> {$ v1} {$tmp v0}`" $ do
-  --   parseShorthandFnType "{$ v0} {$tmp v1} -> {$ v1} {$tmp v0}"
-  --     `shouldBe` Right ([tNat], [tBool])
-
   describe "parseElements" $ do
     it "parses all declarations and definitions" $ do
       let drop2DeclSrc = "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
