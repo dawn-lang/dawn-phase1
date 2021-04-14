@@ -76,7 +76,7 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
-      Right (CmdElements elems) -> case addElements env elems of
+      Right (CmdElements elems) -> case tryAddElements env elems of
         Left err -> do
           outputStrLn ("Error: " ++ display err)
           return (env, ms)

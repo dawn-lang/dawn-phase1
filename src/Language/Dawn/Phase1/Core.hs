@@ -12,7 +12,6 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addDataDefs,
-    addElements,
     addFnDefs,
     addMissingStacks,
     checkType,
@@ -67,6 +66,7 @@ module Language.Dawn.Phase1.Core
     Subst (..),
     tempStackIds,
     toStack,
+    tryAddElements,
     Type (..),
     TypeConsId,
     TypeError (..),
@@ -835,9 +835,6 @@ type StackIds = Set.Set StackId
 
 type FnIds = Set.Set FnId
 
-addFnDecl :: Env -> FnDecl -> Either FnDeclError Env
-addFnDecl env@Env {fnDecls} decl = undefined -- TODO
-
 intrinsicFnIds =
   Set.fromList
     [ "push",
@@ -848,6 +845,18 @@ intrinsicFnIds =
       "compose",
       "apply"
     ]
+
+tryAddFnDecl :: Env -> FnDecl -> Either FnDeclError Env
+tryAddFnDecl env (FnDecl fid t) | fid `Set.member` intrinsicFnIds =
+  throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls} (FnDecl fid t) | fid `Map.member` fnDecls =
+  throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls} decl@(FnDecl fid t) =
+  let fnDecls' = Map.insert fid decl fnDecls
+  in return (env {fnDecls = fnDecls'})
+
+tryAddFnDecls :: Env -> [FnDecl] -> Either FnDeclError Env
+tryAddFnDecls = foldM tryAddFnDecl
 
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
@@ -924,6 +933,11 @@ fnDepsSort defs =
   where
     fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
 
+tryAddFnDefs :: Env -> [FnDef] -> Either FnDefError Env
+tryAddFnDefs env defs =  case addFnDefs env defs of
+  ([], env') -> return env'
+  (err : errs, _) -> throwError err
+
 addFnDefs :: Env -> [FnDef] -> ([FnDefError], Env)
 addFnDefs env@Env {fnDefs} defs =
   let existingFnIds = Map.keysSet fnDefs `Set.union` intrinsicFnIds
@@ -984,6 +998,11 @@ data DataDefError
 type TypeConsIds = Set.Set TypeConsId
 
 type ConsIds = Set.Set ConsId
+
+tryAddDataDefs :: Env -> [DataDef] -> Either DataDefError Env
+tryAddDataDefs env defs = case addDataDefs env defs of
+  ([], env') -> return env'
+  (err : errs, _) -> throwError err
 
 addDataDefs :: Env -> [DataDef] -> ([DataDefError], Env)
 addDataDefs env@Env {dataDefs, consDefs} defs =
@@ -1108,5 +1127,26 @@ data ElementError
   | DataDefError DataDefError
   deriving (Eq, Show)
 
-addElements :: Env -> [Element] -> Either ElementError Env
-addElements env defs = undefined -- TODO
+getFnDecls :: [Element] -> [FnDecl]
+getFnDecls [] = []
+getFnDecls (EFnDecl d : es) = d : getFnDecls es
+getFnDecls (e : es) = getFnDecls es
+
+getFnDefs :: [Element] -> [FnDef]
+getFnDefs [] = []
+getFnDefs (EFnDef d : es) = d : getFnDefs es
+getFnDefs (e : es) = getFnDefs es
+
+getDataDefs :: [Element] -> [DataDef]
+getDataDefs [] = []
+getDataDefs (EDataDef d : es) = d : getDataDefs es
+getDataDefs (e : es) = getDataDefs es
+
+tryAddElements :: Env -> [Element] -> Either ElementError Env
+tryAddElements env elems = do
+  let dataDefs = getDataDefs elems
+      fnDecls = getFnDecls elems
+      fnDefs = getFnDefs elems
+  env1 <- mapLeft DataDefError (tryAddDataDefs env dataDefs)
+  env2 <- mapLeft FnDeclError (tryAddFnDecls env1 fnDecls)
+  mapLeft FnDefError (tryAddFnDefs env2 fnDefs)
