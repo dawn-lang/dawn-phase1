@@ -139,7 +139,7 @@ spec = do
       eval (toEvalEnv testEnv) ["$"] e ms `shouldBe` ms'
 
     it "evals fib" $ do
-      let ([], env) = addFnDefs testEnv [fib]
+      let (Right env) = tryAddFnDefs testEnv [fib]
       let (Right e) = parseExpr "Z fib"
       let (Right ms) = parseValMultiStack "Z"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms
@@ -375,7 +375,7 @@ spec = do
     it "evals `fib`" $ do
       let intToNatStr 0 = "Z"
           intToNatStr i = "(" ++ intToNatStr (i - 1) ++ " S)"
-      let ([], env) = addFnDefs testEnv [fib]
+      let (Right env) = tryAddFnDefs testEnv [fib]
           evalFib n =
             let (Right e) = parseExpr (intToNatStr n ++ " fib")
                 ms = MultiStack Map.empty
@@ -399,7 +399,7 @@ spec = do
     it "evals tail recursive fib" $ do
       let intToNatStr 0 = "Z"
           intToNatStr i = "(" ++ intToNatStr (i - 1) ++ " S)"
-      let ([], env) = addFnDefs testEnv [fastFib, _fastFib]
+      let (Right env) = tryAddFnDefs testEnv [fastFib, _fastFib]
           evalFastFib n =
             let (Right e) = parseExpr (intToNatStr n ++ " fib")
                 ms = MultiStack Map.empty

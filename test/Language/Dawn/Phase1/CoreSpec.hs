@@ -458,37 +458,37 @@ spec = do
     -- f ~?> g := f directly and conditionally depends on g
     -- f ~~> g := f transitively depends on g
 
-    it "f < g if f ~!> g and not g ~~> f" $ do
+    it "f > g if f ~!> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => g}"
       let (Right g) = parseFnDef "{fn g => }"
       fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
       uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      fnDepsSort [f, g] `shouldBe` [f, g]
-      fnDepsSort [g, f] `shouldBe` [f, g]
+      fnDepsSort [f, g] `shouldBe` [g, f]
+      fnDepsSort [g, f] `shouldBe` [g, f]
 
-    it "f < g if f ~?> g and not g ~~> f" $ do
+    it "f > g if f ~?> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => {match {case False => g} {case True => }}}"
       let (Right g) = parseFnDef "{fn g => }"
       fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
       uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList []
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      fnDepsSort [f, g] `shouldBe` [f, g]
-      fnDepsSort [g, f] `shouldBe` [f, g]
+      fnDepsSort [f, g] `shouldBe` [g, f]
+      fnDepsSort [g, f] `shouldBe` [g, f]
 
-    it "f < g if f ~!> g and g ~?> f" $ do
+    it "f > g if f ~!> g and g ~?> f" $ do
       let (Right f) = parseFnDef "{fn f => g}"
       let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
       fnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
       uncondFnDeps (fnDefExpr f) `shouldBe` Set.fromList ["g"]
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      fnDepsSort [f, g] `shouldBe` [f, g]
-      fnDepsSort [g, f] `shouldBe` [f, g]
+      fnDepsSort [f, g] `shouldBe` [g, f]
+      fnDepsSort [g, f] `shouldBe` [g, f]
 
-    it "f < g if f ~~!> g and not g ~~> f" $ do
+    it "f > g if f ~~!> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => h}"
       let (Right h) = parseFnDef "{fn h => g}"
       let (Right g) = parseFnDef "{fn g => }"
@@ -498,10 +498,10 @@ spec = do
       uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      let fnDefs = [f, h, g]
+      let fnDefs = [g, h, f]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
-    it "f < g if f ~~?> g and not g ~~> f" $ do
+    it "f > g if f ~~?> g and not g ~~> f" $ do
       let (Right f) = parseFnDef "{fn f => {match {case False => h} {case True => }}}"
       let (Right h) = parseFnDef "{fn h => {match {case False => g} {case True => }}}"
       let (Right g) = parseFnDef "{fn g => }"
@@ -511,10 +511,10 @@ spec = do
       uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList []
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList []
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      let fnDefs = [f, h, g]
+      let fnDefs = [g, h, f]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
-    it "f < g if f ~~!> g and g ~?> f" $ do
+    it "f > g if f ~~!> g and g ~?> f" $ do
       let (Right f) = parseFnDef "{fn f => h}"
       let (Right h) = parseFnDef "{fn h => g}"
       let (Right g) = parseFnDef "{fn g => {match {case False => f} {case True => }}}"
@@ -524,47 +524,47 @@ spec = do
       uncondFnDeps (fnDefExpr h) `shouldBe` Set.fromList ["g"]
       fnDeps (fnDefExpr g) `shouldBe` Set.fromList ["f"]
       uncondFnDeps (fnDefExpr g) `shouldBe` Set.fromList []
-      let fnDefs = [f, h, g]
+      let fnDefs = [g, h, f]
       mapM_ (\defs -> fnDepsSort defs `shouldBe` fnDefs) (permutations fnDefs)
 
-  describe "addFnDefs" $ do
+  describe "tryAddFnDefs" $ do
     it "defines drop2" $ do
       let (Right f) = parseFnDef "{fn drop2 => drop drop}"
       let (Right t) = inferNormType emptyEnv ["$"] (fnDefExpr f)
-      addFnDefs emptyEnv [f]
-        `shouldBe` ( [],
-                     emptyEnv
-                       { fnDefs = Map.singleton "drop2" f,
-                         fnTypes = Map.singleton "drop2" t
-                       }
-                   )
+      tryAddFnDefs emptyEnv [f]
+        `shouldBe` Right
+          ( emptyEnv
+              { fnDefs = Map.singleton "drop2" f,
+                fnTypes = Map.singleton "drop2" t
+              }
+          )
 
     it "fails with FnAlreadyDefined" $ do
       let (Right f) = parseFnDef "{fn clone => clone}"
-      addFnDefs emptyEnv [f]
-        `shouldBe` ([FnAlreadyDefined "clone"], emptyEnv)
+      tryAddFnDefs emptyEnv [f]
+        `shouldBe` Left (FnAlreadyDefined "clone")
 
       let (Right f) = parseFnDef "{fn drop2 => drop drop}"
-      let ([], env) = addFnDefs emptyEnv [f]
-      addFnDefs env [f]
-        `shouldBe` ([FnAlreadyDefined "drop2"], env)
+      let (Right env) = tryAddFnDefs emptyEnv [f]
+      tryAddFnDefs env [f]
+        `shouldBe` Left (FnAlreadyDefined "drop2")
 
     it "fails with FnTypeError UndefinedFn" $ do
       let (Right f) = parseFnDef "{fn test1 => clone test2 clone test3}"
-      addFnDefs emptyEnv [f]
-        `shouldBe` ([FnTypeError "test1" (UndefinedFn "test2")], emptyEnv)
+      tryAddFnDefs emptyEnv [f]
+        `shouldBe` Left (FnTypeError "test1" (UndefinedFn "test2"))
 
     it "fails with FnTypeError" $ do
       let (Right f) = parseFnDef "{fn test => clone apply}"
       let (Right e) = parseExpr "clone apply"
       let (Left err) = inferNormType emptyEnv ["$"] e
-      addFnDefs emptyEnv [f]
-        `shouldBe` ([FnTypeError "test" err], emptyEnv)
+      tryAddFnDefs emptyEnv [f]
+        `shouldBe` Left (FnTypeError "test" err)
 
     it "fails with FnStackError" $ do
       let (Right f) = parseFnDef "{fn test => {$a $a<-} {$b $b<-}}"
-      addFnDefs emptyEnv [f]
-        `shouldBe` ([FnStackError "test" (Set.fromList ["$$a", "$$b"])], emptyEnv)
+      tryAddFnDefs emptyEnv [f]
+        `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
       let (Right f) =
@@ -581,18 +581,17 @@ spec = do
               )
       let t = forall' [v0] (v0 * tNat --> v0 * tNat)
       let Env {fnDefs, fnTypes} = testEnv
-      addFnDefs testEnv [f]
-        `shouldBe` ( [],
-                     testEnv
-                       { fnDefs = Map.insert "fib" f fnDefs,
-                         fnTypes = Map.insert "fib" t fnTypes
-                       }
-                   )
+      tryAddFnDefs testEnv [f]
+        `shouldBe` Right
+          ( testEnv
+              { fnDefs = Map.insert "fib" f fnDefs,
+                fnTypes = Map.insert "fib" t fnTypes
+              }
+          )
 
     it "defines drop2 and drop3" $ do
       let (Right drop2) = parseFnDef "{fn drop2 => drop drop}"
       let (Right drop3) = parseFnDef "{fn drop3 => drop2 drop}"
-      let errs = []
       let env =
             ( emptyEnv
                 { fnDefs = Map.fromList [("drop2", drop2), ("drop3", drop3)],
@@ -603,8 +602,8 @@ spec = do
                       ]
                 }
             )
-      addFnDefs emptyEnv [drop2, drop3]
-        `shouldBe` (errs, env)
+      tryAddFnDefs emptyEnv [drop2, drop3]
+        `shouldBe` Right env
 
     it "defines mutually recursive fns" $ do
       let (Right decr_even) =
@@ -637,7 +636,6 @@ spec = do
       let decr_odd_t = forall' [v0] (v0 * tNat --> v0)
       let (Right count_down) = parseFnDef "{fn count_down => decr_odd}"
       let count_down_t = forall' [v0] (v0 * tNat --> v0)
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -654,8 +652,8 @@ spec = do
                   ("count_down", count_down_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [decr_even, decr_odd, count_down]
-        `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [decr_even, decr_odd, count_down]
+        `shouldBe` Right env
 
     it "succeeds on direct recursion in one match case" $ do
       let (Right fib) =
@@ -671,7 +669,6 @@ spec = do
                   ]
               )
       let fib_t = forall' [v0] (v0 * tNat --> v0 * tNat)
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -684,13 +681,12 @@ spec = do
                 [ ("fib", fib_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [fib] `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [fib] `shouldBe` Right env
 
     it "fails on direct recursion outside of match expr" $ do
       let (Right diverge) = parseFnDef "{fn diverge => drop diverge (Z S)}"
-      let errs = [FnTypeError "diverge" (UndefinedFn "diverge")]
-      let env = emptyEnv
-      addFnDefs emptyEnv [diverge] `shouldBe` (errs, env)
+      let err = FnTypeError "diverge" (UndefinedFn "diverge")
+      tryAddFnDefs emptyEnv [diverge] `shouldBe` Left err
 
     it "fails on direct recursion in all match cases" $ do
       let (Right foo) =
@@ -705,9 +701,8 @@ spec = do
                   ]
               )
       let foo_t = forall' [v0] (v0 * tNat --> v0 * tNat)
-      let errs = [FnTypeError "foo" (UndefinedFn "foo")]
-      let env = testEnv
-      addFnDefs testEnv [foo] `shouldBe` (errs, env)
+      let err = FnTypeError "foo" (UndefinedFn "foo")
+      tryAddFnDefs testEnv [foo] `shouldBe` Left err
 
     it "succeeds on mutual recursion in one match case in each function" $ do
       let (Right is_even) =
@@ -736,7 +731,6 @@ spec = do
               )
       let is_odd_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -751,7 +745,7 @@ spec = do
                   ("is_odd", is_odd_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [is_even, is_odd] `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [is_even, is_odd] `shouldBe` Right env
 
     it "fails on mutual recursion outside of match expr" $ do
       let (Right f1) = parseFnDef "{fn f1 => nat_decr f2}"
@@ -760,12 +754,8 @@ spec = do
       let (Right f2) = parseFnDef "{fn f2 => nat_decr f1}"
       let f2_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let errs =
-            [ FnTypeError "f1" (UndefinedFn "f2"),
-              FnTypeError "f2" (UndefinedFn "f1")
-            ]
-      let env = testEnv
-      addFnDefs testEnv [f1, f2] `shouldBe` (errs, env)
+      let err = FnTypeError "f1" (UndefinedFn "f2")
+      tryAddFnDefs testEnv [f1, f2] `shouldBe` Left err
 
     it "fails on mutual recursion in all match cases" $ do
       let (Right is_even) =
@@ -794,11 +784,8 @@ spec = do
               )
       let is_odd_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let errs =
-            [ FnTypeError "is_even" (UndefinedFn "is_odd"),
-              FnTypeError "is_odd" (UndefinedFn "is_even")
-            ]
-      addFnDefs testEnv [is_even, is_odd] `shouldBe` (errs, testEnv)
+      let err = FnTypeError "is_even" (UndefinedFn "is_odd")
+      tryAddFnDefs testEnv [is_even, is_odd] `shouldBe` Left err
 
     it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
       let (Right is_even) =
@@ -818,7 +805,6 @@ spec = do
       let (Right is_odd) = parseFnDef "{fn is_odd => nat_decr is_even}"
       let is_odd_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -833,7 +819,7 @@ spec = do
                   ("is_odd", is_odd_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [is_odd, is_even] `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [is_odd, is_even] `shouldBe` Right env
 
     it "succeeds on mutual recursion in all but some match cases in one function (2)" $ do
       let (Right is_odd) =
@@ -853,7 +839,6 @@ spec = do
       let (Right is_even) = parseFnDef "{fn is_even => nat_decr is_odd}"
       let is_even_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -868,7 +853,7 @@ spec = do
                   ("is_odd", is_odd_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [is_odd, is_even] `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [is_odd, is_even] `shouldBe` Right env
 
     it "defines tail recursive fib" $ do
       let fib_t = forall' [v0] (v0 * tNat --> v0 * tNat)
@@ -879,7 +864,6 @@ spec = do
                   $. "$a" $: v1 * tNat --> v1
                   $. "$b" $: v2 * tNat --> v2
               )
-      let errs = []
       let Env {fnDefs, fnTypes} = testEnv
       let fnDefs' =
             fnDefs
@@ -894,7 +878,7 @@ spec = do
                   ("_fib", _fib_t)
                 ]
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
-      addFnDefs testEnv [fastFib, _fastFib] `shouldBe` (errs, env)
+      tryAddFnDefs testEnv [fastFib, _fastFib] `shouldBe` Right env
 
   describe "addDataDefs" $ do
     it "adds `{data Bit {cons B0} {cons B1}}`" $ do
@@ -1081,9 +1065,9 @@ spec = do
 
 (Right dPair) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
 
-([], testEnv) =
+(Right testEnv) =
   let ([], env) = addDataDefs emptyEnv [dBool, dNat, dBit, dStack, dPair]
-   in addFnDefs env [d_swap, d_bool_and, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
+   in tryAddFnDefs env [d_swap, d_bool_and, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
 
 fastFibSrc = "{fn fib => {$a Z} {$b (Z S)} _fib}"
 
