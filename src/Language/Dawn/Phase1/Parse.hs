@@ -17,6 +17,7 @@ module Language.Dawn.Phase1.Parse
     parseFnDef,
     parseFnType,
     parseProdType,
+    parseShorthandFnType,
     parseValMultiStack,
     parseValStack,
   )
@@ -37,6 +38,9 @@ parseElements = parse (skipMany space *> elements <* eof) ""
 
 parseProdType :: String -> Either ParseError Type
 parseProdType = parse (skipMany space *> prodType <* eof) ""
+
+parseShorthandFnType :: String -> Either ParseError ShorthandFnType
+parseShorthandFnType = parse (skipMany space *> shorthandFnType <* eof) ""
 
 parseFnType :: String -> Either ParseError Type
 parseFnType = parse (skipMany space *> fnType <* eof) ""
@@ -66,16 +70,24 @@ element :: Parser Element
 element =
   EFnDecl <$> try fnDecl
     <|> EFnDef <$> try fnDef
-    <|> EDataDef <$> try dataDef
+    <|> EDataDef <$> dataDef
+
+fnType :: Parser Type
+fnType =
+  fromShorthandFnType <$> try shorthandFnType
+    <|> fullFnType
+
+shorthandFnType :: Parser ShorthandFnType
+shorthandFnType = (,) <$> many singleType <*> (symbol "->" *> many singleType)
+
+fullFnType :: Parser Type
+fullFnType = TFn <$> univQuants <*> multiIO
 
 prodType :: Parser Type
 prodType = stackTypes <$> many1 singleType
 
 singleType :: Parser Type
-singleType = varType <|> simpleConsType <|> betweenParens (fnType <|> consType)
-
-fnType :: Parser Type
-fnType = TFn <$> univQuants <*> multiIO
+singleType = varType <|> simpleConsType <|> betweenParens (fullFnType <|> consType)
 
 univQuants :: Parser UnivQuants
 univQuants = keyword "forall" *> (Set.fromList <$> many typeVar) <* symbol "."
@@ -120,7 +132,12 @@ typeVar :: Parser TypeVar
 typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
 
 fnDecl :: Parser FnDecl
-fnDecl = betweenBraces (FnDecl <$> (keyword "fn" *> fnId) <*> (symbol "::" *> fnType))
+fnDecl = betweenBraces (FnDecl <$> (keyword "fn" *> fnId) <*> (symbol "::" *> fnDeclType))
+
+fnDeclType :: Parser Type
+fnDeclType =
+  try fnType
+    <|> (\ts -> fromShorthandFnType ([], ts)) <$> many prodType
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
