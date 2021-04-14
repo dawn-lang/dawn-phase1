@@ -66,6 +66,8 @@ module Language.Dawn.Phase1.Core
     tempStackIds,
     toStack,
     tryAddElements,
+    tryAddFnDecl,
+    tryAddFnDecls,
     tryAddFnDefs,
     Type (..),
     TypeConsId,
