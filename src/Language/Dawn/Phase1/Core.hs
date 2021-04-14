@@ -150,25 +150,6 @@ data Intrinsic
   | IQuote
   | ICompose
   | IApply
-  | IAnd
-  | IOr
-  | INot
-  | IXor
-  | IIncr
-  | IDecr
-  | IAdd
-  | ISub
-  | IBitAnd
-  | IBitOr
-  | IBitNot
-  | IBitXor
-  | IShl
-  | IShr
-  | IEq
-  | ILt
-  | IGt
-  | ILteq
-  | IGteq
   deriving (Eq, Ord, Show)
 
 data Type
