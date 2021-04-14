@@ -2,12 +2,11 @@ name: dawn-phase1
 version: 0.1.0.0
 github: "scottjmaddox/dawn-phase1"
 license-file:
-  - "LICENSE-APACHE"
-  - "LICENSE-ZLIB"
-license: "Apache-2.0 OR Zlib"
+  - "LICENSE"
+license: "MPL-2.0"
 author: "Scott J Maddox"
 maintainer: "scottjmaddox@gmail.com"
-copyright: "2020 Scott J Maddox"
+copyright: "2021 Scott J Maddox"
 
 extra-source-files:
   - README.md

@@ -1,8 +1,8 @@
 -- Copyright (c) 2021 Scott J Maddox
 --
--- Licensed under either the Apache License, Version 2.0 (see LICENSE-APACHE),
--- or the ZLib license (see LICENSE-ZLIB), at your option. This file may not be
--- copied, modified, or distributed except according to those terms.
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 module Language.Dawn.Phase1.Utils
   ( checkType',
