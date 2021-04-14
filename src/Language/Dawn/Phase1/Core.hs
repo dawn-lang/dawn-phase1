@@ -12,6 +12,7 @@ module Language.Dawn.Phase1.Core
     ($:),
     ($.),
     addDataDefs,
+    addElements,
     addFnDefs,
     addMissingStacks,
     checkType,
@@ -22,11 +23,14 @@ module Language.Dawn.Phase1.Core
     DataDef (..),
     DataDefError (..),
     defaultMultiStack,
+    Element (..),
+    ElementError (..),
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
     Expr (..),
     FnDecl (..),
+    FnDeclError (..),
     FnDef (..),
     FnDefError (..),
     fnDefExpr,
@@ -44,7 +48,6 @@ module Language.Dawn.Phase1.Core
     inferType,
     instantiate,
     Intrinsic (..),
-    intrinsicFnId,
     intrinsicType,
     MatchError (..),
     mgu,
@@ -808,9 +811,9 @@ inferNormType env ctx e = do
   t <- inferType env ctx e
   return (normalizeType t)
 
--------------------------
--- Function Definition --
--------------------------
+-----------------------------------------
+-- Function Declaration and Definition --
+-----------------------------------------
 
 data FnDecl = FnDecl FnId Type
   deriving (Eq, Show)
@@ -818,18 +821,22 @@ data FnDecl = FnDecl FnId Type
 data FnDef = FnDef FnId Expr
   deriving (Eq, Show)
 
+newtype FnDeclError
+  = FnAlreadyDeclared FnId
+  deriving (Eq, Show)
+
+data FnDefError
+  = FnAlreadyDefined FnId
+  | FnTypeError FnId TypeError
+  | FnStackError FnId StackIds
+  deriving (Eq, Show)
+
 type StackIds = Set.Set StackId
 
 type FnIds = Set.Set FnId
 
-intrinsicFnId :: Intrinsic -> FnId
-intrinsicFnId IPush = "push"
-intrinsicFnId IPop = "pop"
-intrinsicFnId IClone = "clone"
-intrinsicFnId IDrop = "drop"
-intrinsicFnId IQuote = "quote"
-intrinsicFnId ICompose = "compose"
-intrinsicFnId IApply = "apply"
+addFnDecl :: Env -> FnDecl -> Either FnDeclError Env
+addFnDecl env@Env {fnDecls} decl = undefined -- TODO
 
 intrinsicFnIds =
   Set.fromList
@@ -841,12 +848,6 @@ intrinsicFnIds =
       "compose",
       "apply"
     ]
-
-data FnDefError
-  = FnAlreadyDefined FnId
-  | FnTypeError FnId TypeError
-  | FnStackError FnId StackIds
-  deriving (Eq, Show)
 
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
@@ -1090,3 +1091,22 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
           | length args /= (typeConsArities Map.! tcid) =
             throwError (TypeConsArityMismatch tcid t)
         checkArg (TCons args tcid) = mapM_ checkArg args
+
+----------------------
+-- Program Elements --
+----------------------
+
+data Element
+  = EFnDecl FnDecl
+  | EFnDef FnDef
+  | EDataDef DataDef
+  deriving (Eq, Show)
+
+data ElementError
+  = FnDeclError FnDeclError
+  | FnDefError FnDefError
+  | DataDefError DataDefError
+  deriving (Eq, Show)
+
+addElements :: Env -> [Element] -> Either ElementError Env
+addElements env defs = undefined -- TODO

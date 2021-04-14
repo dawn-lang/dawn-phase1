@@ -76,23 +76,11 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
-      Right (CmdDataDefs defs) -> case addDataDefs env defs of
-        ([], env') -> return (env', ms)
-        (errs, env') -> do
-          mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
+      Right (CmdElements elems) -> case addElements env elems of
+        Left err -> do
+          outputStrLn ("Error: " ++ display err)
           return (env, ms)
-      Right (CmdFnDefs defs) -> case addFnDefs env defs of
-        ([], env'@Env {fnTypes}) -> do
-          mapM_
-            ( \(FnDef fid _) -> do
-                let (Just t) = Map.lookup fid fnTypes
-                outputStrLn $ fid ++ " :: " ++ display t
-            )
-            defs
-          return (env', ms)
-        (errs, env') -> do
-          mapM_ (\err -> outputStrLn ("Error: " ++ display err)) errs
-          return (env, ms)
+        Right env' -> return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -171,8 +159,7 @@ command =
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
-    <|> try (CmdDataDefs <$> many1 dataDef)
-    <|> try (CmdFnDefs <$> many1 fnDef)
+    <|> try (CmdElements <$> many1 element)
     <|> CmdEval <$> expr
 
 data Command
@@ -182,6 +169,5 @@ data Command
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
-  | CmdDataDefs [DataDef]
-  | CmdFnDefs [FnDef]
+  | CmdElements [Element]
   | CmdEval Expr

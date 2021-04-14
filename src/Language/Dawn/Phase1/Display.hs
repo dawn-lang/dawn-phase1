@@ -43,7 +43,13 @@ instance Display Pattern where
   display PWild = "_"
 
 instance Display Intrinsic where
-  display = intrinsicFnId
+  display IPush = "push"
+  display IPop = "pop"
+  display IClone = "clone"
+  display IDrop = "drop"
+  display IQuote = "quote"
+  display ICompose = "compose"
+  display IApply = "apply"
 
 instance Display Type where
   display (TVar tv) = display tv
@@ -93,6 +99,9 @@ instance Display TypeError where
   display (MatchError matchError) = "match error: " ++ display matchError
   display (UndefinedCons cid) = "undefined constructor: " ++ cid
   display (UndefinedFn fid) = "undefined function: " ++ fid
+  
+instance Display FnDeclError where
+  display err@(FnAlreadyDeclared fid) = show err
 
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
@@ -105,6 +114,11 @@ instance Display DataDefError where
   display (TypeConsArityMismatch tcid t) =
     unwords ["TypeConsArityMismatch", tcid, display t]
   display err = show err
+
+instance Display ElementError where
+  display (FnDeclError e) = display e
+  display (FnDefError e) = display e
+  display (DataDefError e) = display e
 
 instance Display Val where
   display (VCons Empty cid) = cid

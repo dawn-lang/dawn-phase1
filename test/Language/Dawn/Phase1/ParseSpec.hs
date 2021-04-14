@@ -431,12 +431,18 @@ spec = do
               ("$a" $: v0 * v1 --> v0 * v2 $. "$b" $: v0 * v2 --> v0 * v1)
           )
 
-  describe "parseDefs" $ do
-    it "parses data and fn defs" $ do
-      let drop2Src = "{fn drop2 => drop drop}"
-      let boolSrc = "{data Bool {cons False} {cons True}}"
-      let src = unlines [drop2Src, boolSrc]
-      let (Right drop2Def) = parseFnDef drop2Src
-      let (Right boolDef) = parseDataDef boolSrc
-      parseDefs src
-        `shouldBe` Right ([boolDef], [drop2Def])
+  describe "parseElements" $ do
+    it "parses all declarations and definitions" $ do
+      let drop2DeclSrc = "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+      let drop2DefSrc = "{fn drop2 => drop drop}"
+      let boolDefSrc = "{data Bool {cons False} {cons True}}"
+      let src = unlines [drop2DeclSrc, drop2DefSrc, boolDefSrc]
+      let (Right drop2Decl) = parseFnDecl drop2DeclSrc
+      let (Right drop2Def) = parseFnDef drop2DefSrc
+      let (Right boolDef) = parseDataDef boolDefSrc
+      parseElements src
+        `shouldBe` Right
+          [ EFnDecl drop2Decl,
+            EFnDef drop2Def,
+            EDataDef boolDef
+          ]
