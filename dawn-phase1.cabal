@@ -37,7 +37,8 @@ library
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , either
     , extra
@@ -53,7 +54,8 @@ executable dawni
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
@@ -71,7 +73,8 @@ executable enumerate-eval-unstable-types
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
@@ -88,7 +91,8 @@ executable enumerate-exprs
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
@@ -105,7 +109,8 @@ executable enumerate-grouping-unstable-types
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
@@ -122,7 +127,8 @@ executable enumerate-non-typeable-exprs
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
@@ -147,7 +153,8 @@ test-suite dawn-phase1-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
     , containers
     , dawn-phase1
     , either
