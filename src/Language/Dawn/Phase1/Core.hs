@@ -22,7 +22,6 @@ module Language.Dawn.Phase1.Core
     DataDefError (..),
     defaultMultiStack,
     Element (..),
-    ElementError (..),
     emptyEnv,
     ensureUniqueStackId,
     Env (..),
@@ -42,6 +41,7 @@ module Language.Dawn.Phase1.Core
     freshTypeVar,
     fromStack,
     HasTypeVars (..),
+    Include (..),
     inferNormType,
     inferType,
     instantiate,
@@ -65,7 +65,7 @@ module Language.Dawn.Phase1.Core
     Subst (..),
     tempStackIds,
     toStack,
-    tryAddElements,
+    tryAddDataDefs,
     tryAddFnDecl,
     tryAddFnDecls,
     tryAddFnDefs,
@@ -77,6 +77,7 @@ module Language.Dawn.Phase1.Core
     uncondFnDeps,
     UnificationError (..),
     UnivQuants,
+    URIRef (..),
     VarId,
   )
 where
@@ -1115,38 +1116,14 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
 -- Program Elements --
 ----------------------
 
+newtype Include = Include URIRef
+  deriving (Eq, Show)
+
+type URIRef = String
+
 data Element
   = EFnDecl FnDecl
   | EFnDef FnDef
   | EDataDef DataDef
+  | EInclude Include
   deriving (Eq, Show)
-
-data ElementError
-  = FnDeclError FnDeclError
-  | FnDefError FnDefError
-  | DataDefError DataDefError
-  deriving (Eq, Show)
-
-getFnDecls :: [Element] -> [FnDecl]
-getFnDecls [] = []
-getFnDecls (EFnDecl d : es) = d : getFnDecls es
-getFnDecls (e : es) = getFnDecls es
-
-getFnDefs :: [Element] -> [FnDef]
-getFnDefs [] = []
-getFnDefs (EFnDef d : es) = d : getFnDefs es
-getFnDefs (e : es) = getFnDefs es
-
-getDataDefs :: [Element] -> [DataDef]
-getDataDefs [] = []
-getDataDefs (EDataDef d : es) = d : getDataDefs es
-getDataDefs (e : es) = getDataDefs es
-
-tryAddElements :: Env -> [Element] -> Either ElementError Env
-tryAddElements env elems = do
-  let dataDefs = getDataDefs elems
-      fnDecls = getFnDecls elems
-      fnDefs = getFnDefs elems
-  env1 <- mapLeft DataDefError (tryAddDataDefs env dataDefs)
-  env2 <- mapLeft FnDeclError (tryAddFnDecls env1 fnDecls)
-  mapLeft FnDefError (tryAddFnDefs env2 fnDefs)

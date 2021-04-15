@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
+import Language.Dawn.Phase1.TryAddElements
 
 class Display t where
   display :: t -> String
@@ -99,7 +100,7 @@ instance Display TypeError where
   display (MatchError matchError) = "match error: " ++ display matchError
   display (UndefinedCons cid) = "undefined constructor: " ++ cid
   display (UndefinedFn fid) = "undefined function: " ++ fid
-  
+
 instance Display FnDeclError where
   display err@(FnAlreadyDeclared fid) = show err
 
@@ -116,9 +117,10 @@ instance Display DataDefError where
   display err = show err
 
 instance Display ElementError where
-  display (FnDeclError e) = display e
-  display (FnDefError e) = display e
-  display (DataDefError e) = display e
+  display (IncludeElementError e) = show e
+  display (DataDefElementError e) = display e
+  display (FnDeclElementError e) = display e
+  display (FnDefElementError e) = display e
 
 instance Display Val where
   display (VCons Empty cid) = cid

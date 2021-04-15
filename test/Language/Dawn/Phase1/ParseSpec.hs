@@ -460,6 +460,11 @@ spec = do
       parseShorthandFnType "v1 -> v1 v1"
         `shouldBe` Right ([v1], [v1, v1])
 
+  describe "parseInclude" $ do
+    it "parses `{include \"src/prelude.dn\"}`" $ do
+      parseInclude "{include \"src/prelude.dn\"}"
+        `shouldBe` Right (Include "src/prelude.dn")
+
   describe "parseElements" $ do
     it "parses all declarations and definitions" $ do
       let drop2DeclSrc = "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
@@ -475,3 +480,66 @@ spec = do
             EFnDef drop2Def,
             EDataDef boolDef
           ]
+
+    it "parses `{include \"test/Test1.dn\"}`" $ do
+      parseElements "{include \"test/Test1.dn\"}"
+        `shouldBe` Right [EInclude (Include "test/Test1.dn")]
+
+    it "skips comments" $ do
+      let src = "-- this is a comment\n{include \"test/Test1.dn\"}"
+      parseElements src `shouldBe` Right [EInclude (Include "test/Test1.dn")]
+
+    it "skips comment on last line" $ do
+      let src = "-- this is a comment on the last line"
+      parseElements src `shouldBe` Right []
+
+    it "skips copyright header" $ do
+      let src =
+            unlines
+              [ "-- Copyright (c) 2021 Scott J Maddox",
+                "--",
+                "-- This Source Code Form is subject to the terms of the Mozilla Public",
+                "-- License, v. 2.0. If a copy of the MPL was not distributed with this",
+                "-- file, You can obtain one at https://mozilla.org/MPL/2.0/.",
+                ""
+              ]
+      parseElements src `shouldBe` Right []
+
+    it "parses contents of Test1.dn" $ do
+      let src =
+            unlines
+              [ "-- Copyright (c) 2021 Scott J Maddox",
+                "--",
+                "-- This Source Code Form is subject to the terms of the Mozilla Public",
+                "-- License, v. 2.0. If a copy of the MPL was not distributed with this",
+                "-- file, You can obtain one at https://mozilla.org/MPL/2.0/.",
+                "",
+                "{data Test1 {cons Test1}}",
+                "{fn test1 :: Test1}",
+                "{fn test1 => Test1}",
+                ""
+              ]
+      let (Right elems) =
+            parseElements
+              ( unlines
+                  [ "{data Test1 {cons Test1}}",
+                    "{fn test1 :: Test1}",
+                    "{fn test1 => Test1}",
+                    ""
+                  ]
+              )
+      parseElements src `shouldBe` Right elems
+
+  describe "parseElementsFromFile" $ do
+    it "parses Test1.dn" $ do
+      result <- parseElementsFromFile "test/Test1.dn"
+      let (Right elems) =
+            parseElements
+              ( unlines
+                  [ "{data Test1 {cons Test1}}",
+                    "{fn test1 :: Test1}",
+                    "{fn test1 => Test1}",
+                    ""
+                  ]
+              )
+      result `shouldBe` Right elems

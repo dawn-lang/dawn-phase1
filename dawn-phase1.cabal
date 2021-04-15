@@ -30,6 +30,7 @@ library
       Language.Dawn.Phase1.Exprs
       Language.Dawn.Phase1.Parse
       Language.Dawn.Phase1.PartialEval
+      Language.Dawn.Phase1.TryAddElements
       Language.Dawn.Phase1.Utils
   other-modules:
       Paths_dawn_phase1
@@ -39,6 +40,7 @@ library
       base >=4.7 && <5
     , containers
     , either
+    , extra
     , mtl
     , parsec
   default-language: Haskell2010
@@ -55,6 +57,7 @@ executable dawni
     , containers
     , dawn-phase1
     , either
+    , extra
     , haskeline
     , mtl
     , parsec
@@ -72,6 +75,7 @@ executable enumerate-eval-unstable-types
     , containers
     , dawn-phase1
     , either
+    , extra
     , mtl
     , parsec
   default-language: Haskell2010
@@ -88,6 +92,7 @@ executable enumerate-exprs
     , containers
     , dawn-phase1
     , either
+    , extra
     , mtl
     , parsec
   default-language: Haskell2010
@@ -104,6 +109,7 @@ executable enumerate-grouping-unstable-types
     , containers
     , dawn-phase1
     , either
+    , extra
     , mtl
     , parsec
   default-language: Haskell2010
@@ -120,6 +126,7 @@ executable enumerate-non-typeable-exprs
     , containers
     , dawn-phase1
     , either
+    , extra
     , mtl
     , parsec
   default-language: Haskell2010
@@ -133,6 +140,7 @@ test-suite dawn-phase1-test
       Language.Dawn.Phase1.EvalSpec
       Language.Dawn.Phase1.ParseSpec
       Language.Dawn.Phase1.PartialEvalSpec
+      Language.Dawn.Phase1.TryAddElementsSpec
       Language.Dawn.Phase1.UtilsSpec
       Paths_dawn_phase1
   hs-source-dirs:
@@ -143,6 +151,7 @@ test-suite dawn-phase1-test
     , containers
     , dawn-phase1
     , either
+    , extra
     , hspec
     , mtl
     , parsec
