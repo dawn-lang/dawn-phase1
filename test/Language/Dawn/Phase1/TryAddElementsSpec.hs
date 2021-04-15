@@ -9,6 +9,7 @@ module Language.Dawn.Phase1.TryAddElementsSpec (spec) where
 import Control.Monad.Except
 import Data.Either
 import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.CoreSpec hiding (spec)
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Exprs
 import Language.Dawn.Phase1.Parse
@@ -19,6 +20,13 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "tryAddElements" $ do
+    it "adds test definitions" $ do
+      let testDefSrc = "{test \"this is a test description\" => Z {match {case Z =>}}}"
+      let (Right testDef) = parseTestDef testDefSrc
+      result <- runExceptT (tryAddElements testEnv [ETestDef testDef])
+      let (Right env) = tryAddTestDef testEnv testDef
+      result `shouldBe` Right env
+
     it "adds Bool, Nat, and is_odd" $ do
       let boolDefSrc = "{data Bool {cons False} {cons True}}"
       let natDefSrc = "{data Nat {cons Z} {cons Nat S}}"
