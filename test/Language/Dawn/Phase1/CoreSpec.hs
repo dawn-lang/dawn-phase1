@@ -1009,32 +1009,6 @@ spec = do
       addDataDefs emptyEnv [def]
         `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
 
-  describe "tryAddElements" $ do
-    it "adds Bool, Nat, and is_odd" $ do
-      let boolDefSrc = "{data Bool {cons False} {cons True}}"
-      let natDefSrc = "{data Nat {cons Z} {cons Nat S}}"
-      let isOddDeclSrc = "{fn is_odd :: forall v0 . v0 Nat -> v0 Bool}"
-      let isOddDefSrc =
-            unlines
-              [ "{fn is_odd => {match",
-                "    {case Z => False}",
-                "    {case (Z S) => True}",
-                "    {case (S S) => is_odd}",
-                "}}"
-              ]
-      let (Right elems) =
-            parseElements
-              (unlines [boolDefSrc, natDefSrc, isOddDeclSrc, isOddDefSrc])
-      let (Right boolDef) = parseDataDef boolDefSrc
-      let (Right natDef) = parseDataDef natDefSrc
-      let (Right isOddDecl) = parseFnDecl isOddDeclSrc
-      let (Right isOddDef) = parseFnDef isOddDefSrc
-      let ([], env) = addDataDefs emptyEnv [boolDef, natDef]
-      let (Right env') = tryAddFnDecl env isOddDecl
-      let (Right env'') = tryAddFnDefs env' [isOddDef]
-      tryAddElements emptyEnv elems
-        `shouldBe` Right env''
-
 (Right d_swap) = parseFnDef "{fn swap => $a<- $b<- $a-> $b->}"
 
 (Right dBool) = parseDataDef "{data Bool {cons False} {cons True}}"

@@ -10,6 +10,7 @@ module Main where
 import Control.Exception (SomeException)
 import qualified Control.Exception
 import Control.Monad
+import Control.Monad.Except
 import Control.Monad.IO.Class
 import Data.List
 import qualified Data.Map as Map
@@ -20,6 +21,7 @@ import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
 import Language.Dawn.Phase1.PartialEval
+import Language.Dawn.Phase1.TryAddElements
 import Language.Dawn.Phase1.Utils
 import System.Console.Haskeline hiding (display)
 import System.Exit
@@ -76,11 +78,13 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
-      Right (CmdElements elems) -> case tryAddElements env elems of
-        Left err -> do
-          outputStrLn ("Error: " ++ display err)
-          return (env, ms)
-        Right env' -> return (env', ms)
+      Right (CmdElements elems) -> do
+        result <- liftIO (runExceptT (tryAddElements env elems))
+        case result of
+          Left err -> do
+            outputStrLn ("Error: " ++ display err)
+            return (env, ms)
+          Right env' -> return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of

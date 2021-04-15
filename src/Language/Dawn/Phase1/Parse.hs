@@ -12,10 +12,12 @@ module Language.Dawn.Phase1.Parse
     keyword,
     parseDataDef,
     parseElements,
+    parseElementsFromFile,
     parseExpr,
     parseFnDecl,
     parseFnDef,
     parseFnType,
+    parseInclude,
     parseProdType,
     parseShorthandFnType,
     parseValMultiStack,
@@ -26,51 +28,87 @@ where
 import Control.Monad (fail, void, when)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Language.Dawn.Phase1.Core
+import Language.Dawn.Phase1.Core hiding ((*))
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Utils
+import Numeric
 import Text.Parsec hiding (Empty)
 import Text.Parsec.String
 import Prelude hiding (drop)
 
+parseElementsFromFile :: FilePath -> IO (Either ParseError [Element])
+parseElementsFromFile = parseFromFile (skip *> elements <* eof)
+
 parseElements :: String -> Either ParseError [Element]
-parseElements = parse (skipMany space *> elements <* eof) ""
+parseElements = parse (skip *> elements <* eof) ""
+
+parseInclude :: String -> Either ParseError Include
+parseInclude = parse (skip *> include <* eof) ""
 
 parseProdType :: String -> Either ParseError Type
-parseProdType = parse (skipMany space *> prodType <* eof) ""
+parseProdType = parse (skip *> prodType <* eof) ""
 
 parseShorthandFnType :: String -> Either ParseError ShorthandFnType
-parseShorthandFnType = parse (skipMany space *> shorthandFnType <* eof) ""
+parseShorthandFnType = parse (skip *> shorthandFnType <* eof) ""
 
 parseFnType :: String -> Either ParseError Type
-parseFnType = parse (skipMany space *> fnType <* eof) ""
+parseFnType = parse (skip *> fnType <* eof) ""
 
 parseDataDef :: String -> Either ParseError DataDef
-parseDataDef = parse (skipMany space *> dataDef <* eof) ""
+parseDataDef = parse (skip *> dataDef <* eof) ""
 
 parseFnDecl :: String -> Either ParseError FnDecl
-parseFnDecl = parse (skipMany space *> fnDecl <* eof) ""
+parseFnDecl = parse (skip *> fnDecl <* eof) ""
 
 parseFnDef :: String -> Either ParseError FnDef
-parseFnDef = parse (skipMany space *> fnDef <* eof) ""
+parseFnDef = parse (skip *> fnDef <* eof) ""
 
 parseExpr :: String -> Either ParseError Expr
-parseExpr = parse (skipMany space *> expr <* eof) ""
+parseExpr = parse (skip *> expr <* eof) ""
 
 parseValStack :: String -> Either ParseError (Stack Val)
-parseValStack = parse (skipMany space *> valStack <* eof) ""
+parseValStack = parse (skip *> valStack <* eof) ""
 
 parseValMultiStack :: String -> Either ParseError (MultiStack Val)
-parseValMultiStack = parse (skipMany space *> valMultiStack <* eof) ""
+parseValMultiStack = parse (skip *> valMultiStack <* eof) ""
 
 elements :: Parser [Element]
 elements = many element
 
 element :: Parser Element
 element =
-  EFnDecl <$> try fnDecl
-    <|> EFnDef <$> try fnDef
-    <|> EDataDef <$> dataDef
+  EInclude <$> try include
+    <|> EDataDef <$> try dataDef
+    <|> EFnDecl <$> try fnDecl
+    <|> EFnDef <$> fnDef
+
+include :: Parser Include
+include = Include <$> betweenBraces (keyword "include" *> stringLiteral)
+
+stringLiteral :: Parser String
+stringLiteral = between (char '"') (char '"') (many stringLiteralChar)
+
+stringLiteralChar :: Parser Char
+stringLiteralChar = try escaped <|> unescaped
+  where
+    escaped =
+      char '\\'
+        *> ( escapedHex
+               <|> (char '0' >> return '\0')
+               <|> (char 'n' >> return '\n')
+               <|> (char 'r' >> return '\r')
+               <|> (char 't' >> return '\t')
+               <|> (char '\\' >> return '\\')
+               <|> (char '\'' >> return '\'')
+               <|> (char '"' >> return '"')
+           )
+    escapedHex = do
+      _ <- char 'x'
+      h <- hexDigit
+      l <- hexDigit
+      let [(i, "")] = readHex [h, l]
+      return (toEnum i)
+    unescaped = noneOf "\0\n\r\t\\\""
 
 fnType :: Parser Type
 fnType =
@@ -110,10 +148,10 @@ consDef :: Parser ConsDef
 consDef = betweenBraces (ConsDef <$> (keyword "cons" *> consTypeArgs) <*> consId)
 
 simpleConsType :: Parser Type
-simpleConsType = lexeme (TCons [] <$> consId)
+simpleConsType = TCons [] <$> consId
 
 consType :: Parser Type
-consType = lexeme (TCons <$> consTypeArgs <*> consId)
+consType = TCons <$> consTypeArgs <*> consId
 
 consTypeArgs :: Parser [Type]
 consTypeArgs = do
@@ -126,7 +164,7 @@ consTypeArgs = do
     consTypeArg' = try consType <|> varType <|> betweenParens consTypeArg'
 
 varType :: Parser Type
-varType = lexeme (TVar <$> typeVar)
+varType = TVar <$> typeVar
 
 typeVar :: Parser TypeVar
 typeVar = TypeVar . fromInteger <$> (char 'v' *> integer)
@@ -298,10 +336,15 @@ identFirstChar = letter <|> char '_'
 
 identChar = letter <|> char '_' <|> digit
 
+notChar :: Char -> Parser Char
+notChar c = satisfy (/= c)
+
+lineComment = string "--" *> many (notChar '\n') <* optional (char '\n')
+
+skip = void (many (void space <|> try (void lineComment)))
+
+lexeme p = p <* skip
+
 keyword s = void $ lexeme (string s <* notFollowedBy identChar)
 
 symbol s = void $ lexeme (string s)
-
-lexeme p = p <* (skip <|> eof)
-
-skip = void $ many space
