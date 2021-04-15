@@ -64,11 +64,15 @@ module Language.Dawn.Phase1.Core
     Subs (..),
     Subst (..),
     tempStackIds,
+    TestDef (..),
+    TestDefError (..),
     toStack,
     tryAddDataDefs,
     tryAddFnDecl,
     tryAddFnDecls,
     tryAddFnDefs,
+    tryAddTestDef,
+    tryAddTestDefs,
     Type (..),
     TypeConsId,
     TypeError (..),
@@ -555,13 +559,14 @@ data Env = Env
     consTypes :: Map.Map ConsId ([Type], Type),
     fnDecls :: Map.Map FnId FnDecl,
     fnDefs :: Map.Map FnId FnDef,
-    fnTypes :: Map.Map FnId Type
+    fnTypes :: Map.Map FnId Type,
+    testDefs :: [TestDef]
   }
   deriving (Eq, Show)
 
 emptyEnv :: Env
 emptyEnv =
-  Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
+  Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty []
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
@@ -1112,6 +1117,37 @@ addDataDefs env@Env {dataDefs, consDefs} defs =
             throwError (TypeConsArityMismatch tcid t)
         checkArg (TCons args tcid) = mapM_ checkArg args
 
+---------------------
+-- Test Definition --
+---------------------
+
+data TestDef = TestDef TestName Expr
+  deriving (Eq, Show)
+
+type TestName = String
+
+data TestDefError
+  = TestTypeError TestName TypeError
+  | TestExpectsInputs TestName Type
+  deriving (Eq, Show)
+
+isTProd :: Type -> Bool
+isTProd (TProd _ _) = True
+isTProd _ = False
+
+expectsInputs :: Type -> Bool
+expectsInputs (TFn _ mio) = any (\(i, o) -> isTProd i) (Map.elems mio)
+expectsInputs _ = False
+
+tryAddTestDef :: Env -> TestDef -> Either TestDefError Env
+tryAddTestDef env@Env {testDefs} def@(TestDef n e) = do
+  t <- mapLeft (TestTypeError n) (inferNormType env ["$"] e)
+  when (expectsInputs t) (throwError (TestExpectsInputs n t))
+  return env {testDefs = testDefs ++ [def]}
+
+tryAddTestDefs :: Env -> [TestDef] -> Either TestDefError Env
+tryAddTestDefs = foldM tryAddTestDef
+
 ----------------------
 -- Program Elements --
 ----------------------
@@ -1122,8 +1158,9 @@ newtype Include = Include URIRef
 type URIRef = String
 
 data Element
-  = EFnDecl FnDecl
-  | EFnDef FnDef
+  = EInclude Include
   | EDataDef DataDef
-  | EInclude Include
+  | EFnDecl FnDecl
+  | EFnDef FnDef
+  | ETestDef TestDef
   deriving (Eq, Show)

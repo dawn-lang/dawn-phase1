@@ -465,20 +465,34 @@ spec = do
       parseInclude "{include \"src/prelude.dn\"}"
         `shouldBe` Right (Include "src/prelude.dn")
 
+  describe "parseTestDef" $ do
+    it "parses `{test \"this is a test description\" => Z {match {case Z =>}}}`" $ do
+      let (Right e) = parseExpr "Z {match {case Z =>}}"
+      parseTestDef "{test \"this is a test description\" => Z {match {case Z =>}}}"
+        `shouldBe` Right (TestDef "this is a test description" e)
+
   describe "parseElements" $ do
+    it "parses test definitions" $ do
+      let testDefSrc = "{test \"this is a test description\" => Z {match {case Z =>}}}"
+      let (Right testDef) = parseTestDef testDefSrc
+      parseElements testDefSrc `shouldBe` Right [ETestDef testDef]
+
     it "parses all declarations and definitions" $ do
       let drop2DeclSrc = "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
       let drop2DefSrc = "{fn drop2 => drop drop}"
       let boolDefSrc = "{data Bool {cons False} {cons True}}"
-      let src = unlines [drop2DeclSrc, drop2DefSrc, boolDefSrc]
+      let testDefSrc = "{test \"this is a test description\" => Z {match {case Z =>}}}"
+      let src = unlines [drop2DeclSrc, drop2DefSrc, boolDefSrc, testDefSrc]
       let (Right drop2Decl) = parseFnDecl drop2DeclSrc
       let (Right drop2Def) = parseFnDef drop2DefSrc
       let (Right boolDef) = parseDataDef boolDefSrc
+      let (Right testDef) = parseTestDef testDefSrc
       parseElements src
         `shouldBe` Right
           [ EFnDecl drop2Decl,
             EFnDef drop2Def,
-            EDataDef boolDef
+            EDataDef boolDef,
+            ETestDef testDef
           ]
 
     it "parses `{include \"test/Test1.dn\"}`" $ do

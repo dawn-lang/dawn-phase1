@@ -1008,6 +1008,15 @@ spec = do
               "{data v0 Stack {cons Empty} {cons Stack v0 Push}}"
       addDataDefs emptyEnv [def]
         `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
+  
+  describe "tryAddTestDef" $ do
+    it "adds test definition" $ do
+      let testDefSrc = "{test \"this is a test description\" => Z {match {case Z =>}}}"
+      let (Right testDef) = parseTestDef testDefSrc
+      let testDefs = [testDef]
+      let env = testEnv {testDefs}
+      tryAddTestDef testEnv testDef
+        `shouldBe` Right env
 
 (Right d_swap) = parseFnDef "{fn swap => $a<- $b<- $a-> $b->}"
 

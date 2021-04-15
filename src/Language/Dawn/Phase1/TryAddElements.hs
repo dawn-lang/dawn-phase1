@@ -23,6 +23,7 @@ data ElementError
   | DataDefElementError DataDefError
   | FnDeclElementError FnDeclError
   | FnDefElementError FnDefError
+  | TestDefElementError TestDefError
   deriving (Eq, Show)
 
 getDataDefs :: [Element] -> [DataDef]
@@ -40,12 +41,18 @@ getFnDefs [] = []
 getFnDefs (EFnDef d : es) = d : getFnDefs es
 getFnDefs (e : es) = getFnDefs es
 
+getTestDefs :: [Element] -> [TestDef]
+getTestDefs [] = []
+getTestDefs (ETestDef d : es) = d : getTestDefs es
+getTestDefs (e : es) = getTestDefs es
+
 tryAddElements :: Env -> [Element] -> ExceptT ElementError IO Env
 tryAddElements env elems = do
   elems' <- recursiveInclude "" elems
   env1 <- liftEither (mapLeft DataDefElementError (tryAddDataDefs env (getDataDefs elems')))
   env2 <- liftEither (mapLeft FnDeclElementError (tryAddFnDecls env1 (getFnDecls elems')))
-  liftEither (mapLeft FnDefElementError (tryAddFnDefs env2 (getFnDefs elems')))
+  env3 <- liftEither (mapLeft FnDefElementError (tryAddFnDefs env2 (getFnDefs elems')))
+  liftEither (mapLeft TestDefElementError (tryAddTestDefs env3 (getTestDefs elems')))
   where
     recursiveInclude :: String -> [Element] -> ExceptT ElementError IO [Element]
     recursiveInclude uriRefDir [] = return []

@@ -20,6 +20,7 @@ module Language.Dawn.Phase1.Parse
     parseInclude,
     parseProdType,
     parseShorthandFnType,
+    parseTestDef,
     parseValMultiStack,
     parseValStack,
   )
@@ -63,6 +64,9 @@ parseFnDecl = parse (skip *> fnDecl <* eof) ""
 parseFnDef :: String -> Either ParseError FnDef
 parseFnDef = parse (skip *> fnDef <* eof) ""
 
+parseTestDef :: String -> Either ParseError TestDef
+parseTestDef = parse (skip *> testDef <* eof) ""
+
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skip *> expr <* eof) ""
 
@@ -80,13 +84,14 @@ element =
   EInclude <$> try include
     <|> EDataDef <$> try dataDef
     <|> EFnDecl <$> try fnDecl
-    <|> EFnDef <$> fnDef
+    <|> EFnDef <$> try fnDef
+    <|> ETestDef <$> testDef
 
 include :: Parser Include
 include = Include <$> betweenBraces (keyword "include" *> stringLiteral)
 
 stringLiteral :: Parser String
-stringLiteral = between (char '"') (char '"') (many stringLiteralChar)
+stringLiteral = lexeme (between (char '"') (char '"') (many stringLiteralChar))
 
 stringLiteralChar :: Parser Char
 stringLiteralChar = try escaped <|> unescaped
@@ -179,6 +184,12 @@ fnDeclType =
 
 fnDef :: Parser FnDef
 fnDef = betweenBraces (FnDef <$> (keyword "fn" *> fnId) <*> (symbol "=>" *> expr))
+
+testDef :: Parser TestDef
+testDef =
+  betweenBraces
+    ( TestDef <$> (keyword "test" *> stringLiteral) <*> (symbol "=>" *> expr)
+    )
 
 expr :: Parser Expr
 expr =

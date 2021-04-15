@@ -7,6 +7,7 @@
 
 module Main where
 
+import Data.Either.Combinators
 import Control.Exception (SomeException)
 import qualified Control.Exception
 import Control.Monad
@@ -23,6 +24,7 @@ import Language.Dawn.Phase1.Parse
 import Language.Dawn.Phase1.PartialEval
 import Language.Dawn.Phase1.TryAddElements
 import Language.Dawn.Phase1.Utils
+import System.Console.ANSI
 import System.Console.Haskeline hiding (display)
 import System.Exit
 import System.IO
@@ -52,6 +54,9 @@ readEvalPrint (env, ms) = do
         return (emptyEnv, MultiStack Map.empty)
       Right CmdDrop -> do
         return (env, MultiStack Map.empty)
+      Right CmdTest -> do
+        runTests env
+        return (env, ms)
       Right (CmdType e) -> do
         printExprType env e
         return (env, ms)
@@ -113,6 +118,7 @@ multiStackToExpr (MultiStack ms) =
       mapper (s, vs) = EContext s (ECompose (map fromVal (fromStack vs)))
    in ECompose (map mapper (Map.toAscList ms))
 
+printInferTypeError :: (MonadIO m, Display t1, Display t2) => t1 -> t2 -> InputT m ()
 printInferTypeError e err =
   outputStrLn $ "Error: " ++ display e ++ " is not typeable. " ++ display err
 
@@ -152,6 +158,42 @@ tryEval :: EvalEnv -> Expr -> MultiStack Val -> InputT IO (Either SomeException 
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
 
+runTests :: Env -> InputT IO ()
+runTests env@Env {testDefs} = do
+  let evalEnv = toEvalEnv env
+  results <- mapM (runTest evalEnv) testDefs
+  let total = length results
+  let passed = length (filter isRight results)
+  let failed = length (filter isLeft results)
+  mapM_ (uncurry printTestError) (zip testDefs results)
+  outputStr ("\nRan " ++ show total ++ " tests. ")
+  outputStr (show passed ++ " passed. ")
+  outputStr (show failed ++ " failed.")
+  outputStrLn "\n"
+
+runTest :: EvalEnv -> TestDef -> InputT IO (Either SomeException ())
+runTest evalEnv (TestDef n e) = do
+  outputStr $ n ++ " ... "
+  result <- tryEval evalEnv e (MultiStack Map.empty)
+  case result :: Either SomeException (MultiStack Val) of
+    Left err -> do
+      outputStrLn (setSGRCode [SetColor Foreground Vivid Red] ++ "Fail" ++ setSGRCode [Reset])
+      return (Left err)
+    Right ms' -> do
+      outputStrLn (setSGRCode [SetColor Foreground Vivid Green] ++ "Pass" ++ setSGRCode [Reset])
+      return (Right ())
+
+printTestError :: TestDef -> Either SomeException () -> InputT IO ()
+printTestError (TestDef n _) (Left err) = do
+  outputStrLn ""
+  outputStrLn (replicate 70 '=')
+  outputStrLn n
+  outputStrLn (replicate 70 '=')
+  outputStrLn (show err)
+  outputStrLn (replicate 70 '-')
+  return ()
+printTestError _ _ = return ()
+
 parseCommand :: String -> Either ParseError Command
 parseCommand = parse (skipMany space *> command <* eof) ""
 
@@ -160,6 +202,7 @@ command =
   try (keyword ":exit" >> return CmdExit)
     <|> try (keyword ":reset" >> return CmdReset)
     <|> try (keyword ":drop" >> return CmdDrop)
+    <|> try (keyword ":test" >> return CmdTest)
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
@@ -170,6 +213,7 @@ data Command
   = CmdExit
   | CmdReset
   | CmdDrop
+  | CmdTest
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
