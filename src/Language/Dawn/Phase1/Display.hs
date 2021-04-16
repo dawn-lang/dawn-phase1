@@ -116,11 +116,18 @@ instance Display DataDefError where
     unwords ["TypeConsArityMismatch", tcid, display t]
   display err = show err
 
+instance Display TestDefError where
+  display (TestTypeError name err) =
+    "TestTypeError " ++ show name ++ " " ++ display err
+  display (TestExpectsInputs name t) =
+    "TestExpectsInputs " ++ show name ++ " " ++ display t
+
 instance Display ElementError where
-  display (IncludeElementError e) = show e
-  display (DataDefElementError e) = display e
-  display (FnDeclElementError e) = display e
-  display (FnDefElementError e) = display e
+  display (IncludeElementError e) = "IncludeElementError " ++ show e
+  display (DataDefElementError e) = "DataDefElementError " ++ display e
+  display (FnDeclElementError e) = "FnDeclElementError " ++ display e
+  display (FnDefElementError e) = "FnDefElementError " ++ display e
+  display (TestDefElementError e) = "TestDefElementError " ++ display e
 
 instance Display Val where
   display (VCons Empty cid) = cid
