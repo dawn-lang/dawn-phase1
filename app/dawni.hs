@@ -26,14 +26,31 @@ import Language.Dawn.Phase1.TryAddElements
 import Language.Dawn.Phase1.Utils
 import System.Console.ANSI
 import System.Console.Haskeline hiding (display)
+import System.Environment
 import System.Exit
 import System.IO
 import Text.Parsec
 import Text.Parsec.String
 
 main = do
-  putStrLn "Dawn Phase 1 Interpreter"
-  runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
+  args <- getArgs
+  case args of
+    [] -> do
+      putStrLn "Dawn Phase 1 Interpreter"
+      runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
+      return ()
+    ("--test" : args') -> do
+      case args' of
+        [] -> do
+          putStrLn "Usage: --test FILE_PATH"
+          return ()
+        (path : args') -> do
+          runInputT defaultSettings (doCliTest path)
+
+doCliTest path = do
+  env <- doAddElements emptyEnv [EInclude (Include path)]
+  runTests env
+  return ()
 
 readEvalPrintLoop :: (Env, MultiStack Val) -> InputT IO (Env, MultiStack Val)
 readEvalPrintLoop (env, ms) = do
@@ -83,16 +100,9 @@ readEvalPrint (env, ms) = do
       Right (CmdPartialEval e) -> do
         printExprType env (partialEval' e)
         return (env, ms)
-      Right (CmdElements elems) -> do
-        result <- tryTryAddElements env elems
-        case result :: Either SomeException (Either ElementError Env) of
-          Left err -> do
-            outputStrLn ("Error: " ++ show err)
-            return (env, ms)
-          Right (Left err) -> do
-            outputStrLn ("Error: " ++ display err)
-            return (env, ms)
-          Right (Right env') -> return (env', ms)
+      Right (CmdAddElements elems) -> do
+        env' <- doAddElements env elems
+        return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -114,6 +124,17 @@ readEvalPrint (env, ms) = do
                   Right ms' -> do
                     outputStrLn $ display ms'
                     return (env, ms')
+
+doAddElements env elems = do
+  result <- tryTryAddElements env elems
+  case result :: Either SomeException (Either ElementError Env) of
+    Left err -> do
+      outputStrLn ("Error: " ++ show err)
+      return env
+    Right (Left err) -> do
+      outputStrLn ("Error: " ++ display err)
+      return env
+    Right (Right env') -> return env'
 
 multiStackToExpr :: MultiStack Val -> Expr
 multiStackToExpr (MultiStack ms) =
@@ -216,7 +237,7 @@ command =
     <|> try (CmdType <$> (keyword ":type" *> expr))
     <|> try (CmdTrace <$> (keyword ":trace" *> expr))
     <|> try (CmdPartialEval <$> (keyword ":partialEval" *> expr))
-    <|> try (CmdElements <$> many1 element)
+    <|> try (CmdAddElements <$> many1 element)
     <|> CmdEval <$> expr
 
 data Command
@@ -227,5 +248,5 @@ data Command
   | CmdType Expr
   | CmdTrace Expr
   | CmdPartialEval Expr
-  | CmdElements [Element]
+  | CmdAddElements [Element]
   | CmdEval Expr
