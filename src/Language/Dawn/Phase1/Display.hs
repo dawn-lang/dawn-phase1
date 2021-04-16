@@ -96,17 +96,17 @@ instance Display MatchError where
     display t ++ " does not match " ++ display t'
 
 instance Display TypeError where
-  display (UnificationError err) = "unification error: " ++ display err
-  display (MatchError matchError) = "match error: " ++ display matchError
-  display (UndefinedCons cid) = "undefined constructor: " ++ cid
-  display (UndefinedFn fid) = "undefined function: " ++ fid
+  display (UnificationError err) = "UnificationError " ++ display err
+  display (MatchError matchError) = "MatchError " ++ display matchError
+  display (UndefinedCons cid) = "UndefinedCons " ++ cid
+  display (UndefinedFn fid) = "UndefinedFn " ++ fid
 
 instance Display FnDeclError where
   display err@(FnAlreadyDeclared fid) = show err
 
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
-  display (FnTypeError fid err) = "type error: " ++ display err
+  display (FnTypeError fid err) = "FnTypeError " ++ display err
   display (FnStackError fid sids) =
     let s = intercalate ", " (Set.toList sids)
      in "exposed temporary stacks: " ++ s
