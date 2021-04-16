@@ -7,12 +7,12 @@
 
 module Main where
 
-import Data.Either.Combinators
 import Control.Exception (SomeException)
 import qualified Control.Exception
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
+import Data.Either.Combinators
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -84,12 +84,15 @@ readEvalPrint (env, ms) = do
         printExprType env (partialEval' e)
         return (env, ms)
       Right (CmdElements elems) -> do
-        result <- liftIO (runExceptT (tryAddElements env elems))
-        case result of
+        result <- tryTryAddElements env elems
+        case result :: Either SomeException (Either ElementError Env) of
           Left err -> do
+            outputStrLn ("Error: " ++ show err)
+            return (env, ms)
+          Right (Left err) -> do
             outputStrLn ("Error: " ++ display err)
             return (env, ms)
-          Right env' -> return (env', ms)
+          Right (Right env') -> return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -157,6 +160,13 @@ tryTraceEval env e ms = do
 tryEval :: EvalEnv -> Expr -> MultiStack Val -> InputT IO (Either SomeException (MultiStack Val))
 tryEval env e ms =
   liftIO (Control.Exception.try (Control.Exception.evaluate (eval env ["$"] e ms)))
+
+tryTryAddElements ::
+  Env ->
+  [Element] ->
+  InputT IO (Either SomeException (Either ElementError Env))
+tryTryAddElements env elems =
+  liftIO $ Control.Exception.try $ runExceptT $ tryAddElements env elems
 
 runTests :: Env -> InputT IO ()
 runTests env@Env {testDefs} = do
