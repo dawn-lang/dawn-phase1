@@ -33,7 +33,6 @@ module Language.Dawn.Phase1.Core
     fnDefExpr,
     fnDefFnId,
     fnDeps,
-    fnDepsSort,
     FnId,
     FnIds,
     forall,
@@ -78,7 +77,7 @@ module Language.Dawn.Phase1.Core
     TypeError (..),
     TypeVar (..),
     TypeVars,
-    uncondFnDeps,
+    fnUDeps,
     UnificationError (..),
     UnivQuants,
     URIRef (..),
@@ -836,6 +835,7 @@ newtype FnDeclError
 data FnDefError
   = FnAlreadyDefined FnId
   | FnDuplicate FnId
+  | UncondCallCycle [FnId]
   | FnTypeError FnId TypeError
   | FnStackError FnId StackIds
   deriving (Eq, Show)
@@ -902,48 +902,13 @@ fnDepsF mergeCases = helper
     helper (ECons cid) = Set.empty
     helper (ECall fid) = Set.singleton fid
 
+-- | Dependencies (conditional + unconditional)
 fnDeps :: Expr -> FnIds
 fnDeps = fnDepsF Set.union
 
-uncondFnDeps :: Expr -> FnIds
-uncondFnDeps = fnDepsF Set.intersection
-
--- | Sort FnDef's such that f follows g if f depends on g
--- | (directly or transitively) and g does not depend on f,
--- | or if f unconditionally depends on g and g does not
--- | unconditionally depend on f.
-fnDepsSort :: [FnDef] -> [FnDef]
-fnDepsSort defs =
-  let (uncondDepsGraph, _, uncondDepsFidToVert) =
-        graphFromEdges (map (fnDefToEdgeList uncondFnDeps) defs)
-      (depsGraph, depsVertToTuple, depsFidToVert) =
-        graphFromEdges (map (fnDefToEdgeList fnDeps) defs)
-      dependencySortFns defs =
-        let tupleToFnDef (def, _, _) = def
-            vertToFnDef v = tupleToFnDef (depsVertToTuple v)
-         in map vertToFnDef (topSort depsGraph)
-      fnDepsOrdering f g =
-        let (fid, gid) = (fnDefFnId f, fnDefFnId g)
-            (Just fuv, Just guv) = (uncondDepsFidToVert fid, uncondDepsFidToVert gid)
-            (Just fav, Just gav) = (depsFidToVert fid, depsFidToVert gid)
-            fUncondDepsG = path uncondDepsGraph fuv guv
-            gUncondDepsF = path uncondDepsGraph guv fuv
-            fDepsG = path depsGraph fav gav
-            gDepsF = path depsGraph gav fav
-         in case (fUncondDepsG, gUncondDepsF, fDepsG, gDepsF) of
-              (False, False, False, False) -> EQ
-              (False, False, False, True) -> LT
-              (False, False, True, False) -> GT
-              (False, False, True, True) -> EQ
-              (False, True, False, True) -> LT
-              (False, True, True, True) -> LT
-              (True, False, True, False) -> GT
-              (True, False, True, True) -> GT
-              (True, True, True, True) -> EQ
-              _ -> error "unreachable"
-   in sortBy fnDepsOrdering (dependencySortFns defs)
-  where
-    fnDefToEdgeList exprToDeps def@(FnDef fid e) = (def, fid, Set.toList (exprToDeps e))
+-- | Unconditional dependencies
+fnUDeps :: Expr -> FnIds
+fnUDeps = fnDepsF Set.intersection
 
 tryAddFnDefs :: Env -> [FnDef] -> Either FnDefError Env
 tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
@@ -951,12 +916,16 @@ tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
   checkDuplicates defs
   let unknownType (FnDef fid _) = not (fid `Map.member` fnTypes)
       defsWithoutTypes = filter unknownType defs
-      defsWithoutTypesSorted = fnDepsSort defsWithoutTypes
-  env' <- inferFnTypes env defsWithoutTypesSorted
-  env'' <- inferFnTypes env' defsWithoutTypesSorted
-  checkFnTypes env'' defs
+      defToDeps d@(FnDef fid e) = (d, fid, Set.toList (fnDeps e))
+      sccs = stronglyConnComp (map defToDeps defsWithoutTypes)
+      defToUDeps d@(FnDef fid e) = (d, fid, Set.toList (fnUDeps e))
+      mapper (AcyclicSCC v) = AcyclicSCC (AcyclicSCC v)
+      mapper (CyclicSCC vs) = CyclicSCC (stronglyConnComp (map defToUDeps vs))
+      sccs' = map mapper sccs
+  env' <- inferFnTypes env sccs'
+  checkFnTypes env' defs
   let fnDefs' = foldr (\def@(FnDef fid _) -> Map.insert fid def) fnDefs defs
-  return env'' {fnDefs = fnDefs'}
+  return env' {fnDefs = fnDefs'}
   where
     checkAlreadyDefined :: FnDef -> Either FnDefError ()
     checkAlreadyDefined (FnDef fid t)
@@ -977,14 +946,30 @@ tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
         iter seen (a : as) | a `Set.member` seen = Just a
         iter seen (a : as) = iter (Set.insert a seen) as
 
-    inferFnTypes :: Env -> [FnDef] -> Either FnDefError Env
+    inferFnTypes :: Env -> [SCC (SCC FnDef)] -> Either FnDefError Env
     inferFnTypes env [] = return env
-    inferFnTypes env@Env {fnTypes} (FnDef fid e : defs) = do
+    inferFnTypes env (AcyclicSCC (AcyclicSCC def) : sccs) = do
+      env' <- inferFnType env def
+      inferFnTypes env' sccs
+    inferFnTypes env (CyclicSCC sccs' : sccs) = do
+      env' <- inferFnTypes' env sccs'
+      env'' <- inferFnTypes' env' sccs'
+      inferFnTypes env'' sccs
+
+    inferFnTypes' :: Env -> [SCC FnDef] -> Either FnDefError Env
+    inferFnTypes' env [] = return env
+    inferFnTypes' env (AcyclicSCC def : sccs) = do
+      env'<- inferFnType env def
+      inferFnTypes' env' sccs
+    inferFnTypes' env (CyclicSCC defs : sccs) =
+      throwError (UncondCallCycle (map fnDefFnId defs))
+    
+    inferFnType :: Env -> FnDef -> Either FnDefError Env
+    inferFnType env@Env {fnTypes} (FnDef fid e) = do
       t <- mapLeft (FnTypeError fid) (inferNormType env ["$"] e)
       checkStackError fid t
       let fnTypes' = Map.insert fid t fnTypes
-      let env' = env {fnTypes = fnTypes'}
-      inferFnTypes env' defs
+      return env {fnTypes = fnTypes'}
 
     checkStackError :: FnId -> Type -> Either FnDefError ()
     checkStackError fid t | null (tempStackIds t) = return ()
