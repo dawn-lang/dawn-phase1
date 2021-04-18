@@ -896,7 +896,7 @@ fnDepsF mergeCases = helper
       foldr (Set.union . helper) Set.empty es
     helper (EContext s e) = helper e
     helper (EMatch cs) =
-      let caseDeps = map (uncondFnDeps . snd) cs
+      let caseDeps = map (fnDepsF mergeCases . snd) cs
        in foldr1 mergeCases caseDeps
     helper (ECons cid) = Set.empty
     helper (ECall fid) = Set.singleton fid
