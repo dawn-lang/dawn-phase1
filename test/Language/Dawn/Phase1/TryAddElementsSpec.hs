@@ -87,35 +87,3 @@ spec = do
       (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
 
       result1 `shouldBe` Right env
-
-    it "includes bit_and and list_append" $ do
-      let srcBit =
-            unlines
-              [ "{data Bit {cons B0} {cons B1}}",
-                "{fn bit_and => {match",
-                "    {case B0 B0 => B0}",
-                "    {case B0 B1 => B0}",
-                "    {case B1 B0 => B0}",
-                "    {case B1 B1 => B1}",
-                "}}"
-              ]
-      let srcList =
-            unlines
-              [ "{data v0 List {cons Nil} {cons v0 (v0 List) Cons}}",
-                "{fn list_append => {spread $a $b} _list_append $a->}",
-                "{fn _list_append => {match",
-                "    {case {$a Nil} => $b-> $a<-}",
-                "    {case {$a Cons} => _list_append {$a Cons}}",
-                "}}"
-              ]
-
-      let src1 = unlines [srcBit, srcList]
-      let (Right elems1) = parseElements src1
-      result1 <- runExceptT (tryAddElements emptyEnv elems1)
-
-      let (Right elemsBit) = parseElements srcBit
-      (Right env2) <- runExceptT (tryAddElements emptyEnv elemsBit)
-      let (Right elemsList) = parseElements srcList
-      (Right env2') <- runExceptT (tryAddElements emptyEnv elemsList)
-
-      result1 `shouldBe` Right env2'
