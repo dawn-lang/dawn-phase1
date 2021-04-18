@@ -913,6 +913,27 @@ spec = do
       let env = (testEnv {fnDefs = fnDefs', fnTypes = fnTypes'})
       tryAddFnDefs testEnv [fastFib, _fastFib] `shouldBe` Right env
 
+    it "adds disconnected cyclic defs" $ do
+      let (Right env) = tryAddDataDefs emptyEnv [dBool, dList]
+      let defs = [bool_and_d, list_append_d, _list_append_d]
+      let Env {fnDefs, fnTypes} = env
+      let fnDefs' =
+            fnDefs
+              `Map.union` Map.fromList
+                [ ("bool_and", bool_and_d),
+                  ("list_append", list_append_d),
+                  ("_list_append", _list_append_d)
+                ]
+      let fnTypes' =
+            fnTypes
+              `Map.union` Map.fromList
+                [ ("bool_and", bool_and_t),
+                  ("list_append", list_append_t),
+                  ("_list_append", _list_append_t)
+                ]
+      let env' = env {fnDefs = fnDefs', fnTypes = fnTypes'}
+      tryAddFnDefs env defs `shouldBe` Right env'
+
   describe "addDataDefs" $ do
     it "adds `{data Bit {cons B0} {cons B1}}`" $ do
       let (Right def) = parseDataDef "{data Bit {cons B0} {cons B1}}"
@@ -1043,7 +1064,9 @@ spec = do
 
 (Right dBool) = parseDataDef "{data Bool {cons False} {cons True}}"
 
-(Right d_bool_and) =
+(Right bool_and_t) = parseFnType "Bool Bool -> Bool"
+
+(Right bool_and_d) =
   parseFnDef
     ( unlines
         [ "{fn bool_and => {match",
@@ -1099,6 +1122,25 @@ spec = do
         ]
     )
 
+(Right dList) = parseDataDef "{data v0 List {cons Nil} {cons v0 (v0 List) Cons}}"
+
+(Right list_append_t) = parseFnType "(v1 List) (v1 List) -> (v1 List)"
+
+(Right list_append_d) = parseFnDef "{fn list_append => {spread $a $b} _list_append $a->}"
+
+(Right _list_append_t) =
+  parseFnType "forall v0 v1 v2 . {$a v0 (v1 List) -> v0 (v1 List)} {$b v2 (v1 List) -> v2}"
+
+(Right _list_append_d) =
+  parseFnDef
+    ( unlines
+        [ "{fn _list_append => {match",
+          "    {case {$a Nil} => $b-> $a<-}",
+          "    {case {$a Cons} => _list_append {$a Cons}}",
+          "}}"
+        ]
+    )
+
 (Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
 
 (Right dStack) =
@@ -1109,7 +1151,7 @@ spec = do
 
 (Right testEnv) =
   let ([], env) = addDataDefs emptyEnv [dBool, dNat, dBit, dStack, dPair]
-   in tryAddFnDefs env [d_swap, d_bool_and, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
+   in tryAddFnDefs env [d_swap, bool_and_d, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
 
 fastFibSrc = "{fn fib => {$a Z} {$b (Z S)} _fib}"
 
