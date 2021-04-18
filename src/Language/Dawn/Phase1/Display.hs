@@ -96,17 +96,17 @@ instance Display MatchError where
     display t ++ " does not match " ++ display t'
 
 instance Display TypeError where
-  display (UnificationError err) = "unification error: " ++ display err
-  display (MatchError matchError) = "match error: " ++ display matchError
-  display (UndefinedCons cid) = "undefined constructor: " ++ cid
-  display (UndefinedFn fid) = "undefined function: " ++ fid
+  display (UnificationError err) = "UnificationError " ++ display err
+  display (MatchError matchError) = "MatchError " ++ display matchError
+  display (UndefinedCons cid) = "UndefinedCons " ++ cid
+  display (UndefinedFn fid) = "UndefinedFn " ++ fid
 
 instance Display FnDeclError where
   display err@(FnAlreadyDeclared fid) = show err
 
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
-  display (FnTypeError fid err) = "type error: " ++ display err
+  display (FnTypeError fid err) = "FnTypeError " ++ display err
   display (FnStackError fid sids) =
     let s = intercalate ", " (Set.toList sids)
      in "exposed temporary stacks: " ++ s
@@ -116,11 +116,18 @@ instance Display DataDefError where
     unwords ["TypeConsArityMismatch", tcid, display t]
   display err = show err
 
+instance Display TestDefError where
+  display (TestTypeError name err) =
+    "TestTypeError " ++ show name ++ " " ++ display err
+  display (TestExpectsInputs name t) =
+    "TestExpectsInputs " ++ show name ++ " " ++ display t
+
 instance Display ElementError where
-  display (IncludeElementError e) = show e
-  display (DataDefElementError e) = display e
-  display (FnDeclElementError e) = display e
-  display (FnDefElementError e) = display e
+  display (IncludeElementError e) = "IncludeElementError " ++ show e
+  display (DataDefElementError e) = "DataDefElementError " ++ display e
+  display (FnDeclElementError e) = "FnDeclElementError " ++ display e
+  display (FnDefElementError e) = "FnDefElementError " ++ display e
+  display (TestDefElementError e) = "TestDefElementError " ++ display e
 
 instance Display Val where
   display (VCons Empty cid) = cid
