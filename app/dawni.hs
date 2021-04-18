@@ -22,6 +22,7 @@ import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.Parse
 import Language.Dawn.Phase1.PartialEval
+import Language.Dawn.Phase1.Prelude
 import Language.Dawn.Phase1.TryAddElements
 import Language.Dawn.Phase1.Utils
 import System.Console.ANSI
@@ -37,7 +38,7 @@ main = do
   case args of
     [] -> do
       putStrLn "Dawn Phase 1 Interpreter"
-      runInputT defaultSettings (readEvalPrintLoop (emptyEnv, MultiStack Map.empty))
+      runInputT defaultSettings (readEvalPrintLoop (preludeEnv, MultiStack Map.empty))
       return ()
     ("--test" : args') -> do
       case args' of
@@ -48,7 +49,7 @@ main = do
           runInputT defaultSettings (doCliTest path)
 
 doCliTest path = do
-  env <- doAddElements emptyEnv [EInclude (Include path)]
+  env <- doAddElements preludeEnv [EInclude (Include path)]
   runTests env
   return ()
 
@@ -68,7 +69,7 @@ readEvalPrint (env, ms) = do
         return (env, ms)
       Right CmdExit -> liftIO exitSuccess
       Right CmdReset -> do
-        return (emptyEnv, MultiStack Map.empty)
+        return (preludeEnv, MultiStack Map.empty)
       Right CmdDrop -> do
         return (env, MultiStack Map.empty)
       Right CmdTest -> do
