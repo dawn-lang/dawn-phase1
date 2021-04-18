@@ -948,6 +948,7 @@ fnDepsSort defs =
 tryAddFnDefs :: Env -> [FnDef] -> Either FnDefError Env
 tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
   mapM_ checkAlreadyDefined defs
+  checkDuplicates defs
   let unknownType (FnDef fid _) = not (fid `Map.member` fnTypes)
       defsWithoutTypes = filter unknownType defs
       defsWithoutTypesSorted = fnDepsSort defsWithoutTypes
@@ -963,6 +964,18 @@ tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
     checkAlreadyDefined (FnDef fid t)
       | fid `Map.member` fnDefs = throwError (FnAlreadyDefined fid)
     checkAlreadyDefined def = return ()
+
+    checkDuplicates :: [FnDef] -> Either FnDefError ()
+    checkDuplicates defs = case firstDuplicate (map fnDefFnId defs) of
+      Nothing -> return ()
+      Just fid -> throwError (FnDuplicate fid)
+
+    firstDuplicate :: Ord a => [a] -> Maybe a
+    firstDuplicate = iter Set.empty
+      where
+        iter seen [] = Nothing
+        iter seen (a : as) | a `Set.member` seen = Just a
+        iter seen (a : as) = iter (Set.insert a seen) as
 
     inferFnTypes :: Env -> [FnDef] -> Either FnDefError Env
     inferFnTypes env [] = return env
