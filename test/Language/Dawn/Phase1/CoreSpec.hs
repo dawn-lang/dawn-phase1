@@ -444,13 +444,29 @@ spec = do
 
   describe "fnDeps" $ do
     it "returns all dependencies" $ do
-      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
-      fnDeps e `shouldBe` Set.fromList ["f1", "f2", "f3", "f4"]
+      let (Right e) =
+            parseExpr
+              ( unlines
+                  [ "f1 {match ",
+                    "    {case True => f2 f3 {match {case True => f4} {case => f4 f5 f6}}}",
+                    "    {case => f2 f4 f5}",
+                    "}"
+                  ]
+              )
+      fnDeps e `shouldBe` Set.fromList ["f1", "f2", "f3", "f4", "f5", "f6"]
 
   describe "uncondFnDeps" $ do
     it "returns unconditional dependencies" $ do
-      let (Right e) = parseExpr "f1 {match {case True => f2 f3} {case => f2 f4}}"
-      uncondFnDeps e `shouldBe` Set.fromList ["f1", "f2"]
+      let (Right e) =
+            parseExpr
+              ( unlines
+                  [ "f1 {match ",
+                    "    {case True => f2 f3 {match {case True => f4} {case => f4 f5 f6}}}",
+                    "    {case => f2 f4 f5}",
+                    "}"
+                  ]
+              )
+      uncondFnDeps e `shouldBe` Set.fromList ["f1", "f2", "f4"]
 
   describe "fnDepsSort" $ do
     -- f ~> g := f directly depends on g
@@ -1008,7 +1024,7 @@ spec = do
               "{data v0 Stack {cons Empty} {cons Stack v0 Push}}"
       addDataDefs emptyEnv [def]
         `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
-  
+
   describe "tryAddTestDef" $ do
     it "adds test definition" $ do
       let testDefSrc = "{test \"this is a test description\" => Z {match {case Z =>}}}"
