@@ -835,6 +835,7 @@ newtype FnDeclError
 
 data FnDefError
   = FnAlreadyDefined FnId
+  | FnDuplicate FnId
   | FnTypeError FnId TypeError
   | FnStackError FnId StackIds
   deriving (Eq, Show)

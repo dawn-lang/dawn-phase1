@@ -577,6 +577,11 @@ spec = do
       tryAddFnDefs env [f]
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
+    it "fails with FnDuplicate" $ do
+      let (Right f) = parseFnDef "{fn drop2 => drop drop}"
+      tryAddFnDefs emptyEnv [f, f]
+        `shouldBe` Left (FnDuplicate "drop2")
+
     it "fails with FnTypeError UndefinedFn" $ do
       let (Right f) = parseFnDef "{fn test1 => clone test2 clone test3}"
       tryAddFnDefs emptyEnv [f]
