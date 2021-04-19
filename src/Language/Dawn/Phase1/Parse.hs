@@ -18,6 +18,7 @@ module Language.Dawn.Phase1.Parse
     parseFnDef,
     parseFnType,
     parseInclude,
+    parsePattern,
     parseProdType,
     parseShorthandFnType,
     parseTestDef,
@@ -27,6 +28,7 @@ module Language.Dawn.Phase1.Parse
 where
 
 import Control.Monad (fail, void, when)
+import Data.Bits
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core hiding ((*))
@@ -70,6 +72,9 @@ parseTestDef = parse (skip *> testDef <* eof) ""
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse (skip *> expr <* eof) ""
 
+parsePattern :: String -> Either ParseError Pattern
+parsePattern = parse (skip *> pat <* eof) ""
+
 parseValStack :: String -> Either ParseError (Stack Val)
 parseValStack = parse (skip *> valStack <* eof) ""
 
@@ -94,26 +99,49 @@ stringLiteral :: Parser String
 stringLiteral = lexeme (between (char '"') (char '"') (many stringLiteralChar))
 
 stringLiteralChar :: Parser Char
-stringLiteralChar = try escaped <|> unescaped
+stringLiteralChar = escapedChar <|> noneOf "\0\n\r\""
+
+escapedChar :: Parser Char
+escapedChar =
+  char '\\'
+    *> ( escapedHex
+           <|> (char '0' >> return '\0')
+           <|> (char 'n' >> return '\n')
+           <|> (char 'r' >> return '\r')
+           <|> (char 't' >> return '\t')
+           <|> (char '\\' >> return '\\')
+           <|> (char '\'' >> return '\'')
+           <|> (char '"' >> return '"')
+       )
   where
-    escaped =
-      char '\\'
-        *> ( escapedHex
-               <|> (char '0' >> return '\0')
-               <|> (char 'n' >> return '\n')
-               <|> (char 'r' >> return '\r')
-               <|> (char 't' >> return '\t')
-               <|> (char '\\' >> return '\\')
-               <|> (char '\'' >> return '\'')
-               <|> (char '"' >> return '"')
-           )
+    escapedHex :: Parser Char
     escapedHex = do
       _ <- char 'x'
       h <- hexDigit
       l <- hexDigit
       let [(i, "")] = readHex [h, l]
       return (toEnum i)
-    unescaped = noneOf "\0\n\r\t\\\""
+
+byteLiteral :: Parser Int
+byteLiteral = lexeme (between (string "b'") (char '\'') byteLiteralChar)
+
+byteLiteralChar :: Parser Int
+byteLiteralChar = fromEnum <$> escapedChar <|> fromEnum <$> noneOf "\0\n\r\'"
+
+bitToBitConsId :: Int -> ConsId
+bitToBitConsId i = if (i .&. 1) == 0 then "B0" else "B1"
+
+byteToBitConsIds :: Int -> [ConsId]
+byteToBitConsIds i =
+  let bitIndexes = reverse [0 .. 7]
+      bitValues = map (\offset -> i `shiftR` offset) bitIndexes
+   in map bitToBitConsId bitValues
+
+toByteECons :: Int -> Expr
+toByteECons i = ECompose (map ECons (byteToBitConsIds i) ++ [ECons "Byte"])
+
+toBytePCons :: Int -> Pattern
+toBytePCons i = PCons (toStack (map (PCons Empty) (byteToBitConsIds i))) "Byte"
 
 fnType :: Parser Type
 fnType =
@@ -197,6 +225,7 @@ expr =
     <$> many
       ( bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
+          <|> try (toByteECons <$> byteLiteral)
           <|> consExpr
           <|> callExpr
       )
@@ -262,7 +291,11 @@ patStack :: Parser (Stack Pattern)
 patStack = toStack <$> many pat
 
 pat :: Parser Pattern
-pat = simpleConsPat <|> betweenParens consPat <|> wildPat
+pat =
+  try (toBytePCons <$> byteLiteral)
+    <|> simpleConsPat
+    <|> betweenParens consPat
+    <|> wildPat
 
 simpleConsPat :: Parser Pattern
 simpleConsPat = PCons Empty <$> consId

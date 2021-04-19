@@ -17,6 +17,7 @@ import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Display
 import Language.Dawn.Phase1.Exprs
 import Language.Dawn.Phase1.Parse
+import Language.Dawn.Phase1.Prelude
 import Language.Dawn.Phase1.Utils
 import Test.Hspec
 import Prelude hiding (drop, (*))
@@ -712,7 +713,7 @@ spec = do
       let (Right f2) = parseFnDef "{fn f2 => nat_decr f1}"
       let f2_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let err = UncondCallCycle ["f1","f2"]
+      let err = UncondCallCycle ["f1", "f2"]
       tryAddFnDefs testEnv [f1, f2] `shouldBe` Left err
 
     it "fails on mutual recursion in all match cases" $ do
@@ -742,7 +743,7 @@ spec = do
               )
       let is_odd_t = forall' [v0] (v0 * tNat --> v0 * tBool)
 
-      let err = UncondCallCycle ["is_even","is_odd"]
+      let err = UncondCallCycle ["is_even", "is_odd"]
       tryAddFnDefs testEnv [is_even, is_odd] `shouldBe` Left err
 
     it "succeeds on mutual recursion in all but some match cases in one function (1)" $ do
@@ -1066,8 +1067,6 @@ spec = do
         ]
     )
 
-(Right dBit) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-
 (Right dStack) =
   parseDataDef
     "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
@@ -1075,7 +1074,7 @@ spec = do
 (Right dPair) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
 
 (Right testEnv) =
-  let ([], env) = addDataDefs emptyEnv [dBool, dNat, dBit, dStack, dPair]
+  let ([], env) = addDataDefs preludeEnv [dBool, dNat, dStack, dPair]
    in tryAddFnDefs env [d_swap, bool_and_d, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
 
 fastFibSrc = "{fn fib => {$a Z} {$b (Z S)} _fib}"
