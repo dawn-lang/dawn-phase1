@@ -86,11 +86,27 @@ elements = many element
 
 element :: Parser Element
 element =
-  EInclude <$> try include
-    <|> EDataDef <$> try dataDef
-    <|> EFnDecl <$> try fnDecl
-    <|> EFnDef <$> try fnDef
-    <|> ETestDef <$> testDef
+  betweenBraces
+    ( includeElement <|> dataDefElement <|> fnElement <|> testDefElement
+    )
+
+includeElement :: Parser Element
+includeElement =
+  EInclude <$> (Include <$> (keyword "include" *> stringLiteral))
+
+dataDefElement :: Parser Element
+dataDefElement =
+  EDataDef <$> (DataDef <$> (keyword "data" *> many typeVar) <*> consId <*> many consDef)
+
+fnElement :: Parser Element
+fnElement = do
+  fid <- keyword "fn" *> fnId
+  EFnDecl . FnDecl fid <$> (symbol "::" *> fnDeclType)
+    <|> EFnDef . FnDef fid <$> (symbol "=>" *> expr)
+
+testDefElement :: Parser Element
+testDefElement =
+  ETestDef <$> (TestDef <$> (keyword "test" *> stringLiteral) <*> (symbol "=>" *> expr))
 
 include :: Parser Include
 include = Include <$> betweenBraces (keyword "include" *> stringLiteral)
