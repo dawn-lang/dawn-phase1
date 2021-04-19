@@ -156,11 +156,11 @@ spec = do
 
     it "parses `{spread $a $a $b}`" $ do
       parseExpr "{spread $a $a $b}"
-        `shouldBe` parseExpr "($s1<- $s2<- $s3<-) ($s3-> $a<-) ($s2-> $a<-) ($s1-> $b<-)"
+        `shouldBe` parseExpr "($$1<- $$2<- $$3<-) ($$3-> $a<-) ($$2-> $a<-) ($$1-> $b<-)"
 
     it "parses `{collect $a $a $b}`" $ do
       parseExpr "{collect $a $a $b}"
-        `shouldBe` parseExpr "($b-> $s1<-) ($a-> $s2<-) ($a-> $s3<-) ($s3-> $s2-> $s1->)"
+        `shouldBe` parseExpr "($b-> $$1<-) ($a-> $$2<-) ($a-> $$3<-) ($$3-> $$2-> $$1->)"
 
     it "parses `B0`" $ do
       parseExpr "B0" `shouldBe` Right (ECons "B0")

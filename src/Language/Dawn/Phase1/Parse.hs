@@ -333,7 +333,7 @@ wildPat = keyword "_" >> return PWild
 
 desugarSpread :: [StackId] -> Expr
 desugarSpread dstStackIds =
-  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length dstStackIds)]
+  let tmpStackIds = map (\i -> "$$" ++ show i) [1 .. (length dstStackIds)]
       e = ECompose (map ePushTo tmpStackIds)
       folder (tmp, dst) es = ECompose [ePopFrom tmp, ePushTo dst] : es
       es = foldr folder [] (zip (reverse tmpStackIds) dstStackIds)
@@ -341,7 +341,7 @@ desugarSpread dstStackIds =
 
 desugarCollect :: [StackId] -> Expr
 desugarCollect srcStackIds =
-  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length srcStackIds)]
+  let tmpStackIds = map (\i -> "$$" ++ show i) [1 .. (length srcStackIds)]
       folder (src, tmp) es = ECompose [ePopFrom src, ePushTo tmp] : es
       es = foldr folder [] (zip (reverse srcStackIds) tmpStackIds)
       e = ECompose (map ePopFrom (reverse tmpStackIds))
