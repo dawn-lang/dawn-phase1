@@ -11,7 +11,6 @@ module Language.Dawn.Phase1.Core
     (+->),
     ($:),
     ($.),
-    addDataDefs,
     addMissingStacks,
     checkType,
     composeSubst,

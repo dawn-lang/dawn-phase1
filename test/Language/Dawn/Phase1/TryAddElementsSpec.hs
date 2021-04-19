@@ -46,7 +46,7 @@ spec = do
       let (Right natDef) = parseDataDef natDefSrc
       let (Right isOddDecl) = parseFnDecl isOddDeclSrc
       let (Right isOddDef) = parseFnDef isOddDefSrc
-      let ([], env) = addDataDefs emptyEnv [boolDef, natDef]
+      let (Right env) = tryAddDataDefs emptyEnv [boolDef, natDef]
       let (Right env') = tryAddFnDecls env [isOddDecl]
       let (Right env'') = tryAddFnDefs env' [isOddDef]
       result <- runExceptT (tryAddElements emptyEnv elems)
