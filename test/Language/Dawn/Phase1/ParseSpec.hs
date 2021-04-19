@@ -222,6 +222,9 @@ spec = do
       parseExpr "{match {case {$a S} {$b S} =>}}"
         `shouldBe` Right (EMatch [(msp, ECompose [])])
 
+    it "parses `bool_and`" $ do
+      parseExpr "bool_and" `shouldBe` Right (ECall "bool_and")
+
     it "parses `b'a'`" $ do
       let (Right e) = parseExpr "(B0 B1 B1 B0 B0 B0 B0 B1 Byte)"
       parseExpr "b'a'" `shouldBe` Right e

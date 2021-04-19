@@ -225,7 +225,7 @@ expr =
     <$> many
       ( bracedExpr <|> groupedExpr <|> quotedExpr <|> sugarExpr
           <|> intrinsicExpr
-          <|> toByteECons <$> byteLiteral
+          <|> try (toByteECons <$> byteLiteral)
           <|> consExpr
           <|> callExpr
       )
@@ -292,7 +292,7 @@ patStack = toStack <$> many pat
 
 pat :: Parser Pattern
 pat =
-  toBytePCons <$> byteLiteral
+  try (toBytePCons <$> byteLiteral)
     <|> simpleConsPat
     <|> betweenParens consPat
     <|> wildPat
