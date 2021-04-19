@@ -30,6 +30,7 @@ library
       Language.Dawn.Phase1.Exprs
       Language.Dawn.Phase1.Parse
       Language.Dawn.Phase1.PartialEval
+      Language.Dawn.Phase1.Prelude
       Language.Dawn.Phase1.TryAddElements
       Language.Dawn.Phase1.Utils
   other-modules:
@@ -146,6 +147,7 @@ test-suite dawn-phase1-test
       Language.Dawn.Phase1.EvalSpec
       Language.Dawn.Phase1.ParseSpec
       Language.Dawn.Phase1.PartialEvalSpec
+      Language.Dawn.Phase1.PreludeSpec
       Language.Dawn.Phase1.TryAddElementsSpec
       Language.Dawn.Phase1.UtilsSpec
       Paths_dawn_phase1
