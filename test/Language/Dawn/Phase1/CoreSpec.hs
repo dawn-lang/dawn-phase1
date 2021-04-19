@@ -469,17 +469,33 @@ spec = do
               )
       fnUDeps e `shouldBe` Set.fromList ["f1", "f2", "f4"]
 
-  describe "tryAddFnDecl" $ do
+  describe "tryAddFnDecls" $ do
     it "adds drop2" $ do
       let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
       let (Right t) = parseFnType "forall v0 v1 v2 . v0 v1 v2 -> v0"
-      tryAddFnDecl emptyEnv f
+      tryAddFnDecls emptyEnv [f]
         `shouldBe` Right
           ( emptyEnv
               { fnDecls = Map.singleton "drop2" f,
                 fnTypes = Map.singleton "drop2" t
               }
           )
+
+    it "fails with FnAlreadyDeclared" $ do
+      let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+      let (Right env) = tryAddFnDecls emptyEnv [f]
+      tryAddFnDecls env [f]
+        `shouldBe` Left (FnAlreadyDeclared "drop2")
+
+    it "fails with FnDeclDuplicate" $ do
+      let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+      tryAddFnDecls emptyEnv [f, f]
+        `shouldBe` Left (FnDeclDuplicate "drop2")
+
+    it "fails with FnDeclTempStack" $ do
+      let (Right f) = parseFnDecl "{fn pass :: forall v0 . {$$ v0 -> v0}}"
+      tryAddFnDecls emptyEnv [f]
+        `shouldBe` Left (FnDeclTempStack "pass" (Set.singleton "$$"))
 
   describe "tryAddFnDefs" $ do
     it "defines drop2" $ do
@@ -503,10 +519,10 @@ spec = do
       tryAddFnDefs env [f]
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
-    it "fails with FnDuplicate" $ do
+    it "fails with FnDefDuplicate" $ do
       let (Right f) = parseFnDef "{fn drop2 => drop drop}"
       tryAddFnDefs emptyEnv [f, f]
-        `shouldBe` Left (FnDuplicate "drop2")
+        `shouldBe` Left (FnDefDuplicate "drop2")
 
     it "fails with FnTypeError UndefinedFn" $ do
       let (Right f) = parseFnDef "{fn test1 => clone test2 clone test3}"
@@ -520,10 +536,10 @@ spec = do
       tryAddFnDefs emptyEnv [f]
         `shouldBe` Left (FnTypeError "test" err)
 
-    it "fails with FnStackError" $ do
+    it "fails with FnDefTempStack" $ do
       let (Right f) = parseFnDef "{fn test => {$a $a<-} {$b $b<-}}"
       tryAddFnDefs emptyEnv [f]
-        `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
+        `shouldBe` Left (FnDefTempStack "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
       let (Right f) =

@@ -107,7 +107,7 @@ instance Display FnDeclError where
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
   display (FnTypeError fid err) = "FnTypeError " ++ display err
-  display (FnStackError fid sids) =
+  display (FnDefTempStack fid sids) =
     let s = intercalate ", " (Set.toList sids)
      in "exposed temporary stacks: " ++ s
 

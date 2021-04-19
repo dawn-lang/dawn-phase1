@@ -67,7 +67,6 @@ module Language.Dawn.Phase1.Core
     TestDefError (..),
     toStack,
     tryAddDataDefs,
-    tryAddFnDecl,
     tryAddFnDecls,
     tryAddFnDefs,
     tryAddTestDef,
@@ -828,16 +827,18 @@ data FnDecl = FnDecl FnId Type
 data FnDef = FnDef FnId Expr
   deriving (Eq, Show)
 
-newtype FnDeclError
+data FnDeclError
   = FnAlreadyDeclared FnId
+  | FnDeclDuplicate FnId
+  | FnDeclTempStack FnId StackIds
   deriving (Eq, Show)
 
 data FnDefError
   = FnAlreadyDefined FnId
-  | FnDuplicate FnId
+  | FnDefDuplicate FnId
   | UncondCallCycle [FnId]
   | FnTypeError FnId TypeError
-  | FnStackError FnId StackIds
+  | FnDefTempStack FnId StackIds
   deriving (Eq, Show)
 
 type StackIds = Set.Set StackId
@@ -855,21 +856,6 @@ intrinsicFnIds =
       "apply"
     ]
 
-tryAddFnDecl :: Env -> FnDecl -> Either FnDeclError Env
-tryAddFnDecl env (FnDecl fid t)
-  | fid `Set.member` intrinsicFnIds =
-    throwError (FnAlreadyDeclared fid)
-tryAddFnDecl env@Env {fnDecls} (FnDecl fid t)
-  | fid `Map.member` fnDecls =
-    throwError (FnAlreadyDeclared fid)
-tryAddFnDecl env@Env {fnDecls, fnTypes} decl@(FnDecl fid t) =
-  let fnDecls' = Map.insert fid decl fnDecls
-      fnTypes' = Map.insert fid t fnTypes
-   in return (env {fnDecls = fnDecls', fnTypes = fnTypes'})
-
-tryAddFnDecls :: Env -> [FnDecl] -> Either FnDeclError Env
-tryAddFnDecls = foldM tryAddFnDecl
-
 tempStackIds :: Type -> StackIds
 tempStackIds (TVar _) = Set.empty
 tempStackIds (TProd l r) =
@@ -881,6 +867,43 @@ tempStackIds (TFn _ mio) =
       sids' = foldr folder Set.empty (Map.elems mio)
    in sids `Set.union` sids'
 tempStackIds (TCons _ _) = Set.empty -- Tfn is not allowed in TCons args
+
+checkStackError :: Type -> Either StackIds ()
+checkStackError t | null (tempStackIds t) = return ()
+checkStackError t = throwError (tempStackIds t)
+
+firstDuplicate :: Ord a => [a] -> Maybe a
+firstDuplicate = iter Set.empty
+  where
+    iter seen [] = Nothing
+    iter seen (a : as) | a `Set.member` seen = Just a
+    iter seen (a : as) = iter (Set.insert a seen) as
+
+fnDeclFnId :: FnDecl -> FnId
+fnDeclFnId (FnDecl fid _) = fid
+
+tryAddFnDecl :: Env -> FnDecl -> Either FnDeclError Env
+tryAddFnDecl env (FnDecl fid t)
+  | fid `Set.member` intrinsicFnIds =
+    throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls} (FnDecl fid t)
+  | fid `Map.member` fnDecls =
+    throwError (FnAlreadyDeclared fid)
+tryAddFnDecl env@Env {fnDecls, fnTypes} decl@(FnDecl fid t) = do
+  mapLeft (FnDeclTempStack fid) (checkStackError t)
+  let fnDecls' = Map.insert fid decl fnDecls
+      fnTypes' = Map.insert fid t fnTypes
+  return (env {fnDecls = fnDecls', fnTypes = fnTypes'})
+
+tryAddFnDecls :: Env -> [FnDecl] -> Either FnDeclError Env
+tryAddFnDecls env decls = do
+  checkDuplicates decls
+  foldM tryAddFnDecl env decls
+  where
+    checkDuplicates :: [FnDecl] -> Either FnDeclError ()
+    checkDuplicates decls = case firstDuplicate (map fnDeclFnId decls) of
+      Nothing -> return ()
+      Just fid -> throwError (FnDeclDuplicate fid)
 
 fnDefFnId :: FnDef -> FnId
 fnDefFnId (FnDef fid _) = fid
@@ -937,14 +960,7 @@ tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
     checkDuplicates :: [FnDef] -> Either FnDefError ()
     checkDuplicates defs = case firstDuplicate (map fnDefFnId defs) of
       Nothing -> return ()
-      Just fid -> throwError (FnDuplicate fid)
-
-    firstDuplicate :: Ord a => [a] -> Maybe a
-    firstDuplicate = iter Set.empty
-      where
-        iter seen [] = Nothing
-        iter seen (a : as) | a `Set.member` seen = Just a
-        iter seen (a : as) = iter (Set.insert a seen) as
+      Just fid -> throwError (FnDefDuplicate fid)
 
     inferFnTypes :: Env -> [SCC (SCC FnDef)] -> Either FnDefError Env
     inferFnTypes env [] = return env
@@ -959,21 +975,17 @@ tryAddFnDefs env@Env {fnDefs, fnTypes} defs = do
     inferFnTypes' :: Env -> [SCC FnDef] -> Either FnDefError Env
     inferFnTypes' env [] = return env
     inferFnTypes' env (AcyclicSCC def : sccs) = do
-      env'<- inferFnType env def
+      env' <- inferFnType env def
       inferFnTypes' env' sccs
     inferFnTypes' env (CyclicSCC defs : sccs) =
       throwError (UncondCallCycle (map fnDefFnId defs))
-    
+
     inferFnType :: Env -> FnDef -> Either FnDefError Env
     inferFnType env@Env {fnTypes} (FnDef fid e) = do
       t <- mapLeft (FnTypeError fid) (inferNormType env ["$"] e)
-      checkStackError fid t
+      mapLeft (FnDefTempStack fid) (checkStackError t)
       let fnTypes' = Map.insert fid t fnTypes
       return env {fnTypes = fnTypes'}
-
-    checkStackError :: FnId -> Type -> Either FnDefError ()
-    checkStackError fid t | null (tempStackIds t) = return ()
-    checkStackError fid t = throwError (FnStackError fid (tempStackIds t))
 
     checkFnTypes :: Env -> [FnDef] -> Either FnDefError ()
     checkFnTypes env [] = return ()
