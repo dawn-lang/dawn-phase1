@@ -397,14 +397,14 @@ spec = do
       inferNormType testEnv ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 * tNat * tNat --> v0 * tNat))
 
-    it "infers `{match {case {$tmp S} =>}}`" $ do
-      let (Right e) = parseExpr "{match {case {$tmp S} =>}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{match {case {$$ S} =>}}`" $ do
+      let (Right e) = parseExpr "{match {case {$$ S} =>}}"
+      let t = forall [v0] ("$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{match {case {$tmp S S} =>}}`" $ do
-      let (Right e) = parseExpr "{match {case {$tmp S S} =>}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat * tNat --> v0 * tNat * tNat)
+    it "infers `{match {case {$$ S S} =>}}`" $ do
+      let (Right e) = parseExpr "{match {case {$$ S S} =>}}"
+      let t = forall [v0] ("$$" $: v0 * tNat * tNat --> v0 * tNat * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case {$a S} {$b S} =>}}`" $ do
@@ -412,14 +412,14 @@ spec = do
       let t = forall [v0, v1] ("$a" $: v0 * tNat --> v0 * tNat $. "$b" $: v1 * tNat --> v1 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{$a {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$a {match {case {$tmp S} =>}}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{$a {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$a {match {case {$$ S} =>}}}"
+      let t = forall [v0] ("$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{$tmp {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$tmp {match {case {$tmp S} =>}}}"
-      let t = forall [v0] ("$$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{$$ {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$$ {match {case {$$ S} =>}}}"
+      let t = forall [v0] ("$$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
   describe "checkType" $ do
@@ -1021,7 +1021,7 @@ spec = do
     ( unlines
         [ "{fn nat_add => {match",
           "    {case Z =>}",
-          "    {case S => $tmp<- S $tmp-> nat_add}",
+          "    {case S => $$<- S $$-> nat_add}",
           "}}"
         ]
     )

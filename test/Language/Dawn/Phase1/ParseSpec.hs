@@ -193,24 +193,24 @@ spec = do
               ]
           )
 
-    it "parses `{match {case {$tmp S} =>}}`" $ do
+    it "parses `{match {case {$$ S} =>}}`" $ do
       let msp =
             MultiStack
               ( Map.fromList
-                  [ ("$tmp", Empty :*: PCons Empty "S")
+                  [ ("$$", Empty :*: PCons Empty "S")
                   ]
               )
-      parseExpr "{match {case {$tmp S} =>}}"
+      parseExpr "{match {case {$$ S} =>}}"
         `shouldBe` Right (EMatch [(msp, ECompose [])])
 
-    it "parses `{match {case {$tmp S S} =>}}`" $ do
+    it "parses `{match {case {$$ S S} =>}}`" $ do
       let msp =
             MultiStack
               ( Map.fromList
-                  [ ("$tmp", Empty :*: PCons Empty "S" :*: PCons Empty "S")
+                  [ ("$$", Empty :*: PCons Empty "S" :*: PCons Empty "S")
                   ]
               )
-      parseExpr "{match {case {$tmp S S} =>}}"
+      parseExpr "{match {case {$$ S S} =>}}"
         `shouldBe` Right (EMatch [(msp, ECompose [])])
 
     it "parses `{match {case {$a S} {$b S} =>}}`" $ do
@@ -512,10 +512,10 @@ spec = do
               (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )
 
-    it "parses `(forall v0 . {$tmp v0 Bit -> v0 Bit})`" $ do
+    it "parses `(forall v0 . {$$ v0 Bit -> v0 Bit})`" $ do
       let tBit = TCons [] "Bit"
-      parseFnType "forall v0 . {$tmp v0 Bit -> v0 Bit}"
-        `shouldBe` Right (forall [v0] ("$tmp" $: v0 * tBit --> v0 * tBit))
+      parseFnType "forall v0 . {$$ v0 Bit -> v0 Bit}"
+        `shouldBe` Right (forall [v0] ("$$" $: v0 * tBit --> v0 * tBit))
 
     it "parses `(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})`" $ do
       parseFnType "forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}"
