@@ -21,6 +21,7 @@ module Language.Dawn.Phase1.Parse
     parsePattern,
     parseProdType,
     parseShorthandFnType,
+    parseStackId,
     parseTestDef,
     parseValMultiStack,
     parseValStack,
@@ -80,6 +81,9 @@ parseValStack = parse (skip *> valStack <* eof) ""
 
 parseValMultiStack :: String -> Either ParseError (MultiStack Val)
 parseValMultiStack = parse (skip *> valMultiStack <* eof) ""
+
+parseStackId :: String -> Either ParseError StackId
+parseStackId = parse (skip *> stackId <* eof) ""
 
 elements :: Parser [Element]
 elements = many element
@@ -388,11 +392,7 @@ fnId = lexeme ((:) <$> fnIdFirstChar <*> many fnIdChar)
     fnIdFirstChar = lower <|> char '_'
     fnIdChar = letter <|> char '_' <|> digit
 
-stackId_ = (:) <$> char '$' <*> ident_
-
-ident_ = (:) <$> identFirstChar <*> many identChar
-
-identFirstChar = letter <|> char '_'
+stackId_ = (++) <$> many1 (char '$') <*> many identChar
 
 identChar = letter <|> char '_' <|> digit
 

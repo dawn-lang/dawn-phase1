@@ -84,6 +84,10 @@ spec = do
       parseExpr "foo"
         `shouldBe` Right (ECall "foo")
 
+    it "parses `{$ drop}`" $ do
+      parseExpr "{$ drop}"
+        `shouldBe` Right (EContext "$" (EIntrinsic IDrop))
+
     it "parses `{$a drop}`" $ do
       parseExpr "{$a drop}"
         `shouldBe` Right (EContext "$a" (EIntrinsic IDrop))
@@ -92,11 +96,9 @@ spec = do
       parseExpr "{$_Ab12_C drop}"
         `shouldBe` Right (EContext "$_Ab12_C" (EIntrinsic IDrop))
 
-    it "fails on `{$1234 drop}`" $ do
-      let (Left err) = parseExpr "{$1234 drop}"
-      let pos = errorPos err
-      sourceLine pos `shouldBe` 1
-      sourceColumn pos `shouldBe` 3
+    it "parses `{$1234 drop}`" $ do
+      parseExpr "{$1234 drop}"
+        `shouldBe` Right (EContext "$1234" (EIntrinsic IDrop))
 
     it "parses `$a<-`" $ do
       parseExpr "$a<-"
@@ -535,6 +537,31 @@ spec = do
     it "parses `v1 -> v1 v1`" $ do
       parseShorthandFnType "v1 -> v1 v1"
         `shouldBe` Right ([v1], [v1, v1])
+
+  describe "parseStackId" $ do
+    it "parses `$`" $ do
+      parseStackId "$" `shouldBe` Right "$"
+
+    it "parses `$0`" $ do
+      parseStackId "$0" `shouldBe` Right "$0"
+
+    it "parses `$_`" $ do
+      parseStackId "$_" `shouldBe` Right "$_"
+
+    it "parses `$a`" $ do
+      parseStackId "$a" `shouldBe` Right "$a"
+
+    it "parses `$A`" $ do
+      parseStackId "$A" `shouldBe` Right "$A"
+
+    it "parses `$_0123456789abcABC_`" $ do
+      parseStackId "$_0123456789abcABC_" `shouldBe` Right "$_0123456789abcABC_"
+
+    it "parses `$$`" $ do
+      parseStackId "$$" `shouldBe` Right "$$"
+
+    it "parses `$$1`" $ do
+      parseStackId "$$1" `shouldBe` Right "$$1"
 
   describe "parseInclude" $ do
     it "parses `{include \"src/prelude.dn\"}`" $ do
