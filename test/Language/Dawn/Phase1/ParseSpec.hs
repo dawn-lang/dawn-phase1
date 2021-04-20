@@ -84,6 +84,10 @@ spec = do
       parseExpr "foo"
         `shouldBe` Right (ECall "foo")
 
+    it "parses `{$ drop}`" $ do
+      parseExpr "{$ drop}"
+        `shouldBe` Right (EContext "$" (EIntrinsic IDrop))
+
     it "parses `{$a drop}`" $ do
       parseExpr "{$a drop}"
         `shouldBe` Right (EContext "$a" (EIntrinsic IDrop))
@@ -92,11 +96,9 @@ spec = do
       parseExpr "{$_Ab12_C drop}"
         `shouldBe` Right (EContext "$_Ab12_C" (EIntrinsic IDrop))
 
-    it "fails on `{$1234 drop}`" $ do
-      let (Left err) = parseExpr "{$1234 drop}"
-      let pos = errorPos err
-      sourceLine pos `shouldBe` 1
-      sourceColumn pos `shouldBe` 3
+    it "parses `{$1234 drop}`" $ do
+      parseExpr "{$1234 drop}"
+        `shouldBe` Right (EContext "$1234" (EIntrinsic IDrop))
 
     it "parses `$a<-`" $ do
       parseExpr "$a<-"
@@ -154,11 +156,11 @@ spec = do
 
     it "parses `{spread $a $a $b}`" $ do
       parseExpr "{spread $a $a $b}"
-        `shouldBe` parseExpr "($s1<- $s2<- $s3<-) ($s3-> $a<-) ($s2-> $a<-) ($s1-> $b<-)"
+        `shouldBe` parseExpr "($$1<- $$2<- $$3<-) ($$3-> $a<-) ($$2-> $a<-) ($$1-> $b<-)"
 
     it "parses `{collect $a $a $b}`" $ do
       parseExpr "{collect $a $a $b}"
-        `shouldBe` parseExpr "($b-> $s1<-) ($a-> $s2<-) ($a-> $s3<-) ($s3-> $s2-> $s1->)"
+        `shouldBe` parseExpr "($b-> $$1<-) ($a-> $$2<-) ($a-> $$3<-) ($$3-> $$2-> $$1->)"
 
     it "parses `B0`" $ do
       parseExpr "B0" `shouldBe` Right (ECons "B0")
@@ -191,24 +193,24 @@ spec = do
               ]
           )
 
-    it "parses `{match {case {$tmp S} =>}}`" $ do
+    it "parses `{match {case {$$ S} =>}}`" $ do
       let msp =
             MultiStack
               ( Map.fromList
-                  [ ("$tmp", Empty :*: PCons Empty "S")
+                  [ ("$$", Empty :*: PCons Empty "S")
                   ]
               )
-      parseExpr "{match {case {$tmp S} =>}}"
+      parseExpr "{match {case {$$ S} =>}}"
         `shouldBe` Right (EMatch [(msp, ECompose [])])
 
-    it "parses `{match {case {$tmp S S} =>}}`" $ do
+    it "parses `{match {case {$$ S S} =>}}`" $ do
       let msp =
             MultiStack
               ( Map.fromList
-                  [ ("$tmp", Empty :*: PCons Empty "S" :*: PCons Empty "S")
+                  [ ("$$", Empty :*: PCons Empty "S" :*: PCons Empty "S")
                   ]
               )
-      parseExpr "{match {case {$tmp S S} =>}}"
+      parseExpr "{match {case {$$ S S} =>}}"
         `shouldBe` Right (EMatch [(msp, ECompose [])])
 
     it "parses `{match {case {$a S} {$b S} =>}}`" $ do
@@ -228,8 +230,8 @@ spec = do
     it "parses `b'a'`" $ do
       let (Right e) = parseExpr "(B0 B1 B1 B0 B0 B0 B0 B1 Byte)"
       parseExpr "b'a'" `shouldBe` Right e
-    
-    it "parses `b'\\x7F'`"$ do
+
+    it "parses `b'\\x7F'`" $ do
       let (Right e) = parseExpr "(B0 B1 B1 B1 B1 B1 B1 B1 Byte)"
       parseExpr "b'\\x7F'" `shouldBe` Right e
 
@@ -237,27 +239,27 @@ spec = do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B0 B0 B0 B0 Byte)"
       parseExpr "b'\\0'" `shouldBe` Right e
 
-    it "parses `b'\\n'`"$ do
+    it "parses `b'\\n'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B0 B1 B0 Byte)"
       parseExpr "b'\\n'" `shouldBe` Right e
 
-    it "parses `b'\\r'`"$ do
+    it "parses `b'\\r'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B1 B0 B1 Byte)"
       parseExpr "b'\\r'" `shouldBe` Right e
 
-    it "parses `b'\\t'`"$ do
+    it "parses `b'\\t'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B0 B0 B1 Byte)"
       parseExpr "b'\\t'" `shouldBe` Right e
 
-    it "parses `b'\\\\'`"$ do
+    it "parses `b'\\\\'`" $ do
       let (Right e) = parseExpr "(B0 B1 B0 B1 B1 B1 B0 B0 Byte)"
       parseExpr "b'\\\\'" `shouldBe` Right e
 
-    it "parses `b'\\\''`"$ do
+    it "parses `b'\\\''`" $ do
       let (Right e) = parseExpr "(B0 B0 B1 B0 B0 B1 B1 B1 Byte)"
       parseExpr "b'\\\''" `shouldBe` Right e
 
-    it "parses `b'\\\"'`"$ do
+    it "parses `b'\\\"'`" $ do
       let (Right e) = parseExpr "(B0 B0 B1 B0 B0 B0 B1 B0 Byte)"
       parseExpr "b'\\\"'" `shouldBe` Right e
 
@@ -265,8 +267,8 @@ spec = do
     it "parses `b'a'`" $ do
       let (Right e) = parsePattern "(B0 B1 B1 B0 B0 B0 B0 B1 Byte)"
       parsePattern "b'a'" `shouldBe` Right e
-    
-    it "parses `b'\\x7F'`"$ do
+
+    it "parses `b'\\x7F'`" $ do
       let (Right e) = parsePattern "(B0 B1 B1 B1 B1 B1 B1 B1 Byte)"
       parsePattern "b'\\x7F'" `shouldBe` Right e
 
@@ -274,27 +276,27 @@ spec = do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B0 B0 B0 B0 Byte)"
       parsePattern "b'\\0'" `shouldBe` Right e
 
-    it "parses `b'\\n'`"$ do
+    it "parses `b'\\n'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B0 B1 B0 Byte)"
       parsePattern "b'\\n'" `shouldBe` Right e
 
-    it "parses `b'\\r'`"$ do
+    it "parses `b'\\r'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B1 B0 B1 Byte)"
       parsePattern "b'\\r'" `shouldBe` Right e
 
-    it "parses `b'\\t'`"$ do
+    it "parses `b'\\t'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B0 B0 B1 Byte)"
       parsePattern "b'\\t'" `shouldBe` Right e
 
-    it "parses `b'\\\\'`"$ do
+    it "parses `b'\\\\'`" $ do
       let (Right e) = parsePattern "(B0 B1 B0 B1 B1 B1 B0 B0 Byte)"
       parsePattern "b'\\\\'" `shouldBe` Right e
 
-    it "parses `b'\\\''`"$ do
+    it "parses `b'\\\''`" $ do
       let (Right e) = parsePattern "(B0 B0 B1 B0 B0 B1 B1 B1 Byte)"
       parsePattern "b'\\\''" `shouldBe` Right e
 
-    it "parses `b'\\\"'`"$ do
+    it "parses `b'\\\"'`" $ do
       let (Right e) = parsePattern "(B0 B0 B1 B0 B0 B0 B1 B0 Byte)"
       parsePattern "b'\\\"'" `shouldBe` Right e
 
@@ -492,15 +494,15 @@ spec = do
       parseProdType "(v0 Stack)" `shouldBe` Right (TCons [v0] "Stack")
 
   describe "parseFnType" $ do
-    it "parses `(forall v0 . v0 -> v0)`" $ do
+    it "parses `forall v0 . v0 -> v0`" $ do
       parseFnType "forall v0 . v0 -> v0"
         `shouldBe` Right (forall' [v0] (v0 --> v0))
 
-    it "parses `(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)`" $ do
+    it "parses `forall v0 v1 . v0 (forall . v0 -> v1) -> v1`" $ do
       parseFnType "forall v0 v1 . v0 (forall . v0 -> v1) -> v1"
         `shouldBe` Right (forall' [v0, v1] (v0 * forall' [] (v0 --> v1) --> v1))
 
-    it "parses `(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)`" $ do
+    it "parses `forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit`" $ do
       let tStack t = TCons [t] "Stack"
       let tBit = TCons [] "Bit"
       parseFnType "forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit"
@@ -510,18 +512,22 @@ spec = do
               (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )
 
-    it "parses `(forall v0 . {$tmp v0 Bit -> v0 Bit})`" $ do
+    it "parses `forall v0 . {$$ v0 Bit -> v0 Bit}`" $ do
       let tBit = TCons [] "Bit"
-      parseFnType "forall v0 . {$tmp v0 Bit -> v0 Bit}"
-        `shouldBe` Right (forall [v0] ("$tmp" $: v0 * tBit --> v0 * tBit))
+      parseFnType "forall v0 . {$$ v0 Bit -> v0 Bit}"
+        `shouldBe` Right (forall [v0] ("$$" $: v0 * tBit --> v0 * tBit))
 
-    it "parses `(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})`" $ do
+    it "parses `forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}`" $ do
       parseFnType "forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}"
         `shouldBe` Right
           ( forall
               [v0, v1, v2]
               ("$a" $: v0 * v1 --> v0 * v2 $. "$b" $: v0 * v2 --> v0 * v1)
           )
+
+    it "fails on `forall v0 . {$ v0 -> v0} {$ v0 -> v0}`" $ do
+      isLeft (parseFnType "forall v0 . {$ v0 -> v0} {$ v0 -> v0}")
+        `shouldBe` True
 
   describe "parseShorthandFnType" $ do
     it "parses ` -> `" $ do
@@ -535,6 +541,31 @@ spec = do
     it "parses `v1 -> v1 v1`" $ do
       parseShorthandFnType "v1 -> v1 v1"
         `shouldBe` Right ([v1], [v1, v1])
+
+  describe "parseStackId" $ do
+    it "parses `$`" $ do
+      parseStackId "$" `shouldBe` Right "$"
+
+    it "parses `$0`" $ do
+      parseStackId "$0" `shouldBe` Right "$0"
+
+    it "parses `$_`" $ do
+      parseStackId "$_" `shouldBe` Right "$_"
+
+    it "parses `$a`" $ do
+      parseStackId "$a" `shouldBe` Right "$a"
+
+    it "parses `$A`" $ do
+      parseStackId "$A" `shouldBe` Right "$A"
+
+    it "parses `$_0123456789abcABC_`" $ do
+      parseStackId "$_0123456789abcABC_" `shouldBe` Right "$_0123456789abcABC_"
+
+    it "parses `$$`" $ do
+      parseStackId "$$" `shouldBe` Right "$$"
+
+    it "parses `$$1`" $ do
+      parseStackId "$$1" `shouldBe` Right "$$1"
 
   describe "parseInclude" $ do
     it "parses `{include \"src/prelude.dn\"}`" $ do

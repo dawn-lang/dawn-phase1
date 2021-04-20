@@ -21,6 +21,7 @@ module Language.Dawn.Phase1.Parse
     parsePattern,
     parseProdType,
     parseShorthandFnType,
+    parseStackId,
     parseTestDef,
     parseValMultiStack,
     parseValStack,
@@ -81,16 +82,35 @@ parseValStack = parse (skip *> valStack <* eof) ""
 parseValMultiStack :: String -> Either ParseError (MultiStack Val)
 parseValMultiStack = parse (skip *> valMultiStack <* eof) ""
 
+parseStackId :: String -> Either ParseError StackId
+parseStackId = parse (skip *> stackId <* eof) ""
+
 elements :: Parser [Element]
 elements = many element
 
 element :: Parser Element
 element =
-  EInclude <$> try include
-    <|> EDataDef <$> try dataDef
-    <|> EFnDecl <$> try fnDecl
-    <|> EFnDef <$> try fnDef
-    <|> ETestDef <$> testDef
+  betweenBraces
+    ( includeElement <|> dataDefElement <|> fnElement <|> testDefElement
+    )
+
+includeElement :: Parser Element
+includeElement =
+  EInclude <$> (Include <$> (keyword "include" *> stringLiteral))
+
+dataDefElement :: Parser Element
+dataDefElement =
+  EDataDef <$> (DataDef <$> (keyword "data" *> many typeVar) <*> consId <*> many consDef)
+
+fnElement :: Parser Element
+fnElement = do
+  fid <- keyword "fn" *> fnId
+  EFnDecl . FnDecl fid <$> (symbol "::" *> fnDeclType)
+    <|> EFnDef . FnDef fid <$> (symbol "=>" *> expr)
+
+testDefElement :: Parser Element
+testDefElement =
+  ETestDef <$> (TestDef <$> (keyword "test" *> stringLiteral) <*> (symbol "=>" *> expr))
 
 include :: Parser Include
 include = Include <$> betweenBraces (keyword "include" *> stringLiteral)
@@ -165,8 +185,21 @@ univQuants = keyword "forall" *> (Set.fromList <$> many typeVar) <* symbol "."
 
 multiIO :: Parser MultiIO
 multiIO =
-  Map.fromList <$> many1 (betweenBraces ((,) <$> stackId <*> singleIO))
+  Map.fromList <$> explicitStackIO
     <|> Map.singleton "$" <$> singleIO
+
+hasDuplicate :: Ord a => [a] -> Bool
+hasDuplicate = iter Set.empty
+  where
+    iter seen [] = False
+    iter seen (a : as) | a `Set.member` seen = True
+    iter seen (a : as) = iter (Set.insert a seen) as
+
+explicitStackIO :: Parser [(StackId, (Type, Type))]
+explicitStackIO = do
+  kvs <- many1 (betweenBraces ((,) <$> stackId <*> singleIO))
+  when (hasDuplicate (map fst kvs)) (fail "duplicate stack")
+  return kvs
 
 singleIO :: Parser (Type, Type)
 singleIO = (,) <$> prodType <*> (symbol "->" *> prodType)
@@ -313,7 +346,7 @@ wildPat = keyword "_" >> return PWild
 
 desugarSpread :: [StackId] -> Expr
 desugarSpread dstStackIds =
-  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length dstStackIds)]
+  let tmpStackIds = map (\i -> "$$" ++ show i) [1 .. (length dstStackIds)]
       e = ECompose (map ePushTo tmpStackIds)
       folder (tmp, dst) es = ECompose [ePopFrom tmp, ePushTo dst] : es
       es = foldr folder [] (zip (reverse tmpStackIds) dstStackIds)
@@ -321,7 +354,7 @@ desugarSpread dstStackIds =
 
 desugarCollect :: [StackId] -> Expr
 desugarCollect srcStackIds =
-  let tmpStackIds = map (\i -> "$s" ++ show i) [1 .. (length srcStackIds)]
+  let tmpStackIds = map (\i -> "$$" ++ show i) [1 .. (length srcStackIds)]
       folder (src, tmp) es = ECompose [ePopFrom src, ePushTo tmp] : es
       es = foldr folder [] (zip (reverse srcStackIds) tmpStackIds)
       e = ECompose (map ePopFrom (reverse tmpStackIds))
@@ -372,11 +405,7 @@ fnId = lexeme ((:) <$> fnIdFirstChar <*> many fnIdChar)
     fnIdFirstChar = lower <|> char '_'
     fnIdChar = letter <|> char '_' <|> digit
 
-stackId_ = (:) <$> char '$' <*> ident_
-
-ident_ = (:) <$> identFirstChar <*> many identChar
-
-identFirstChar = letter <|> char '_'
+stackId_ = (++) <$> many1 (char '$') <*> many identChar
 
 identChar = letter <|> char '_' <|> digit
 

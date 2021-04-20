@@ -12,6 +12,8 @@ import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Eval
 import Language.Dawn.Phase1.TryAddElements
+import Text.Parsec hiding (Empty)
+import Text.ParserCombinators.Parsec.Error
 
 class Display t where
   display :: t -> String
@@ -103,13 +105,15 @@ instance Display TypeError where
 
 instance Display FnDeclError where
   display err@(FnAlreadyDeclared fid) = show err
+  display err@(FnDeclDuplicate fid) = show err
+  display err@(FnDeclTempStack fid sids) = show err
 
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
-  display (FnTypeError fid err) = "FnTypeError " ++ display err
-  display (FnStackError fid sids) =
-    let s = intercalate ", " (Set.toList sids)
-     in "exposed temporary stacks: " ++ s
+  display (FnTypeError fid err) =
+    "FnTypeError " ++ show fid ++ " " ++ display err
+  display (FnDefTempStack fid sids) =
+    "FnDefTempStack " ++ show fid ++ " " ++ show (Set.toList sids)
 
 instance Display DataDefError where
   display (TypeConsArityMismatch tcid t) =
@@ -123,11 +127,28 @@ instance Display TestDefError where
     "TestExpectsInputs " ++ show name ++ " " ++ display t
 
 instance Display ElementError where
-  display (IncludeElementError e) = "IncludeElementError " ++ show e
+  display (IncludeElementError e) = "IncludeElementError " ++ display e
   display (DataDefElementError e) = "DataDefElementError " ++ display e
   display (FnDeclElementError e) = "FnDeclElementError " ++ display e
   display (FnDefElementError e) = "FnDefElementError " ++ display e
   display (TestDefElementError e) = "TestDefElementError " ++ display e
+
+instance Display ParseError where
+  display err =
+    let msgStr =
+          showErrorMessages
+            "or"
+            "unknown parse error"
+            "    expecting"
+            "    unexpected"
+            "end of input"
+            (errorMessages err)
+        pos = errorPos err
+        path = sourceName pos
+        line = sourceLine pos
+        col = sourceColumn pos
+        locStr = intercalate ":" [path, show line, show col]
+     in "ParseError at " ++ locStr ++ msgStr
 
 instance Display Val where
   display (VCons Empty cid) = cid

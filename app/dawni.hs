@@ -49,9 +49,12 @@ main = do
           runInputT defaultSettings (doCliTest path)
 
 doCliTest path = do
-  env <- doAddElements preludeEnv [EInclude (Include path)]
-  runTests env
-  return ()
+  result <- doAddElements preludeEnv [EInclude (Include path)]
+  case result of
+    Left () -> return ()
+    Right env -> do
+      runTests env
+      return ()
 
 readEvalPrintLoop :: (Env, MultiStack Val) -> InputT IO (Env, MultiStack Val)
 readEvalPrintLoop (env, ms) = do
@@ -102,8 +105,10 @@ readEvalPrint (env, ms) = do
         printExprType env (partialEval' e)
         return (env, ms)
       Right (CmdAddElements elems) -> do
-        env' <- doAddElements env elems
-        return (env', ms)
+        result <- doAddElements env elems
+        case result of
+          Left () -> return (env, ms)
+          Right env' -> return (env', ms)
       Right (CmdEval e) ->
         let e' = fromExprSeq (toExprSeq (multiStackToExpr ms) ++ toExprSeq e)
          in case inferNormType env ["$"] e' of
@@ -131,11 +136,11 @@ doAddElements env elems = do
   case result :: Either SomeException (Either ElementError Env) of
     Left err -> do
       outputStrLn ("Error: " ++ show err)
-      return env
+      return (Left ())
     Right (Left err) -> do
       outputStrLn ("Error: " ++ display err)
-      return env
-    Right (Right env') -> return env'
+      return (Left ())
+    Right (Right env') -> return (Right env')
 
 multiStackToExpr :: MultiStack Val -> Expr
 multiStackToExpr (MultiStack ms) =

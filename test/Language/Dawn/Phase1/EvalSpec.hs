@@ -154,14 +154,14 @@ spec = do
 
     it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
       let (Right ms') = parseValMultiStack "B1"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
       let (Right ms') = parseValMultiStack "{$a B1}"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
@@ -178,14 +178,14 @@ spec = do
 
     it "evals recursive Nat pattern (Z S)" $ do
       let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "Z S {match {case (Z S) => }}"
       let ms = MultiStack Map.empty
       eval (toEvalEnv env) ["$"] e ms `shouldBe` ms
 
     it "evals recursive Nat pattern ((Z S) S)" $ do
       let (Right d) = parseDataDef "{data Nat {cons Z} {cons Nat S}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "Z S S {match {case (S S) => }}"
       let (Right ms') = parseValMultiStack "Z"
       eval (toEvalEnv env) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
@@ -195,7 +195,7 @@ spec = do
       let (Right dStack) =
             parseDataDef
               "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
-      let ([], env) = addDataDefs emptyEnv [dBit, dStack]
+      let (Right env) = tryAddDataDefs emptyEnv [dBit, dStack]
       let (Right e) =
             parseExpr
               "Empty B0 Push {match {case (Empty B0 Push) => }}"
@@ -207,7 +207,7 @@ spec = do
       let (Right dStack) =
             parseDataDef
               "{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}"
-      let ([], env) = addDataDefs emptyEnv [dBit, dStack]
+      let (Right env) = tryAddDataDefs emptyEnv [dBit, dStack]
       let (Right e) =
             parseExpr
               "Empty B1 Push B0 Push {match {case (Push B0 Push) => }}"
@@ -284,14 +284,14 @@ spec = do
       let (Right ms') = parseValMultiStack "{$a (Z S)}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
-    it "evals `{$tmp Z S} {match {case {$tmp S} =>}}`" $ do
-      let (Right e) = parseExpr "{$tmp Z S} {match {case {$tmp S} =>}}"
-      let (Right ms') = parseValMultiStack "{$tmp Z}"
+    it "evals `{$$ Z S} {match {case {$$ S} =>}}`" $ do
+      let (Right e) = parseExpr "{$$ Z S} {match {case {$$ S} =>}}"
+      let (Right ms') = parseValMultiStack "{$$ Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
-    it "evals `{$tmp Z S Z S} {match {case {$tmp S S} =>}}`" $ do
-      let (Right e) = parseExpr "{$tmp Z S Z S} {match {case {$tmp S S} =>}}"
-      let (Right ms') = parseValMultiStack "{$tmp Z Z}"
+    it "evals `{$$ Z S Z S} {match {case {$$ S S} =>}}`" $ do
+      let (Right e) = parseExpr "{$$ Z S Z S} {match {case {$$ S S} =>}}"
+      let (Right ms') = parseValMultiStack "{$$ Z Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
     it "evals `{$a Z S} {$b Z S} {match {case {$a S} {$b S} =>}}`" $ do
@@ -299,15 +299,15 @@ spec = do
       let (Right ms') = parseValMultiStack "{$a Z} {$b Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
-    it "evals `{$tmp Z S} {$a {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$tmp Z S} {$a {match {case {$tmp S} =>}}}"
-      let (Right ms') = parseValMultiStack "{$tmp Z}"
+    it "evals `{$$ Z S} {$a {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$$ Z S} {$a {match {case {$$ S} =>}}}"
+      let (Right ms') = parseValMultiStack "{$$ Z}"
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
-    it "evals `{$tmp {$tmp Z S} {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$tmp {$tmp Z S} {match {case {$tmp S} =>}}}"
+    it "evals `{$$ {$$ Z S} {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$$ {$$ Z S} {match {case {$$ S} =>}}}"
       let (Right vs) = parseValStack "Z"
-      let ms' = MultiStack (Map.singleton "$$tmp" vs)
+      let ms' = MultiStack (Map.singleton "$$$" vs)
       eval (toEvalEnv testEnv) ["$"] e (MultiStack Map.empty) `shouldBe` ms'
 
   describe "evalWithFuel" $ do
@@ -422,7 +422,7 @@ spec = do
 
     it "evals `B0 {match {case B0 => B1} {case B1 => B0}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "B0 {match {case B0 => B1} {case B1 => B0}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []
@@ -431,7 +431,7 @@ spec = do
 
     it "evals `{$a B0 {match {case B0 => B1} {case B1 => B0}}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{$a B0 {match {case B0 => B1} {case B1 => B0}}}"
       let ms = MultiStack Map.empty
       let e' = ECompose []

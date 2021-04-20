@@ -298,7 +298,7 @@ spec = do
 
     it "infers `{match {case B0 => B1} {case B1 => B0}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{match {case B0 => B1} {case B1 => B0}}"
       let tBit = TCons [] "Bit"
       inferNormType env ["$"] e
@@ -306,7 +306,7 @@ spec = do
 
     it "infers `{$a {match {case B0 => B1} {case B1 => B0}}}`" $ do
       let (Right d) = parseDataDef "{data Bit {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [d]
+      let (Right env) = tryAddDataDefs emptyEnv [d]
       let (Right e) = parseExpr "{$a {match {case B0 => B1} {case B1 => B0}}}"
       let tBit = TCons [] "Bit"
       inferNormType env ["$"] e
@@ -397,14 +397,14 @@ spec = do
       inferNormType testEnv ["$"] e
         `shouldBe` Right (forall [v0] ("$a" $: v0 * tNat * tNat --> v0 * tNat))
 
-    it "infers `{match {case {$tmp S} =>}}`" $ do
-      let (Right e) = parseExpr "{match {case {$tmp S} =>}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{match {case {$$ S} =>}}`" $ do
+      let (Right e) = parseExpr "{match {case {$$ S} =>}}"
+      let t = forall [v0] ("$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{match {case {$tmp S S} =>}}`" $ do
-      let (Right e) = parseExpr "{match {case {$tmp S S} =>}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat * tNat --> v0 * tNat * tNat)
+    it "infers `{match {case {$$ S S} =>}}`" $ do
+      let (Right e) = parseExpr "{match {case {$$ S S} =>}}"
+      let t = forall [v0] ("$$" $: v0 * tNat * tNat --> v0 * tNat * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
     it "infers `{match {case {$a S} {$b S} =>}}`" $ do
@@ -412,14 +412,14 @@ spec = do
       let t = forall [v0, v1] ("$a" $: v0 * tNat --> v0 * tNat $. "$b" $: v1 * tNat --> v1 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{$a {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$a {match {case {$tmp S} =>}}}"
-      let t = forall [v0] ("$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{$a {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$a {match {case {$$ S} =>}}}"
+      let t = forall [v0] ("$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
-    it "infers `{$tmp {match {case {$tmp S} =>}}}`" $ do
-      let (Right e) = parseExpr "{$tmp {match {case {$tmp S} =>}}}"
-      let t = forall [v0] ("$$tmp" $: v0 * tNat --> v0 * tNat)
+    it "infers `{$$ {match {case {$$ S} =>}}}`" $ do
+      let (Right e) = parseExpr "{$$ {match {case {$$ S} =>}}}"
+      let t = forall [v0] ("$$$" $: v0 * tNat --> v0 * tNat)
       inferNormType testEnv ["$"] e `shouldBe` Right t
 
   describe "checkType" $ do
@@ -469,17 +469,33 @@ spec = do
               )
       fnUDeps e `shouldBe` Set.fromList ["f1", "f2", "f4"]
 
-  describe "tryAddFnDecl" $ do
+  describe "tryAddFnDecls" $ do
     it "adds drop2" $ do
       let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
       let (Right t) = parseFnType "forall v0 v1 v2 . v0 v1 v2 -> v0"
-      tryAddFnDecl emptyEnv f
+      tryAddFnDecls emptyEnv [f]
         `shouldBe` Right
           ( emptyEnv
               { fnDecls = Map.singleton "drop2" f,
                 fnTypes = Map.singleton "drop2" t
               }
           )
+
+    it "fails with FnAlreadyDeclared" $ do
+      let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+      let (Right env) = tryAddFnDecls emptyEnv [f]
+      tryAddFnDecls env [f]
+        `shouldBe` Left (FnAlreadyDeclared "drop2")
+
+    it "fails with FnDeclDuplicate" $ do
+      let (Right f) = parseFnDecl "{fn drop2 :: forall v0 v1 v2 . v0 v1 v2 -> v0}"
+      tryAddFnDecls emptyEnv [f, f]
+        `shouldBe` Left (FnDeclDuplicate "drop2")
+
+    it "fails with FnDeclTempStack" $ do
+      let (Right f) = parseFnDecl "{fn pass :: forall v0 . {$$ v0 -> v0}}"
+      tryAddFnDecls emptyEnv [f]
+        `shouldBe` Left (FnDeclTempStack "pass" (Set.singleton "$$"))
 
   describe "tryAddFnDefs" $ do
     it "defines drop2" $ do
@@ -503,10 +519,10 @@ spec = do
       tryAddFnDefs env [f]
         `shouldBe` Left (FnAlreadyDefined "drop2")
 
-    it "fails with FnDuplicate" $ do
+    it "fails with FnDefDuplicate" $ do
       let (Right f) = parseFnDef "{fn drop2 => drop drop}"
       tryAddFnDefs emptyEnv [f, f]
-        `shouldBe` Left (FnDuplicate "drop2")
+        `shouldBe` Left (FnDefDuplicate "drop2")
 
     it "fails with FnTypeError UndefinedFn" $ do
       let (Right f) = parseFnDef "{fn test1 => clone test2 clone test3}"
@@ -520,10 +536,10 @@ spec = do
       tryAddFnDefs emptyEnv [f]
         `shouldBe` Left (FnTypeError "test" err)
 
-    it "fails with FnStackError" $ do
+    it "fails with FnDefTempStack" $ do
       let (Right f) = parseFnDef "{fn test => {$a $a<-} {$b $b<-}}"
       tryAddFnDefs emptyEnv [f]
-        `shouldBe` Left (FnStackError "test" (Set.fromList ["$$a", "$$b"]))
+        `shouldBe` Left (FnDefTempStack "test" (Set.fromList ["$$a", "$$b"]))
 
     it "defines fib" $ do
       let (Right f) =
@@ -860,7 +876,7 @@ spec = do
       let env' = env {fnDefs = fnDefs', fnTypes = fnTypes'}
       tryAddFnDefs env defs `shouldBe` Right env'
 
-  describe "addDataDefs" $ do
+  describe "tryAddDataDefs" $ do
     it "adds `{data Bit {cons B0} {cons B1}}`" $ do
       let (Right def) = parseDataDef "{data Bit {cons B0} {cons B1}}"
       let dataDefs = Map.singleton "Bit" def
@@ -868,8 +884,8 @@ spec = do
       let consDefs = Map.fromList [("B0", ConsDef [] "B0"), ("B1", ConsDef [] "B1")]
       let tBit = TCons [] "Bit"
       let consTypes = Map.fromList [("B0", ([], tBit)), ("B1", ([], tBit))]
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Right (emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
 
     it "adds `{data v0 v1 Pair {cons v0 v1 Pair}}`" $ do
       let (Right def) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
@@ -877,8 +893,8 @@ spec = do
       let typeConsArities = Map.singleton "Pair" 2
       let consDefs = Map.fromList [("Pair", ConsDef [v0, v1] "Pair")]
       let consTypes = Map.fromList [("Pair", ([v0, v1], TCons [v0, v1] "Pair"))]
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Right (emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
 
     it "adds `{data v0 v1 SwapPair {cons v1 v0 SwapPair}}`" $ do
       let (Right def) = parseDataDef "{data v0 v1 SwapPair {cons v1 v0 SwapPair}}"
@@ -886,8 +902,8 @@ spec = do
       let typeConsArities = Map.singleton "SwapPair" 2
       let consDefs = Map.fromList [("SwapPair", ConsDef [v1, v0] "SwapPair")]
       let consTypes = Map.fromList [("SwapPair", ([v1, v0], TCons [v0, v1] "SwapPair"))]
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Right (emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
 
     it "adds `{data v0 Stack {cons Empty} {cons (v0 Stack) v0 Push}}`" $ do
       let (Right def) =
@@ -906,8 +922,8 @@ spec = do
               [ ("Empty", ([], tStack)),
                 ("Push", ([tStack, v0], tStack))
               ]
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Right (emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
 
     it "adds mutually recursive definitions" $ do
       let (Right defA) =
@@ -933,49 +949,49 @@ spec = do
                 ("EmptyB", ([], tB)),
                 ("B", ([tA, v1], tB))
               ]
-      addDataDefs emptyEnv [defA, defB]
-        `shouldBe` ([], emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
+      tryAddDataDefs emptyEnv [defA, defB]
+        `shouldBe` Right (emptyEnv {dataDefs, typeConsArities, consDefs, consTypes})
 
     it "fails with TypeConsAlreadyDefined" $ do
       let (Right def) = parseDataDef "{data Foo}"
-      let ([], env) = addDataDefs emptyEnv [def]
-      addDataDefs env [def]
-        `shouldBe` ([TypeConsAlreadyDefined "Foo"], env)
-      addDataDefs emptyEnv [def, def]
-        `shouldBe` ([TypeConsAlreadyDefined "Foo"], env)
+      let (Right env) = tryAddDataDefs emptyEnv [def]
+      tryAddDataDefs env [def]
+        `shouldBe` Left (TypeConsAlreadyDefined "Foo")
+      tryAddDataDefs emptyEnv [def, def]
+        `shouldBe` Left (TypeConsAlreadyDefined "Foo")
 
     it "fails with ConsAlreadyDefined" $ do
       let (Right def1) = parseDataDef "{data Bit1 {cons B0} {cons B1}}"
       let (Right def2) = parseDataDef "{data Bit2 {cons B0} {cons B1}}"
-      let ([], env) = addDataDefs emptyEnv [def1]
-      addDataDefs env [def2]
-        `shouldBe` ([ConsAlreadyDefined "Bit2" "B0"], env)
-      addDataDefs emptyEnv [def1, def2]
-        `shouldBe` ([ConsAlreadyDefined "Bit2" "B0"], env)
+      let (Right env) = tryAddDataDefs emptyEnv [def1]
+      tryAddDataDefs env [def2]
+        `shouldBe` Left (ConsAlreadyDefined "Bit2" "B0")
+      tryAddDataDefs emptyEnv [def1, def2]
+        `shouldBe` Left (ConsAlreadyDefined "Bit2" "B0")
 
     it "fails with DuplicateTypeVar" $ do
       let (Right def) = parseDataDef "{data v0 v0 Test {cons v0 v0 Test}}"
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([DuplicateTypeVar "Test" tv0], emptyEnv)
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Left (DuplicateTypeVar "Test" tv0)
 
     it "fails with UndefinedTypeVar" $ do
       let (Right def) = parseDataDef "{data Stack {cons Empty} {cons Stack v0 Push}}"
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([UndefinedTypeVar "Stack" tv0], emptyEnv)
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Left (UndefinedTypeVar "Stack" tv0)
 
     it "fails with UndefinedTypeCons" $ do
       let (Right def) =
             parseDataDef
               "{data v0 v1 A {cons EmptyA} {cons (v0 v1 B) v0 A}}"
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([UndefinedTypeCons "B"], emptyEnv)
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Left (UndefinedTypeCons "B")
 
     it "fails with TypeConsArityMismatch" $ do
       let (Right def) =
             parseDataDef
               "{data v0 Stack {cons Empty} {cons Stack v0 Push}}"
-      addDataDefs emptyEnv [def]
-        `shouldBe` ([TypeConsArityMismatch "Stack" (TCons [] "Stack")], emptyEnv)
+      tryAddDataDefs emptyEnv [def]
+        `shouldBe` Left (TypeConsArityMismatch "Stack" (TCons [] "Stack"))
 
   describe "tryAddTestDef" $ do
     it "adds test definition" $ do
@@ -1021,7 +1037,7 @@ spec = do
     ( unlines
         [ "{fn nat_add => {match",
           "    {case Z =>}",
-          "    {case S => $tmp<- S $tmp-> nat_add}",
+          "    {case S => $$<- S $$-> nat_add}",
           "}}"
         ]
     )
@@ -1074,7 +1090,7 @@ spec = do
 (Right dPair) = parseDataDef "{data v0 v1 Pair {cons v0 v1 Pair}}"
 
 (Right testEnv) =
-  let ([], env) = addDataDefs preludeEnv [dBool, dNat, dStack, dPair]
+  let (Right env) = tryAddDataDefs preludeEnv [dBool, dNat, dStack, dPair]
    in tryAddFnDefs env [d_swap, bool_and_d, d_nat_incr, d_nat_decr, d_nat_add, d_nat_sub, d_nat_is_odd]
 
 fastFibSrc = "{fn fib => {$a Z} {$b (Z S)} _fib}"
