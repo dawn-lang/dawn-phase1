@@ -1,0 +1,19 @@
+-- Copyright (c) 2021 Scott J Maddox
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{data v0 Stack {cons SEmpty} {cons (v0 Stack) v0 SPush}}
+
+{fn stack_map :: (v0 Stack) (forall v1 . v1 v0 -> v1 v2) -> (v2 Stack)}
+-- {fn stack_map => } -- TODO
+
+{fn stack_append :: (v0 Stack) (v0 Stack) -> (v0 Stack)}
+{fn stack_append => {match
+    {case SEmpty =>}
+    {case SPush => $$<- stack_append $$-> SPush}
+}}
+
+{fn stack_split_at :: Nat (v0 Stack) -> (v0 Stack) (v0 Stack)}
+-- {fn stack_split_at => } -- TODO

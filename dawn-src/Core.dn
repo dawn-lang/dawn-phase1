@@ -1,0 +1,233 @@
+-- Copyright (c) 2021 Scott J Maddox
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{include "Stack.dn"}
+
+{data v0 v1 Pair {cons v0 v1 Pair}}
+{fn unpair => {match {case Pair =>}}}
+
+{data v0 v1 Map {cons ((v0 v1 Pair) Stack) Map}}
+{fn unmap => {match {case Map =>}}}
+
+{data v0 Set {cons (v0 Stack) Set}}
+{fn unset => {match {case Set =>}}}
+
+---
+
+{data StackId {cons (Byte Stack) StackId}}
+
+{data v0 MultiStack {cons (StackId (v0 Stack) Map) MultiStack}}
+
+---
+
+{data ConsId {cons (Byte Stack) ConsId}}
+
+{data FnId {cons (Byte Stack) FnId}}
+
+{data TVarId {cons (Byte Stack) TVarId}}
+
+{data TConsId {cons (Byte Stack) TConsId}}
+
+---------------------
+-- Abstract Syntax --
+---------------------
+
+{data Expr
+    {cons Intrinsic EIntrinsic}
+    {cons Expr EQuote}
+    {cons (Expr Stack) ECompose}
+    {cons StackId Expr EContext}
+    {cons (MatchCase Stack) EMatch}
+    {cons ConsId ECons}
+    {cons FnId ECall}
+}
+
+{data Intrinsic
+  {cons IPush}
+  {cons IPop}
+  {cons IClone}
+  {cons IDrop}
+  {cons IQuote}
+  {cons ICompose}
+  {cons IApply}
+}
+
+{data MatchCase {cons (Pattern MultiStack) Expr MatchCase}}
+
+{data Pattern
+    {cons (Pattern Stack) ConsId PCons}
+    {cons PWild}
+}
+
+{data Type
+    {cons TVarId TVar}
+    {cons (TVarId Stack) (StackId ((Type Stack) (Type Stack) Pair) Map) TFn}
+    {cons (Type Stack) TConsId TCons}
+}
+
+-------------------
+-- Instantiation --
+-------------------
+
+-- | Rename type variables
+{fn rename_tvar :: TVarId TVarId Type -> Type}
+-- {fn rename_tvar => } -- TODO
+
+-- | Free type variables
+{fn ftv :: Type -> (TVarId Set)}
+-- {fn ftv => } -- TODO
+
+-- | Bound type variables
+{fn btv :: Type -> (TVarId Set)}
+-- {fn btv => } -- TODO
+
+-- | All type variables, in the order they appear
+{fn atv :: Type -> (TVarId Stack)}
+-- {fn atv => } -- TODO
+
+-- | Get a fresh type variable
+{fn fresh_type_var :: forall v0 v1 .
+    {$ v0 TVarId -> v0}
+    {$reserved v1 (TVarId Set) -> v1 (TVarId Set)}
+}
+-- {fn fresh_type_var => } -- TODO
+
+-- | Replace the specified type variables with fresh type variables
+{fn replace_type_vars :: forall v0 v1 .
+    {$ v0 Type (TVarId Stack) -> v0 Type}
+    {$reserved v1 (TVarId Set) -> v1 (TVarId Set)}
+}
+-- {fn replace_type_vars => } -- TODO
+
+-- | Instantiate quantified type variables with fresh type variables
+{fn instantiate :: forall v0 v1 .
+    {$ v0 Type -> v0 Type}
+    {$reserved v1 (TVarId Set) -> v1 (TVarId Set)}
+}
+-- {fn instantiate => } -- TODO
+
+-- | Instantiate all type variables with fresh type variables
+{fn instantiate_all :: forall v0 v1 .
+    {$ v0 Type -> v0 Type}
+    {$reserved v1 (TVarId Set) -> v1 (TVarId Set)}
+}
+-- {fn instantiate_all => } -- TODO
+
+------------------
+-- Substitution --
+------------------
+
+{data Subst {cons (TVarId Type Map) Subst}}
+
+-----------------
+-- Unification --
+-----------------
+
+{data UnificationError
+    {cons Type Type DoesNotUnify}
+    {cons TVarId Type OccursIn}
+}
+
+--------------
+-- Matching --
+--------------
+
+{data MatchError {cons Type Type DoesNotMatch}}
+
+--------------------
+-- Type Inference --
+--------------------
+
+{data TypeError
+    {cons UnificationError UnificationTypeError}
+    {cons MatchError MatchTypeError}
+    {cons ConsId UndefinedCons}
+    {cons FnId UndefinedFn}
+    {cons ConsId Pattern PatternArityMismatch}
+}
+
+{data Env
+    {cons
+        -- TODO
+        -- {$dataDefs (TConsId DataDef Map)}
+        -- {$tConsArities (TConsId Nat Map)}
+        -- {$consDefs (ConsId ConsDef Map)}
+        -- {$consTypes (ConsId ((Type Stack) Type Pair) Map)}
+        -- {$fnDecls (FnId FnDecl Map)}
+        -- {$fnDefs (FnId FnDef Map)}
+        -- {$fnTypes (FnId Type Map)}
+        -- {$testDefs (TestDef Stack)}
+        Env
+    }
+}
+
+-----------------------------------------
+-- Function Declaration and Definition --
+-----------------------------------------
+
+{data FnDecl {cons FnId Type FnDecl}}
+
+{data FnDef {cons FnId Expr FnDef}}
+
+{data FnDeclError
+    {cons FnId FnAlreadyDeclared}
+    {cons FnId FnDeclDuplicate}
+    {cons FnId (StackId Set) FnDeclTempStack}
+}
+
+{data FnDefError
+    {cons FnId FnAlreadyDefined}
+    {cons FnId FnDefDuplicate}
+    {cons (FnId Set) UncondCallCycle}
+    {cons FnId TypeError FnTypeError}
+    {cons FnId (StackId Set) FnDefTempStack}
+}
+
+------------------------------------
+-- Algebraic Data Type Definition --
+------------------------------------
+
+{data DataDef {cons (TVarId Stack) TConsId (ConsDef Stack) DataDef}}
+
+{data ConsDef {cons (Type Stack) ConsId ConsDef}}
+
+{data DataDefError
+    {cons TConsId TypeConsAlreadyDefined}
+    {cons TConsId ConsId ConsAlreadyDefined}
+    {cons TConsId TVarId DuplicateTypeVar}
+    {cons TConsId TVarId UndefinedTypeVar}
+    {cons TConsId UndefinedTypeCons}
+    {cons TConsId Type TypeConsArityMismatch}
+}
+
+---------------------
+-- Test Definition --
+---------------------
+
+{data TestName {cons (Byte Stack) TestName}}
+
+{data TestDef {cons TestName Expr TestDef}}
+
+{data TestDefError
+    {cons TestName TypeError TestTypeError}
+    {cons TestName Type TestExpectsInputs}
+}
+
+----------------------
+-- Program Elements --
+----------------------
+
+{data Include {cons UriRef Include}}
+
+{data UriRef {cons (Byte Stack) UriRef}}
+
+{data Element
+    {cons Include IncludeElement}
+    {cons DataDef DataDefElement}
+    {cons FnDecl FnDeclElement}
+    {cons FnDef FnDefElement}
+    {cons TestDef TestDefElement}
+}

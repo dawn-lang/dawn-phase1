@@ -1,0 +1,20 @@
+-- Copyright (c) 2021 Scott J Maddox
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{include "Stack.dn"}
+
+{test "SEmpty SEmpty stack_append ~~> SEmpty" =>
+    SEmpty SEmpty stack_append {match {case SEmpty=>}}}
+{test "(SEmpty B0 SPush) SEmpty stack_append ~~> (SEmpty B0 SPush)" =>
+    (SEmpty B0 SPush) SEmpty stack_append {match {case (SEmpty B0 SPush) =>}}}
+{test "SEmpty (SEmpty B0 SPush) stack_append ~~> (SEmpty B0 SPush)" =>
+    SEmpty (SEmpty B0 SPush) stack_append {match {case (SEmpty B0 SPush) =>}}}
+{test "(SEmpty B0 SPush) (SEmpty B1 SPush) stack_append ~~> ((SEmpty B0 SPush) B1 SPush)" =>
+    (SEmpty B0 SPush) (SEmpty B1 SPush) stack_append
+    {match {case ((SEmpty B0 SPush) B1 SPush) =>}}}
+{test "(SEmpty B0 SPush) ((SEmpty B1 SPush) B0 SPush) stack_append ~~> ..." =>
+    (SEmpty B0 SPush) ((SEmpty B1 SPush) B0 SPush) stack_append
+    {match {case (((SEmpty B0 SPush) B1 SPush) B0 SPush) =>}}}
