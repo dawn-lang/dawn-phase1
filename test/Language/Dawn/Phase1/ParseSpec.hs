@@ -494,15 +494,15 @@ spec = do
       parseProdType "(v0 Stack)" `shouldBe` Right (TCons [v0] "Stack")
 
   describe "parseFnType" $ do
-    it "parses `(forall v0 . v0 -> v0)`" $ do
+    it "parses `forall v0 . v0 -> v0`" $ do
       parseFnType "forall v0 . v0 -> v0"
         `shouldBe` Right (forall' [v0] (v0 --> v0))
 
-    it "parses `(forall v0 v1 . v0 (forall . v0 -> v1) -> v1)`" $ do
+    it "parses `forall v0 v1 . v0 (forall . v0 -> v1) -> v1`" $ do
       parseFnType "forall v0 v1 . v0 (forall . v0 -> v1) -> v1"
         `shouldBe` Right (forall' [v0, v1] (v0 * forall' [] (v0 --> v1) --> v1))
 
-    it "parses `(forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit)`" $ do
+    it "parses `forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit`" $ do
       let tStack t = TCons [t] "Stack"
       let tBit = TCons [] "Bit"
       parseFnType "forall v0 v1 . v0 (v1 Stack) -> v0 (Bit Stack) Bit"
@@ -512,12 +512,12 @@ spec = do
               (v0 * tStack v1 --> v0 * tStack tBit * tBit)
           )
 
-    it "parses `(forall v0 . {$$ v0 Bit -> v0 Bit})`" $ do
+    it "parses `forall v0 . {$$ v0 Bit -> v0 Bit}`" $ do
       let tBit = TCons [] "Bit"
       parseFnType "forall v0 . {$$ v0 Bit -> v0 Bit}"
         `shouldBe` Right (forall [v0] ("$$" $: v0 * tBit --> v0 * tBit))
 
-    it "parses `(forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1})`" $ do
+    it "parses `forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}`" $ do
       parseFnType "forall v0 v1 v2 . {$a v0 v1 -> v0 v2} {$b v0 v2 -> v0 v1}"
         `shouldBe` Right
           ( forall
