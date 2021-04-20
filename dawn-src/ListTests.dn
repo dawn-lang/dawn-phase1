@@ -1,0 +1,13 @@
+-- Copyright (c) 2021 Scott J Maddox
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{include "List.dn"}
+
+{test "Nil Nil list_append ~~> Nil" => Nil Nil list_append {match {case Nil =>}}}
+{test "Nil (B0 Nil Cons) list_append ~~> (B0 Nil Cons)" =>
+    Nil (B0 Nil Cons) list_append {match {case (B0 Nil Cons) =>}}}
+{test "(B0 Nil Cons) (B1 Nil Cons) list_append ~~> (B0 (B1 Nil Cons) Cons)" =>
+    (B0 Nil Cons) (B1 Nil Cons) list_append {match {case (B0 (B1 Nil Cons) Cons) =>}}}
