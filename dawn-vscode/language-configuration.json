@@ -28,7 +28,12 @@
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
   "onEnterRules": [
     {
-      "beforeText": "^.*$",
+      "beforeText": "}$",
+      "afterText": "^}+$",
+      "action": { "indent": "outdent" }
+    },
+    {
+      "beforeText": ".*",
       "afterText": "^}+$",
       "action": { "indent": "indentOutdent" }
     }
