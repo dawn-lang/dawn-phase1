@@ -230,8 +230,8 @@ spec = do
     it "parses `b'a'`" $ do
       let (Right e) = parseExpr "(B0 B1 B1 B0 B0 B0 B0 B1 Byte)"
       parseExpr "b'a'" `shouldBe` Right e
-    
-    it "parses `b'\\x7F'`"$ do
+
+    it "parses `b'\\x7F'`" $ do
       let (Right e) = parseExpr "(B0 B1 B1 B1 B1 B1 B1 B1 Byte)"
       parseExpr "b'\\x7F'" `shouldBe` Right e
 
@@ -239,27 +239,27 @@ spec = do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B0 B0 B0 B0 Byte)"
       parseExpr "b'\\0'" `shouldBe` Right e
 
-    it "parses `b'\\n'`"$ do
+    it "parses `b'\\n'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B0 B1 B0 Byte)"
       parseExpr "b'\\n'" `shouldBe` Right e
 
-    it "parses `b'\\r'`"$ do
+    it "parses `b'\\r'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B1 B0 B1 Byte)"
       parseExpr "b'\\r'" `shouldBe` Right e
 
-    it "parses `b'\\t'`"$ do
+    it "parses `b'\\t'`" $ do
       let (Right e) = parseExpr "(B0 B0 B0 B0 B1 B0 B0 B1 Byte)"
       parseExpr "b'\\t'" `shouldBe` Right e
 
-    it "parses `b'\\\\'`"$ do
+    it "parses `b'\\\\'`" $ do
       let (Right e) = parseExpr "(B0 B1 B0 B1 B1 B1 B0 B0 Byte)"
       parseExpr "b'\\\\'" `shouldBe` Right e
 
-    it "parses `b'\\\''`"$ do
+    it "parses `b'\\\''`" $ do
       let (Right e) = parseExpr "(B0 B0 B1 B0 B0 B1 B1 B1 Byte)"
       parseExpr "b'\\\''" `shouldBe` Right e
 
-    it "parses `b'\\\"'`"$ do
+    it "parses `b'\\\"'`" $ do
       let (Right e) = parseExpr "(B0 B0 B1 B0 B0 B0 B1 B0 Byte)"
       parseExpr "b'\\\"'" `shouldBe` Right e
 
@@ -267,8 +267,8 @@ spec = do
     it "parses `b'a'`" $ do
       let (Right e) = parsePattern "(B0 B1 B1 B0 B0 B0 B0 B1 Byte)"
       parsePattern "b'a'" `shouldBe` Right e
-    
-    it "parses `b'\\x7F'`"$ do
+
+    it "parses `b'\\x7F'`" $ do
       let (Right e) = parsePattern "(B0 B1 B1 B1 B1 B1 B1 B1 Byte)"
       parsePattern "b'\\x7F'" `shouldBe` Right e
 
@@ -276,27 +276,27 @@ spec = do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B0 B0 B0 B0 Byte)"
       parsePattern "b'\\0'" `shouldBe` Right e
 
-    it "parses `b'\\n'`"$ do
+    it "parses `b'\\n'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B0 B1 B0 Byte)"
       parsePattern "b'\\n'" `shouldBe` Right e
 
-    it "parses `b'\\r'`"$ do
+    it "parses `b'\\r'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B1 B0 B1 Byte)"
       parsePattern "b'\\r'" `shouldBe` Right e
 
-    it "parses `b'\\t'`"$ do
+    it "parses `b'\\t'`" $ do
       let (Right e) = parsePattern "(B0 B0 B0 B0 B1 B0 B0 B1 Byte)"
       parsePattern "b'\\t'" `shouldBe` Right e
 
-    it "parses `b'\\\\'`"$ do
+    it "parses `b'\\\\'`" $ do
       let (Right e) = parsePattern "(B0 B1 B0 B1 B1 B1 B0 B0 Byte)"
       parsePattern "b'\\\\'" `shouldBe` Right e
 
-    it "parses `b'\\\''`"$ do
+    it "parses `b'\\\''`" $ do
       let (Right e) = parsePattern "(B0 B0 B1 B0 B0 B1 B1 B1 Byte)"
       parsePattern "b'\\\''" `shouldBe` Right e
 
-    it "parses `b'\\\"'`"$ do
+    it "parses `b'\\\"'`" $ do
       let (Right e) = parsePattern "(B0 B0 B1 B0 B0 B0 B1 B0 Byte)"
       parsePattern "b'\\\"'" `shouldBe` Right e
 
