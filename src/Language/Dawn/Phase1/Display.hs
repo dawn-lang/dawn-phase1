@@ -103,13 +103,15 @@ instance Display TypeError where
 
 instance Display FnDeclError where
   display err@(FnAlreadyDeclared fid) = show err
+  display err@(FnDeclDuplicate fid) = show err
+  display err@(FnDeclTempStack fid sids) = show err
 
 instance Display FnDefError where
   display err@(FnAlreadyDefined fid) = show err
-  display (FnTypeError fid err) = "FnTypeError " ++ display err
+  display (FnTypeError fid err) =
+    "FnTypeError " ++ show fid ++ " " ++ display err
   display (FnDefTempStack fid sids) =
-    let s = intercalate ", " (Set.toList sids)
-     in "exposed temporary stacks: " ++ s
+    "FnDefTempStack " ++ show fid ++ " " ++ show (Set.toList sids)
 
 instance Display DataDefError where
   display (TypeConsArityMismatch tcid t) =
