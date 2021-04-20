@@ -1,0 +1,28 @@
+-- Copyright (c) 2021 Scott J Maddox
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{data Val
+    {cons Expr VQuote}
+    {cons (Val Stack) ConsId VCons}
+}
+
+{fn expr_to_val :: Expr -> Val}
+-- {fn expr_to_val => } -- TODO
+
+{fn val_to_expr :: Val -> Expr}
+-- {fn val_to_expr => } -- TODO
+
+{data EvalEnv
+    {cons
+        -- TODO
+        -- {$consArities (ConsId Nat Map)}
+        -- {$fnExprs (FnId Expr Map)}
+        EvalEnv
+    }
+}
+
+{fn eval :: EvalEnv -> }
+-- eval :: EvalEnv -> Context -> Expr -> MultiStack Val -> MultiStack Val
