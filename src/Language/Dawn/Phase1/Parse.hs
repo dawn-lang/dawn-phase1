@@ -185,8 +185,21 @@ univQuants = keyword "forall" *> (Set.fromList <$> many typeVar) <* symbol "."
 
 multiIO :: Parser MultiIO
 multiIO =
-  Map.fromList <$> many1 (betweenBraces ((,) <$> stackId <*> singleIO))
+  Map.fromList <$> explicitStackIO
     <|> Map.singleton "$" <$> singleIO
+
+hasDuplicate :: Ord a => [a] -> Bool
+hasDuplicate = iter Set.empty
+  where
+    iter seen [] = False
+    iter seen (a : as) | a `Set.member` seen = True
+    iter seen (a : as) = iter (Set.insert a seen) as
+
+explicitStackIO :: Parser [(StackId, (Type, Type))]
+explicitStackIO = do
+  kvs <- many1 (betweenBraces ((,) <$> stackId <*> singleIO))
+  when (hasDuplicate (map fst kvs)) (fail "duplicate stack")
+  return kvs
 
 singleIO :: Parser (Type, Type)
 singleIO = (,) <$> prodType <*> (symbol "->" *> prodType)

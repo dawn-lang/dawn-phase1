@@ -525,6 +525,10 @@ spec = do
               ("$a" $: v0 * v1 --> v0 * v2 $. "$b" $: v0 * v2 --> v0 * v1)
           )
 
+    it "fails on `forall v0 . {$ v0 -> v0} {$ v0 -> v0}`" $ do
+      isLeft (parseFnType "forall v0 . {$ v0 -> v0} {$ v0 -> v0}")
+        `shouldBe` True
+
   describe "parseShorthandFnType" $ do
     it "parses ` -> `" $ do
       parseShorthandFnType " -> "
