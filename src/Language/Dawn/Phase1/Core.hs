@@ -550,7 +550,8 @@ data TypeError
   deriving (Eq, Show)
 
 data Env = Env
-  { dataDefs :: Map.Map TypeConsId DataDef,
+  { includes :: Set.Set URIRef,
+    dataDefs :: Map.Map TypeConsId DataDef,
     typeConsArities :: Map.Map TypeConsId Int,
     consDefs :: Map.Map ConsId ConsDef,
     consTypes :: Map.Map ConsId ([Type], Type),
@@ -563,7 +564,7 @@ data Env = Env
 
 emptyEnv :: Env
 emptyEnv =
-  Env Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty []
+  Env Set.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty []
 
 quoteType :: Context -> Type -> Type
 quoteType (s : _) f@TFn {} =
