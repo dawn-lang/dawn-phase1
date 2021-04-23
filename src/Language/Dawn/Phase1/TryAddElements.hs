@@ -49,28 +49,28 @@ getTestDefs (ETestDef d : es) = d : getTestDefs es
 getTestDefs (e : es) = getTestDefs es
 
 tryAddElements :: Env -> [Element] -> ExceptT ElementError IO Env
-tryAddElements env@Env {includes} elems = do
-  elems' <- recursiveInclude includes "" elems
-  env1 <- liftEither (mapLeft DataDefElementError (tryAddDataDefs env (getDataDefs elems')))
-  env2 <- liftEither (mapLeft FnDeclElementError (tryAddFnDecls env1 (getFnDecls elems')))
-  env3 <- liftEither (mapLeft FnDefElementError (tryAddFnDefs env2 (getFnDefs elems')))
-  liftEither (mapLeft TestDefElementError (tryAddTestDefs env3 (getTestDefs elems')))
+tryAddElements env elems = do
+  (env1, elems1) <- recursiveInclude env "" elems
+  env2 <- liftEither (mapLeft DataDefElementError (tryAddDataDefs env1 (getDataDefs elems1)))
+  env3 <- liftEither (mapLeft FnDeclElementError (tryAddFnDecls env2 (getFnDecls elems1)))
+  env4 <- liftEither (mapLeft FnDefElementError (tryAddFnDefs env3 (getFnDefs elems1)))
+  liftEither (mapLeft TestDefElementError (tryAddTestDefs env4 (getTestDefs elems1)))
   where
-    recursiveInclude :: Set.Set URIRef -> URIRef -> [Element] -> ExceptT ElementError IO [Element]
-    recursiveInclude includes uriRefDir [] = return []
-    recursiveInclude includes uriRefDir (EInclude (Include uriRef) : es) = do
+    recursiveInclude :: Env -> URIRef -> [Element] -> ExceptT ElementError IO (Env, [Element])
+    recursiveInclude env uriRefDir [] = return (env, [])
+    recursiveInclude env@Env {includes} uriRefDir (EInclude (Include uriRef) : es) = do
       let combinedUriRef =
             if null uriRefDir || "/" `isPrefixOf` uriRef
               then uriRef
               else uriRefDir ++ "/" ++ uriRef
       if combinedUriRef `Set.member` includes
-        then recursiveInclude includes uriRefDir es
+        then recursiveInclude env uriRefDir es
         else do
           es' <- ExceptT (fmap (first IncludeElementError) (parseElementsFromFile combinedUriRef))
           let combinedUriRefSegments = splitOn "/" combinedUriRef
           let uriRefDir' = intercalate "/" (init combinedUriRefSegments)
-          let includes' = Set.insert combinedUriRef includes
-          elems' <- recursiveInclude includes' uriRefDir' es'
-          elems <- recursiveInclude includes' uriRefDir es
-          return (elems' ++ elems)
-    recursiveInclude includes uriRefDir (e : es) = return (e : es)
+          let env1 = env {includes = Set.insert combinedUriRef includes}
+          (env2, elems2) <- recursiveInclude env1 uriRefDir' es'
+          (env3, elems3) <- recursiveInclude env2 uriRefDir es
+          return (env3, elems2 ++ elems3)
+    recursiveInclude env uriRefDir (e : es) = return (env, e : es)

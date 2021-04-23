@@ -8,6 +8,7 @@ module Language.Dawn.Phase1.TryAddElementsSpec (spec) where
 
 import Control.Monad.Except
 import Data.Either
+import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.CoreSpec hiding (spec)
 import Language.Dawn.Phase1.Display
@@ -66,8 +67,9 @@ spec = do
               ]
       let (Right elems2) = parseElements src2
       (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
+      let env' = env {includes = Set.singleton "test/Test1.dn"}
 
-      result1 `shouldBe` Right env
+      result1 `shouldBe` Right env'
 
     it "includes `test/Test2.dn`" $ do
       let src1 = "{include \"test/Test2.dn\"}"
@@ -85,8 +87,9 @@ spec = do
               ]
       let (Right elems2) = parseElements src2
       (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
+      let env' = env {includes = Set.fromList ["test/Test1.dn", "test/Test2.dn"]}
 
-      result1 `shouldBe` Right env
+      result1 `shouldBe` Right env'
 
     it "skips duplicate includes" $ do
       let src1 = "{include \"test/Test1.dn\"}\n{include \"test/Test1.dn\"}"
@@ -102,5 +105,6 @@ spec = do
               ]
       let (Right elems2) = parseElements src2
       (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
+      let env' = env {includes = Set.singleton "test/Test1.dn"}
 
-      result1 `shouldBe` Right env
+      result1 `shouldBe` Right env'
