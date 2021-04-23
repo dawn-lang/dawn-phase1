@@ -43,13 +43,14 @@ main = do
     ("--test" : args') -> do
       case args' of
         [] -> do
-          putStrLn "Usage: --test FILE_PATH"
+          putStrLn "Usage: --test FILE_PATH ..."
           return ()
-        (path : args') -> do
-          runInputT defaultSettings (doCliTest path)
+        paths -> do
+          runInputT defaultSettings (doCliTest paths)
 
-doCliTest path = do
-  result <- doAddElements preludeEnv [EInclude (Include path)]
+doCliTest paths = do
+  let includeElements = map (EInclude . Include) paths
+  result <- doAddElements preludeEnv includeElements
   case result of
     Left () -> return ()
     Right env -> do
