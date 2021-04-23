@@ -87,3 +87,20 @@ spec = do
       (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
 
       result1 `shouldBe` Right env
+
+    it "skips duplicate includes" $ do
+      let src1 = "{include \"test/Test1.dn\"}\n{include \"test/Test1.dn\"}"
+      let (Right elems1) = parseElements src1
+      result1 <- runExceptT (tryAddElements emptyEnv elems1)
+
+      let src2 =
+            unlines
+              [ "{data Test1 {cons Test1}}",
+                "{fn test1 :: Test1}",
+                "{fn test1 => Test1}",
+                ""
+              ]
+      let (Right elems2) = parseElements src2
+      (Right env) <- runExceptT (tryAddElements emptyEnv elems2)
+
+      result1 `shouldBe` Right env

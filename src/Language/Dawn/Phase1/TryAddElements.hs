@@ -3,6 +3,7 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Dawn.Phase1.TryAddElements
   ( ElementError (..),
@@ -14,6 +15,7 @@ import Control.Monad.Except
 import Data.Bifunctor
 import Data.Either.Combinators
 import Data.List.Extra
+import qualified Data.Set as Set
 import Language.Dawn.Phase1.Core
 import Language.Dawn.Phase1.Parse (parseElementsFromFile)
 import Text.Parsec
@@ -47,24 +49,28 @@ getTestDefs (ETestDef d : es) = d : getTestDefs es
 getTestDefs (e : es) = getTestDefs es
 
 tryAddElements :: Env -> [Element] -> ExceptT ElementError IO Env
-tryAddElements env elems = do
-  elems' <- recursiveInclude "" elems
+tryAddElements env@Env {includes} elems = do
+  elems' <- recursiveInclude includes "" elems
   env1 <- liftEither (mapLeft DataDefElementError (tryAddDataDefs env (getDataDefs elems')))
   env2 <- liftEither (mapLeft FnDeclElementError (tryAddFnDecls env1 (getFnDecls elems')))
   env3 <- liftEither (mapLeft FnDefElementError (tryAddFnDefs env2 (getFnDefs elems')))
   liftEither (mapLeft TestDefElementError (tryAddTestDefs env3 (getTestDefs elems')))
   where
-    recursiveInclude :: String -> [Element] -> ExceptT ElementError IO [Element]
-    recursiveInclude uriRefDir [] = return []
-    recursiveInclude uriRefDir (EInclude (Include uriRef) : es) = do
+    recursiveInclude :: Set.Set URIRef -> URIRef -> [Element] -> ExceptT ElementError IO [Element]
+    recursiveInclude includes uriRefDir [] = return []
+    recursiveInclude includes uriRefDir (EInclude (Include uriRef) : es) = do
       let combinedUriRef =
             if null uriRefDir || "/" `isPrefixOf` uriRef
               then uriRef
               else uriRefDir ++ "/" ++ uriRef
-      es' <- ExceptT (fmap (first IncludeElementError) (parseElementsFromFile combinedUriRef))
-      let combinedUriRefSegments = splitOn "/" combinedUriRef
-      let uriRefDir' = intercalate "/" (init combinedUriRefSegments)
-      elems' <- recursiveInclude uriRefDir' es'
-      elems <- recursiveInclude uriRefDir es
-      return (elems' ++ elems)
-    recursiveInclude cwd (e : es) = return (e : es)
+      if combinedUriRef `Set.member` includes
+        then recursiveInclude includes uriRefDir es
+        else do
+          es' <- ExceptT (fmap (first IncludeElementError) (parseElementsFromFile combinedUriRef))
+          let combinedUriRefSegments = splitOn "/" combinedUriRef
+          let uriRefDir' = intercalate "/" (init combinedUriRefSegments)
+          let includes' = Set.insert combinedUriRef includes
+          elems' <- recursiveInclude includes' uriRefDir' es'
+          elems <- recursiveInclude includes' uriRefDir es
+          return (elems' ++ elems)
+    recursiveInclude includes uriRefDir (e : es) = return (e : es)
